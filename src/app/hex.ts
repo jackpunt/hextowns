@@ -65,15 +65,15 @@ export class Hex {
     return [x, y, w, h]
   }
   readonly Aname: string
-  _planet: Tile; // Tile?
-  get planet() { return this._planet; }
-  set planet(planet: Tile) { this._planet = planet; }
+  _tile: Tile; // Tile?
+  get tile() { return this._tile; }
+  set tile(tile: Tile) { this._tile = tile; }
 
-  _ship: Meeple;     // Meeple?
-  get ship() { return this._ship; }
-  set ship(ship: Meeple) { this._ship = ship }
+  _meep: Meeple;     // Meeple?
+  get meep() { return this._meep; }
+  set meep(meep: Meeple) { this._meep = meep }
 
-  get occupied() { return this.ship || this.planet }
+  get occupied() { return this.meep || this.tile }
 
   /** reduce to serializable IHex (removes map, inf, links, etc) */
   get iHex(): IHex { return { Aname: this.Aname, row: this.row, col: this.col } }
@@ -100,11 +100,11 @@ export class Hex {
   readonly links: LINKS = {}
 
   /** colorScheme(playerColor)@rcs */
-  toString(sc = this.ship?.player.color) {
+  toString(sc = this.meep?.player.color) {
     return `${TP.colorScheme[sc]}@${this.rcs}` // hex.toString => COLOR@[r,c] | COLOR@Skip , COLOR@Resign
   }
   /** hex.rcspString => COLOR@[ r, c] | 'COLOR@Skip   ' , 'COLOR@Resign ' */
-  rcspString(sc = this.ship?.player.color) {
+  rcspString(sc = this.meep?.player.color) {
     return `${TP.colorScheme[sc]}@${this.rcsp}`
   }
 
@@ -152,22 +152,22 @@ export class Hex2 extends Hex {
   rcText: Text      // shown on this.cont
   stoneIdText: Text     // shown on this.map.markCont
 
-  override get planet() { return super.planet; }
-  override set planet(planet: Tile) {
+  override get tile() { return super.tile; }
+  override set tile(tile: Tile) {
     let cont: Container = this.map.mapCont.shipCont
-    if (this.planet !== undefined) cont.removeChild(this.planet)
-    super.planet = planet
-    if (planet !== undefined) {
-      planet.x = this.x; planet.y = this.y;
-      cont.addChild(planet)
+    if (this.tile !== undefined) cont.removeChild(this.tile)
+    super.tile = tile
+    if (tile !== undefined) {
+      tile.x = this.x; tile.y = this.y;
+      cont.addChild(tile)
     }
   }
 
-  override get ship() { return super.ship; }
-  override set ship(ship: Meeple) {
+  override get meep() { return super.meep; }
+  override set meep(ship: Meeple) {
     let cont: Container = this.map.mapCont.shipCont
-    if (this.ship !== undefined) cont.removeChild(this.ship)
-    super.ship = ship
+    if (this.meep !== undefined) cont.removeChild(this.meep)
+    super.meep = ship
     if (ship !== undefined) {
       ship.x = this.x; ship.y = this.y;
       cont.addChild(ship)
@@ -266,7 +266,7 @@ export class Hex2 extends Hex {
   }
 }
 
-/** the colored Shape the fills a Hex. */
+/** the colored Shape that fills a Hex. */
 class HexShape extends Shape {
 
 }
@@ -310,7 +310,7 @@ export interface HexM {
  */
 export class HexMap extends Array<Array<Hex>> implements HexM {
   // A color for each District:
-  static readonly distColor = ["rgb(30,30,10)","limegreen","deepskyblue","rgb(255,165,0)","violet","rgb(250,80,80)","yellow"]
+  static readonly distColor = ["lightgrey","limegreen","deepskyblue","rgb(255,165,0)","violet","rgb(250,80,80)","yellow"]
 
   /** Each occupied Hex, with the occupying PlayerColor  */
   readonly allStones: HSC[] = []                    // aka hexStones in Board (readonly when we stop remove/filter)
@@ -497,7 +497,6 @@ export class HexMap extends Array<Array<Hex>> implements HexM {
    */
   makeAllDistricts(dbp = TP.dbp, dop = TP.dop) {
     this.makeDistrict(dbp + 2 + dop, 0, 1, 0);    // dop hexes on outer ring; single meta-hex
-    this.mapCont.hexCont && this.placePlanets();  // for initial testing: highlight planets
     this.mapCont.hexCont && this.centerOnContainer()
   }
   centerOnContainer() {
@@ -510,30 +509,10 @@ export class HexMap extends Array<Array<Hex>> implements HexM {
     })
   }
 
-  hexDirPlanets = new Map<HexDir | typeof H.C, Hex2>();
-  get planet0() { return this.hexDirPlanets.get(H.C) };
-  /** color center and 6 planets, dist = 1 ... 7 */  // TODO: random location (1-step)
-  placePlanets(coff = TP.dbp) {
-    Tile.remake();
-    let cr = Math.floor((this.maxRow + this.minRow) / 2), cc = Math.floor((this.minCol + this.maxCol) / 2);
-    let cHex = this[cr][cc] as Hex2
-    let dist = 0;
-    let placePlanet = (key: HexDir | typeof H.C, color: string, hex: Hex2) => {
-      this.hexDirPlanets.set(key, hex)    // find planet in the given direction
-      hex.planet = Tile.tiles[dist++]
-      hex.planet.on('mousedown', (evt: MouseEvent) => {
-        if (evt.nativeEvent.buttons === 2) hex.planet.onRightClick(evt)
-      })
-      hex.setHexColor(color, dist)   // colorPlanets: district = 1..7
-    }
-    placePlanet(H.C, 'lightblue', cHex)
-    for (let ds of H.ewDirs) {
-      let pHex = cHex.nextHex(ds, coff + 1) as Hex2;
-      // offset pHex in random direction (or not)
-      let odir = H.ewDirs[Math.floor(Math.random() * H.ewDirs.length)]
-      let oHex = TP.offP && (odir != H.dirRev[ds]) ? pHex.nextHex(odir, 1) as Hex2 : pHex;
-      placePlanet(ds, 'lightgreen', oHex)
-    }
+  get centerHex() {
+    let cr = Math.floor((this.maxRow + this.minRow) / 2)
+    let cc = Math.floor((this.minCol + this.maxCol) / 2);
+    return this[cr][cc] as Hex2
   }
 
   pickColor(hexAry: Hex2[]): string {

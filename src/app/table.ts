@@ -9,7 +9,8 @@ import { Player } from "./player";
 import { Meeple } from "./meeple";
 import { StatsPanel } from "./stats";
 //import { StatsPanel } from "./stats";
-import { otherColor, PlayerColor, playerColor0, playerColor1, PlayerColorRecord, playerColorRecord, playerColorRecordF, TP } from "./table-params";
+import { PlayerColor, playerColor0, playerColor1, TP } from "./table-params";
+import { Tile } from "./tile";
 
 
 /** to own file... */
@@ -189,19 +190,20 @@ export class Table extends EventDispatcher  {
   lastDrag: Meeple; // last Meeple or Tile to be dragged [debug]
   startGame() {
     // initialize Players & TownStart & draw pile
+    Tile.makeTowns()
     this.gamePlay.forEachPlayer(p => {
       p.placeTown()
-      p.meeples.forEach(ship => this.dragger.makeDragable(ship, this,
+      p.meeples.forEach(meep => this.dragger.makeDragable(meep, this,
         // dragFunc
-        (ship: Meeple, ctx) => {
-          this.lastDrag = ship
-          let hex = this.hexUnderObj(ship)
-          if (hex) ship.dragFunc(hex, ctx)
+        (meep: Meeple, ctx) => {
+          this.lastDrag = meep
+          let hex = this.hexUnderObj(meep)
+          if (hex) meep.dragFunc(hex, ctx)
         },
         // dropFunc
-        (ship: Meeple, ctx) => {
-          let hex = this.hexUnderObj(ship)
-          if (hex) ship.dropFunc(hex, ctx)
+        (meep: Meeple, ctx) => {
+          let hex = this.hexUnderObj(meep)
+          if (hex) meep.dropFunc(hex, ctx)
         })
       )
       this.hexMap.update()

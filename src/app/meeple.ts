@@ -31,9 +31,9 @@ export class Meeple extends Container {
   _hex: Hex;
   get hex() { return this._hex; }
   set hex(hex: Hex) {
-    if (this.hex !== undefined) this.hex.ship = undefined
+    if (this.hex !== undefined) this.hex.meep = undefined
     this._hex = hex
-    hex.ship = this
+    hex.meep = this
   }
   pCont: Container
 
@@ -201,7 +201,7 @@ export class Meeple extends Container {
 
   dragBack() {
     this.hex = this.targetHex = this.originHex
-    this.originHex.ship = this;
+    this.originHex.meep = this;
     this.hex.map.update()
   }
   dragAgain() {

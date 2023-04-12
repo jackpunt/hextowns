@@ -1,11 +1,12 @@
 import { stime, S } from "@thegraid/common-lib"
 import { GamePlay } from "./game-play"
 import { Hex, Hex2, IHex } from "./hex"
-import { H } from "./hex-intfs"
+import { H, HexDir } from "./hex-intfs"
 import { IPlanner, newPlanner } from "./plan-proxy"
 import { Meeple } from "./meeple"
 import { Table } from "./table"
 import { PlayerColor, playerColors, TP } from "./table-params"
+import { Tile } from "./tile"
 
 export class Player {
   static allPlayers: Player[] = [];
@@ -34,14 +35,20 @@ export class Player {
   }
   /** choose placement of TownStart */
   placeTown() {
-    //
+    let town = Tile.selectOne(Tile.townStarts)
+    let hex = this.table.hexMap.centerHex as Hex;
+    let path: HexDir[] = [['NE', 'NW', 'NE'] as HexDir[], ['SE', 'SW', 'SW'] as HexDir[]][this.index];
+    path.forEach(dir => {
+      hex = hex.nextHex(dir)
+    });
+    hex.tile = town
   }
   /** place ship initially on a Hex adjacent to planet0 */
   chooseShipHex(ship: Meeple) {
     let map = this.table.hexMap, hexes: Hex[] = []
     // find un-occupied hexes surrounding planet0
     H.ewDirs.forEach(dir => {
-      let hex = map.planet0.nextHex(dir) as Hex;
+      let hex = map.centerHex.nextHex(dir) as Hex;
       if (!hex.occupied) hexes.push(hex)
     })
     let dn = Math.floor(Math.random() * hexes.length);

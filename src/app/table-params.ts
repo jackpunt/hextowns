@@ -31,7 +31,7 @@ export class TP {
   static Blue_Red = playerColorRecord<'BLUE' | 'RED'>('BLUE', 'RED')
   static Red_Blue = playerColorRecord<'RED' | 'BLUE'>('RED', 'BLUE')
   static schemeNames = ['Red_Blue']
-  static colorScheme = TP.Blue_Red // as AfColor !?
+  static colorScheme = TP.Blue_Red
   static numPlayers = 2;
   static load = 5;  // initial Ship load for manual testing
   /** offset planets  */
