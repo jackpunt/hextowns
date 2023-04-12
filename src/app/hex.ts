@@ -1,7 +1,7 @@
 import { C, F, RC, S, stime } from "@thegraid/easeljs-lib";
 import { Container, DisplayObject, MouseEvent, Point, Shape, Text } from "@thegraid/easeljs-module";
 import { EwDir, H, HexDir, InfDir, NsDir } from "./hex-intfs";
-import { Planet } from "./planet";
+import { Tile } from "./tile";
 import { Meeple } from "./meeple";
 import { PlayerColor, TP } from "./table-params";
 
@@ -65,9 +65,9 @@ export class Hex {
     return [x, y, w, h]
   }
   readonly Aname: string
-  _planet: Planet; // Tile?
+  _planet: Tile; // Tile?
   get planet() { return this._planet; }
-  set planet(planet: Planet) { this._planet = planet; }
+  set planet(planet: Tile) { this._planet = planet; }
 
   _ship: Meeple;     // Meeple?
   get ship() { return this._ship; }
@@ -153,7 +153,7 @@ export class Hex2 extends Hex {
   stoneIdText: Text     // shown on this.map.markCont
 
   override get planet() { return super.planet; }
-  override set planet(planet: Planet) {
+  override set planet(planet: Tile) {
     let cont: Container = this.map.mapCont.shipCont
     if (this.planet !== undefined) cont.removeChild(this.planet)
     super.planet = planet
@@ -514,13 +514,13 @@ export class HexMap extends Array<Array<Hex>> implements HexM {
   get planet0() { return this.hexDirPlanets.get(H.C) };
   /** color center and 6 planets, dist = 1 ... 7 */  // TODO: random location (1-step)
   placePlanets(coff = TP.dbp) {
-    Planet.remake();
+    Tile.remake();
     let cr = Math.floor((this.maxRow + this.minRow) / 2), cc = Math.floor((this.minCol + this.maxCol) / 2);
     let cHex = this[cr][cc] as Hex2
     let dist = 0;
     let placePlanet = (key: HexDir | typeof H.C, color: string, hex: Hex2) => {
       this.hexDirPlanets.set(key, hex)    // find planet in the given direction
-      hex.planet = Planet.planets[dist++]
+      hex.planet = Tile.tiles[dist++]
       hex.planet.on('mousedown', (evt: MouseEvent) => {
         if (evt.nativeEvent.buttons === 2) hex.planet.onRightClick(evt)
       })
