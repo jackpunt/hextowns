@@ -1,6 +1,5 @@
 import { C, F, RC, S, stime } from "@thegraid/easeljs-lib";
 import { Container, DisplayObject, MouseEvent, Point, Shape, Text } from "@thegraid/easeljs-module";
-import { AfHex } from "./AfHex";
 import { EwDir, H, HexDir, InfDir, NsDir } from "./hex-intfs";
 import { Planet } from "./planet";
 import { Ship } from "./ship";
@@ -99,7 +98,6 @@ export class Hex {
   readonly col: number
   /** Link to neighbor in each H.dirs direction [NE, E, SE, SW, W, NW] */
   readonly links: LINKS = {}
-  afhex: AfHex;
 
   /** colorScheme(playerColor)@rcs */
   toString(sc = this.ship?.player.color) {
@@ -128,23 +126,6 @@ export class Hex {
     let dx = tx - hx, dy = ty - hy
     return Math.sqrt(dx * dx + dy * dy);
   }
-
-  addAfHex(affn = Math.floor(Math.random() * AfHex.allAfHex.length)) {
-    if (this.district !== undefined) return
-    let afhex2 = AfHex.allAfHex[affn].clone();
-    let spin = Math.floor(Math.random() * 6)
-    afhex2['spin'] = spin
-    afhex2.rotation = 60 * spin; // degrees, not radians
-    afhex2.aColors = AfHex.rotateAf(afhex2.aColors, spin)
-    afhex2.aShapes = AfHex.rotateAf(afhex2.aShapes, spin)
-    afhex2.aFill = AfHex.rotateAf(afhex2.aFill, spin)
-    this.afhex = afhex2;
-  }
-  /** remove AfHex from planet Hex */
-  rmAfHex() {
-    this.afhex = undefined;
-  }
-
 }
 /** One Hex cell in the game, shown as a polyStar Shape */
 export class Hex2 extends Hex {
@@ -205,7 +186,6 @@ export class Hex2 extends Hex {
     this.stoneIdText.textAlign = 'center'; this.stoneIdText.regY = -20
 
     if (row === undefined || col === undefined) return // args not supplied: nextHex
-    this.addAfHex()           // even when (name == 'nextHex')
     let [x, y, w, h] = this.xywh(this.radius)
     this.x += x
     this.y += y
@@ -222,17 +202,6 @@ export class Hex2 extends Hex {
     this.distText.textAlign = 'center'; this.distText.y = tdy + 46 // yc + 26+20
     this.cont.addChild(this.distText)
     this.showText(true); // & this.cache()
-  }
-  override addAfHex(affn = Math.floor(Math.random() * AfHex.allAfHex.length)) {
-    super.addAfHex(affn)
-    this.cont.addChild(this.afhex)
-    this.cache()
-  }
-  /** remove AfHex from planet Hex */
-  override rmAfHex() {
-    this.cont.removeChild(this.afhex)
-    this.cache()
-    super.rmAfHex()
   }
   /** cache() or updateCache() */
   cache(initial = false) {
@@ -551,7 +520,6 @@ export class HexMap extends Array<Array<Hex>> implements HexM {
     let dist = 0;
     let placePlanet = (key: HexDir | typeof H.C, color: string, hex: Hex2) => {
       this.hexDirPlanets.set(key, hex)    // find planet in the given direction
-      hex.rmAfHex()
       hex.planet = Planet.planets[dist++]
       hex.planet.on('mousedown', (evt: MouseEvent) => {
         if (evt.nativeEvent.buttons === 2) hex.planet.onRightClick(evt)

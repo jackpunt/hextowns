@@ -1,7 +1,6 @@
 import { C, F, stime } from "@thegraid/common-lib";
 import { DragInfo } from "@thegraid/easeljs-lib";
 import { Container, Graphics, Shape, Text } from "@thegraid/easeljs-module";
-import { AF, AfColor, AfFill, ATS } from "./AfHex";
 import { Hex, Hex2 } from "./hex";
 import { EwDir, H, HexDir } from "./hex-intfs";
 import { Cargo } from "./planet";
@@ -15,9 +14,6 @@ type Path<T extends Hex> = PathElt<T>[]
 
 /** changes in ship for each transit Step */
 type ZConfig = {
-  zshape: ATS,
-  zcolor: AfColor,
-  zfill: AfFill, // AF.F | AF.L
   fuel: number,
 }
 export class Ship extends Container {
@@ -51,19 +47,13 @@ export class Ship extends Container {
   get transitCost() { return Ship.maxZ * (this.z0 + this.curload) + Ship.step1; }
 
   get color() { return this.player?.afColor } // as AfColor!
-  readonly colorValues = C.nameToRgba(AF.zcolor[this.color]); // with alpha component
+  readonly colorValues = C.nameToRgba("blue"); // with alpha component
 
-  /** current Z-configuration */
-  zconfig: ZConfig = { zshape: null, zcolor: this.color, zfill: AF.F, fuel: 0 };
-  get zshape() { return this.zconfig.zshape; }
-  get zcolor() { return this.zconfig.zcolor; }
-  get zfill() { return this.zconfig.zfill; }
-  get fuel() { return this.zconfig.fuel; }
   // maxLoad = [0, 8, 12, 16]
   // maxFuel = mL = (mF - z0 - 1)/mZ;  mF = mL*mZ+z0+1
   readonly maxFuel = [0, 24+2, 36+3, 48+4][this.z0]; // [26,39,52]
   readonly maxLoad = (this.maxFuel - this.z0 - Ship.step1) / Ship.maxZ; // calc maxLoad
-  newTurn() { this.zconfig.fuel = this.maxFuel; this.moved = false; }
+  newTurn() { this.moved = false; }
 
   //initially: expect maxFuel = (10 + z0*5) = {15, 20, 25}
   /**
@@ -91,25 +81,7 @@ export class Ship extends Container {
    * @param pcolor AF.zcolor of inner ring ("player" color)
    */
   paint(pcolor = this.player?.afColor) {
-    this.paint1(undefined, pcolor)  // TODO: define source/type of Zcolor
-  }
-
-  /** repaint with new Zcolor or TP.colorScheme */
-  paint1(zcolor: AfColor = this.zcolor, pColor?: AfColor) {
-    let r2 = this.radius + 8, r1 = this.radius, r0 = this.radius - 2
-    let g = this.gShape.graphics.c()
-    if (pColor) {
-      g.f(AF.zcolor[zcolor]).dc(0, 0, r2);
-      g.f(C.BLACK).dc(0, 0, r1)
-      g.f(AF.zcolor[pColor]).dc(0, 0, r0)
-    }
-    this.cache(-r2, -r2, 2 * r2, 2 * r2); // Container of Shape & Text
-  }
-
-  paint2(zcolor: AfColor) {
-    this.paint1(zcolor)
-    this.gShape.graphics.c().f(C.BLACK).dc(0, 0, this.radius/2) // put a hole in it!
-    this.updateCache("destination-out") // clear center of Ship!
+    this.updateCache();
   }
 
   /** from zconfig field name to AfHex field name. */
@@ -120,18 +92,11 @@ export class Ship extends Container {
    * @param nconfig updated zconfig after spending re-configuration cost
    * @return cost to re-config + curload + shipCost
    */
-  configCost(hex0: Hex, ds: EwDir, hex1 = hex0.nextHex(ds), nconfig = { ...this.zconfig }) {
-    if (!hex0?.afhex || !hex1?.afhex) return undefined
+  configCost(hex0: Hex, ds: EwDir, hex1 = hex0.nextHex(ds)) {
     let od = H.ewDirs.findIndex(d => d == ds)
     let id = H.ewDirs.findIndex(d => d == H.dirRev[ds])
     let dc = 0    // number of config changes incured in transition from hex0 to hex1
-    for (let x of this.zkeys) {
-      let hex0Conf = hex0.afhex[this.azmap[x]][od]
-      if (nconfig[x] !== hex0Conf) dc++
-      let hex1Conf = hex1.afhex[this.azmap[x]][id]
-      if (hex1Conf !== hex0Conf) dc++
-      nconfig[x] = hex1Conf
-    }
+
     return dc * (this.curload + this.z0) + Ship.step1;
   }
 
@@ -139,13 +104,8 @@ export class Ship extends Container {
    * @return false if move not possible (no Hex, insufficient fuel)
    */
   move(dir: EwDir, hex = this.hex.nextHex(dir)) {
-    let nconfig = { ... this.zconfig }
     if (hex.occupied) return false;
-    let cost = this.configCost(this.hex, dir, hex, nconfig)
-    if (!cost || cost > this.fuel) return false;
-    nconfig.fuel -= cost
     this.hex = hex;
-    this.zconfig = nconfig
     hex.map.update()    // TODO: invoke in correct place...
     return true
   }
@@ -174,9 +134,7 @@ export class Ship extends Container {
       return pStep?.curHex === nHex
     }
     // BFS, doing rings (H.ewDirs) around the starting hex.
-    let fuel = this.moved ? this.fuel : this.maxFuel
-    let nConfig = { ... this.zconfig, fuel }
-    let step = new Step<T>(0, hex0 as T, undefined, undefined, nConfig, 0, hex1)
+    let step = new Step<T>(0, hex0 as T, undefined, undefined, { fuel: 0 }, 0, hex1)
     let mins = minMetric.toFixed(1), Hex0 = hex0.Aname, Hex1 = hex1.Aname
     console.log(stime(this, `.findPathsWithMetric:`), { ship: this, mins, Hex0, Hex1, hex0, hex1 })
     let open: Step<T>[] = [step], closed: Step<T>[] = [], done: Step<T>[] = []
@@ -188,17 +146,14 @@ export class Ship extends Container {
       for (let dir of H.ewDirs) {
         let nHex = step.curHex.nextHex(dir) as T, nConfig = { ... step.config } // copy of step.config
         if (nHex.occupied) continue // occupied
-        let cost = this.configCost(step.curHex, dir, nHex, nConfig)
-        if (cost === undefined) continue; // no afHex, no transit possible
         let turn = step.turn
-        nConfig.fuel = nConfig.fuel - cost
+        nConfig.fuel = nConfig.fuel
         if (nConfig.fuel < 0) {   // Oops: we need to refuel before this Step!
           turn += 1
-          nConfig.zshape = null;  // shape resets each turn
-          nConfig.fuel = this.maxFuel - cost;
+          nConfig.fuel = this.maxFuel
           if (nConfig.fuel < 0) break // over max load!
         }
-        let nStep = new Step<T>(turn, nHex, dir, step, nConfig, cost, hex1)
+        let nStep = new Step<T>(turn, nHex, dir, step, nConfig, 0, hex1)
         if (closed.find(nStep.isMatchingElement, nStep)) continue  // already evaluated & expanded
         if (open.find(nStep.isExistingPath, nStep) ) continue     // already a [better] path to nHex
         // assert: open contains only 1 path to any Step(Hex, config) that path has minimal metric
@@ -444,10 +399,7 @@ class Step<T extends Hex> {
 
   /** used as predicate for find (ignore ndx & obj) */
   isMatchingElement(s: Step<T>, ndx?: number, obj?: Step<T>[]) {
-    return s.curHex === this.curHex &&
-      s.config.zcolor === this.config.zcolor &&
-      s.config.zshape === this.config.zshape &&
-      s.config.zfill === this.config.zfill
+    return s.curHex === this.curHex
   }
 
   /**

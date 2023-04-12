@@ -1,7 +1,6 @@
 import { ParamMap } from "@angular/router";
 import { C, CycleChoice, DropdownStyle, makeStage, ParamGUI, ParamItem, S, stime } from "@thegraid/easeljs-lib";
 import { Container, Stage } from "@thegraid/easeljs-module";
-import { AfHex } from "./AfHex";
 import { BC, EBC, PidChoice } from "./choosers";
 import { GamePlay } from "./game-play";
 import { Hex2, HexMap } from "./hex";
@@ -68,7 +67,6 @@ export class GameSetup {
    * @param ext Extensions from URL
    */
   startup(ext: string[] = []) {
-    AfHex.makeAllAfHex()
     let table = new Table(this.stage) // EventDispatcher, ScaleCont, GUI-Player
     let gamePlay = new GamePlay(table, this) // hexMap, players, gStats, mouse/keyboard->GamePlay
     this.gamePlay = gamePlay

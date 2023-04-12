@@ -1,5 +1,4 @@
 import { stime, S } from "@thegraid/common-lib"
-import { AF, AfColor, ZColor } from "./AfHex"
 import { GamePlay } from "./game-play"
 import { Hex, Hex2, IHex } from "./hex"
 import { H } from "./hex-intfs"
@@ -14,7 +13,7 @@ export class Player {
   name: string
   index: number = 0; // index in playerColors & allPlayers
   color: PlayerColor = playerColors[this.index]
-  get afColor() { return ZColor[this.index]; }
+  get afColor() { return ""; }
   table: Table
   coins: number = Player.initialCoins;
   ships: Ship[] = []
