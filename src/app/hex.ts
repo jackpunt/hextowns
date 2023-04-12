@@ -2,7 +2,7 @@ import { C, F, RC, S, stime } from "@thegraid/easeljs-lib";
 import { Container, DisplayObject, MouseEvent, Point, Shape, Text } from "@thegraid/easeljs-module";
 import { EwDir, H, HexDir, InfDir, NsDir } from "./hex-intfs";
 import { Planet } from "./planet";
-import { Ship } from "./ship";
+import { Meeple } from "./meeple";
 import { PlayerColor, TP } from "./table-params";
 
 export const S_Resign = 'Hex@Resign'
@@ -65,13 +65,13 @@ export class Hex {
     return [x, y, w, h]
   }
   readonly Aname: string
-  _planet: Planet;
+  _planet: Planet; // Tile?
   get planet() { return this._planet; }
   set planet(planet: Planet) { this._planet = planet; }
 
-  _ship: Ship;
+  _ship: Meeple;     // Meeple?
   get ship() { return this._ship; }
-  set ship(ship: Ship) { this._ship = ship }
+  set ship(ship: Meeple) { this._ship = ship }
 
   get occupied() { return this.ship || this.planet }
 
@@ -164,7 +164,7 @@ export class Hex2 extends Hex {
   }
 
   override get ship() { return super.ship; }
-  override set ship(ship: Ship) {
+  override set ship(ship: Meeple) {
     let cont: Container = this.map.mapCont.shipCont
     if (this.ship !== undefined) cont.removeChild(this.ship)
     super.ship = ship

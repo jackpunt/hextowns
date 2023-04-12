@@ -127,7 +127,7 @@ export class GameSetup {
     gui.spec("offP").onChange = (item: ParamItem) => { gui.setValue(item); setSize(TP.dbp, TP.dop) }
     gui.spec('load').onChange = (item: ParamItem) => {
       gui.setValue(item)
-      restart && Player.allPlayers.forEach(p => p.ships[0].cargo = [new Cargo('F1', item.value)]); // ParamItem, not (PC) Item
+      restart && Player.allPlayers.forEach(p => p.meeples[0].cargo = [new Cargo('F1', item.value)]); // ParamItem, not (PC) Item
     }
     gui.spec("colorScheme").onChange = (item: ParamItem) => {
       gui.setValue(item)

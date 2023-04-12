@@ -163,7 +163,6 @@ export class TableStats extends GameStats {
   override updateStats(board?: Board): [PlayerColor, WINARY] {
     const winAry = super.updateStats(board)
     this.gamePlay.forEachPlayer(p => {
-      this.pStats[p.color].nCoins = p.coins
     })
 
     const [win] = winAry

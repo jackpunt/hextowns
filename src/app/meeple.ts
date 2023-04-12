@@ -16,7 +16,7 @@ type Path<T extends Hex> = PathElt<T>[]
 type ZConfig = {
   fuel: number,
 }
-export class Ship extends Container {
+export class Meeple extends Container {
   /** intrinsic cost for each Step (0 or 1); start of turn pays 1 for null 'shape' */
   static step1 = 1;
   static maxZ = 3;       // for now: {shape + color + color}
@@ -26,7 +26,7 @@ export class Ship extends Container {
 
   readonly radius = this.z0 * 10;
   readonly gShape: Shape = new Shape();
-  readonly Aname: string = `S${Ship.idCounter++}`
+  readonly Aname: string = `S${Meeple.idCounter++}`
 
   /** current location of this Ship. */
   _hex: Hex;
@@ -38,21 +38,20 @@ export class Ship extends Container {
   }
   pCont: Container
   cargo: Cargo[] = [new Cargo('F1', 5)];
-  coins: number = Ship.initCoins
+  coins: number = Meeple.initCoins
 
   get curload() {
     return this.cargo.map(c => c.quant).reduce((n, p) => n + p, 0 )
   }
   /** 'worst-case' cost for single step */
-  get transitCost() { return Ship.maxZ * (this.z0 + this.curload) + Ship.step1; }
+  get transitCost() { return Meeple.maxZ * (this.z0 + this.curload) + Meeple.step1; }
 
-  get color() { return this.player?.afColor } // as AfColor!
   readonly colorValues = C.nameToRgba("blue"); // with alpha component
 
   // maxLoad = [0, 8, 12, 16]
   // maxFuel = mL = (mF - z0 - 1)/mZ;  mF = mL*mZ+z0+1
   readonly maxFuel = [0, 24+2, 36+3, 48+4][this.z0]; // [26,39,52]
-  readonly maxLoad = (this.maxFuel - this.z0 - Ship.step1) / Ship.maxZ; // calc maxLoad
+  readonly maxLoad = (this.maxFuel - this.z0 - Meeple.step1) / Meeple.maxZ; // calc maxLoad
   newTurn() { this.moved = false; }
 
   //initially: expect maxFuel = (10 + z0*5) = {15, 20, 25}
@@ -77,10 +76,9 @@ export class Ship extends Container {
   }
 
   /**
-   * show ship with current zcolor (from last transit config)
-   * @param pcolor AF.zcolor of inner ring ("player" color)
+   * show meeple
    */
-  paint(pcolor = this.player?.afColor) {
+  paint() {
     this.updateCache();
   }
 
@@ -97,7 +95,7 @@ export class Ship extends Container {
     let id = H.ewDirs.findIndex(d => d == H.dirRev[ds])
     let dc = 0    // number of config changes incured in transition from hex0 to hex1
 
-    return dc * (this.curload + this.z0) + Ship.step1;
+    return dc * (this.curload + this.z0) + Meeple.step1;
   }
 
   /** move to hex, incur cost to fuel.
@@ -176,7 +174,7 @@ export class Ship extends Container {
     if (done.length > 0) {
       let met0 = done[0].metric || -1, clen = closed.length
       let pathm = done.map(p => { return { turn: p.turn, fuel: p.config.fuel, metric: this.pathMetric(p), p: p.toString(), s0: p } })
-      console.log(stime(this, `.findPathsWithMetric:`), hex0.Aname, hex1.Aname, this.color, this.curload, met0, clen, `paths:`, pathm)
+      console.log(stime(this, `.findPathsWithMetric:`), hex0.Aname, hex1.Aname, this.curload, met0, clen, `paths:`, pathm)
     }
     return done
   }

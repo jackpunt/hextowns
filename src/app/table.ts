@@ -6,7 +6,7 @@ import { HexEvent } from "./hex-event";
 import { H, XYWH } from "./hex-intfs";
 //import { TablePlanner } from "./planner";
 import { Player } from "./player";
-import { Ship } from "./ship";
+import { Meeple } from "./meeple";
 import { StatsPanel } from "./stats";
 //import { StatsPanel } from "./stats";
 import { otherColor, PlayerColor, playerColor0, playerColor1, PlayerColorRecord, playerColorRecord, playerColorRecordF, TP } from "./table-params";
@@ -186,20 +186,20 @@ export class Table extends EventDispatcher  {
 
     this.on(S.add, this.gamePlay.playerMoveEvent, this.gamePlay)[S.Aname] = "playerMoveEvent"
   }
-  dragShip: Ship; // last ship to be dragged [debug]
+  lastDrag: Meeple; // last Meeple or Tile to be dragged [debug]
   startGame() {
-    // initialize Players & Ships & Commodities
+    // initialize Players & TownStart & draw pile
     this.gamePlay.forEachPlayer(p => {
-      p.placeShips()
-      p.ships.forEach(ship => this.dragger.makeDragable(ship, this,
+      p.placeTown()
+      p.meeples.forEach(ship => this.dragger.makeDragable(ship, this,
         // dragFunc
-        (ship: Ship, ctx) => {
-          this.dragShip = ship
+        (ship: Meeple, ctx) => {
+          this.lastDrag = ship
           let hex = this.hexUnderObj(ship)
           if (hex) ship.dragFunc(hex, ctx)
         },
         // dropFunc
-        (ship: Ship, ctx) => {
+        (ship: Meeple, ctx) => {
           let hex = this.hexUnderObj(ship)
           if (hex) ship.dropFunc(hex, ctx)
         })

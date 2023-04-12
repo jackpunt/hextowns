@@ -1,6 +1,5 @@
 import { C } from "@thegraid/common-lib"
 import { BoolChoice, ChoiceItem, ChoiceStyle, Chooser, DropdownButton, DropdownChoice, DropdownItem, DropdownStyle, EditBox, KeyBinder, ParamItem, ParamLine, TextStyle } from "@thegraid/easeljs-lib"
-import { Ship } from "./ship"
 
 /** no choice: a DropdownChoice with 1 mutable item that can be set by setValue(...) */
 export class NC extends DropdownChoice {
@@ -50,24 +49,8 @@ export class EBC extends Chooser {
 
 /** like StatsPanel: read-only output field */
 export class PidChoice extends NC {
-  readonly playerShip: Ship = new Ship()
-  paintPid(pid: number) {
-    let ship = this.playerShip, color = ship.player?.afColor
-    ship.paint(color)
-    ship.visible = true
-    if (!ship.parent) {
-      let line = this.parent as ParamLine
-      ship.scaleX = ship.scaleY = (line.height - 2) / ship.radius
-      ship.x = ship.scaleY * ship.radius * 2 + 1
-      ship.y = line.height / 2
-      this.addChild(ship)
-    }
-  }
-  override setValue(value: any, item: ParamItem, target: object) {
-    //target[item.fieldName] = item.value
-    this.paintPid(item ? item.value : "   ") // do NOT set any fieldName/value
-    return false
-  }
+
+
 }
 
 /** present [false, true] with any pair of string: ['false', 'true'] */

@@ -131,8 +131,8 @@ export class GamePlay extends GamePlay0 {
     KeyBinder.keyBinder.setKey('x', { thisArg: this, func: () => {this.table.enableHexInspector(); }})
     KeyBinder.keyBinder.setKey('t', { thisArg: this, func: () => {this.table.toggleText(undefined, undefined); }})
     KeyBinder.keyBinder.setKey('z', { thisArg: this, func: () => {this.gStats.updateStats(); }})
-    KeyBinder.keyBinder.setKey('.', { thisArg: this, func: () => {this.table.dragShip.dragAgain(); }})
-    KeyBinder.keyBinder.setKey(',', { thisArg: this, func: () => {this.table.dragShip.dragBack(); }})
+    KeyBinder.keyBinder.setKey('.', { thisArg: this, func: () => {this.table.lastDrag.dragAgain(); }})
+    KeyBinder.keyBinder.setKey(',', { thisArg: this, func: () => {this.table.lastDrag.dragBack(); }})
 
     KeyBinder.keyBinder.setKey('M-r', { thisArg: this, func: () => { this.gameSetup.netState = "ref" } })
     KeyBinder.keyBinder.setKey('M-J', { thisArg: this, func: () => { this.gameSetup.netState = "new" } })

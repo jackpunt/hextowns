@@ -3,20 +3,19 @@ import { GamePlay } from "./game-play"
 import { Hex, Hex2, IHex } from "./hex"
 import { H } from "./hex-intfs"
 import { IPlanner, newPlanner } from "./plan-proxy"
-import { Ship } from "./ship"
+import { Meeple } from "./meeple"
 import { Table } from "./table"
 import { PlayerColor, playerColors, TP } from "./table-params"
 
 export class Player {
   static allPlayers: Player[] = [];
-  static initialCoins = 400;
   name: string
   index: number = 0; // index in playerColors & allPlayers
   color: PlayerColor = playerColors[this.index]
-  get afColor() { return ""; }
   table: Table
-  coins: number = Player.initialCoins;
-  ships: Ship[] = []
+  meeples: Meeple[] = []
+  tiles = [];   // R/B/PS Tiles (& Civics?)
+  civics = [];  // TS, U, C, CH
   otherPlayer: Player
   planner: IPlanner
   /** if true then invoke plannerMove */
@@ -30,15 +29,15 @@ export class Player {
     this.name = `Player${index}-${this.colorn}`
     Player.allPlayers[index] = this;
   }
-  makeShips() {
-    this.ships = []
-    this.ships.push(new Ship(this))  // initial default Ship (Freighter)
+  makeMeeple() {
+    this.meeples = [];     // no meeple at startup@
   }
-  placeShips() {
-    this.ships.forEach(ship => ship.hex = this.chooseShipHex(ship))
+  /** choose placement of TownStart */
+  placeTown() {
+    //
   }
   /** place ship initially on a Hex adjacent to planet0 */
-  chooseShipHex(ship: Ship) {
+  chooseShipHex(ship: Meeple) {
     let map = this.table.hexMap, hexes: Hex[] = []
     // find un-occupied hexes surrounding planet0
     H.ewDirs.forEach(dir => {
@@ -61,7 +60,7 @@ export class Player {
    * [make newPlanner for this Player]
    */
   newGame(gamePlay: GamePlay, url = TP.networkUrl) {
-    this.makeShips()
+    this.makeMeeple()
     this.planner?.terminate()
     // this.hgClient = (this.index == Player.remotePlayer) ? new HgClient(url, (hgClient) => {
     //   console.log(stime(this, `.hgClientOpen!`), hgClient)
@@ -69,7 +68,7 @@ export class Player {
     this.planner = newPlanner(gamePlay.hexMap, this.index)
   }
   newTurn() {
-    this.ships.forEach(ship => ship.newTurn())
+    this.meeples.forEach(ship => ship.newTurn())
   }
   stopMove() {
     this.planner?.roboMove(false)
@@ -83,7 +82,7 @@ export class Player {
     if (running) return
     if (useRobo || this.useRobo) {
     // continue any semi-auto moves for ship:
-      if (!this.ships.find(ship => !ship.shipMove())) {
+      if (!this.meeples.find(ship => !ship.shipMove())) {
         this.table.gamePlay.setNextPlayer();    // if all ships moved
       }
       // start plannerMove from top of stack:
