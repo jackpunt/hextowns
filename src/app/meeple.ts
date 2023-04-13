@@ -63,7 +63,7 @@ export class Meeple extends Container {
     nameText.y = -textSize / 2;
     this.addChild(nameText)
     this.paint()  // TODO: makeDraggable/Dropable on hexMap
-    this.pCont = player?.table.hexMap.mapCont.pathConts[player?.index]
+    this.pCont = player?.gamePlay.hexMap.mapCont.pathConts[player?.index]
   }
 
   /**

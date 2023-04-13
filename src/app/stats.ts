@@ -143,20 +143,7 @@ export class TableStats extends GameStats {
     this.table = table
   }
 
-  showBoardRep(n: number) {
-    let repText = this.boardRep
-    if (!repText) {
-      repText = this.boardRep =  new Text('0', F.fontSpec(36), C.YELLOW)
-      repText.textAlign = 'center'
-      if (!!this.table) {
-        this.table.nextHex.cont.localToLocal(0, -46, this.table.hexMap.mapCont.shipCont, repText)
-        this.table.hexMap.mapCont.shipCont.addChild(repText)
-      }
-    }
-    repText.text = `${n}`
-    repText.color = (n < 3) ? C.YELLOW : C.RED
-    repText.visible = (n >= 0)
-  }
+
   /** update all the stats
    * @move0 if supplied, check move0.board for resign/stalemate
    */
@@ -167,7 +154,6 @@ export class TableStats extends GameStats {
 
     const [win] = winAry
     if (!!this.table) {
-      !!board && this.showBoardRep(board.repCount)
       this.table.statsPanel?.update()
       this.table.stage?.update()
     }

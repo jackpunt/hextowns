@@ -9,6 +9,8 @@ import { GameStats, TableStats } from "./stats";
 import { LogWriter } from "./stream-writer";
 import { Table } from "./table";
 import { otherColor, PlayerColor, playerColors, TP } from "./table-params";
+import { Container } from "@thegraid/easeljs-module";
+import { Tile } from "./tile";
 
 class HexEvent {}
 class Move{
@@ -19,13 +21,17 @@ class Move{
 
 /** Implement game, enforce the rules, manage GameStats & hexMap; no GUI/Table required.
  *
- * Move actions are:
- * - move ship to hex
- * - buy/sell commodity or upgrade
- * - launch sub-space mine/disrupter?
- * - alter alignment of ship
- * - alter alignment of hex
- *
+ * Actions are:
+ * - Reserve: place one Tile from auction to Player reserve
+ * - Recruit: place a Builder/Leader (in Civic);
+ *   do Build/Police action (requires 5 Econ)
+ * - Build: move Master/Builders, build one Tile (from auction or reserve)
+ * - Police: place one (in Station), move police (& leaders/builders), attack/capture;
+ *   collatoral damge (3 Econ); dismiss Police
+ * - Crime: place one on unoccupied hex adjacent to opponent Tile (requires 3 Econ)
+ *   move Criminals, attack/capture;
+ *   (Player keeps the captured Tile/Meeple; maybe earn VP if Crime Lord)
+ * -
  */
 export class GamePlay0 {
   static gpid = 0
@@ -38,6 +44,7 @@ export class GamePlay0 {
   readonly redoMoves = []
 
   constructor() {
+    this.hexMap[S.Aname] = `mainMap`
     this.gStats = new GameStats(this.hexMap) // AFTER allPlayers are defined so can set pStats
   }
 
@@ -69,11 +76,13 @@ export class GamePlayD extends GamePlay0 {
 
 /** GamePlay with Table & GUI (KeyBinder, ParamGUI & Dragger) */
 export class GamePlay extends GamePlay0 {
-  readonly table: Table
+  readonly table: Table   // access to GUI (drag/drop) methods.
   readonly logWriter: LogWriter
+  readonly auction: Tile[] = []
   declare readonly gStats: TableStats // https://github.com/TypeStrong/typedoc/issues/1597
   get allPlayers() { return Player.allPlayers; }
 
+  /** GamePlay is the GUI-augmented extension of GamePlay0; uses Table */
   constructor(table: Table, public gameSetup: GameSetup) {
     super()            // hexMap, history, gStats...
     let time = stime('').substring(6,15)
@@ -87,9 +96,12 @@ export class GamePlay extends GamePlay0 {
     this.logWriter = new LogWriter(logFile)
     this.logWriter.writeLine(line0)
 
-    // Create and Inject all the Players:
-    Player.allPlayers = [];
-    playerColors.forEach((color, ndx) => new Player(ndx, color, table))
+    Tile.makeTowns();                      // the collection of Tile.townStart
+    // Create and Inject all the Players: (picking a townStart?)
+    Player.allPlayers.splice(0, Infinity);
+    playerColors.forEach((color, ndx) => new Player(ndx, color, this))
+    this.auction = new Array<Tile>(Player.allPlayers.length + 1);   // expect to have 1 Tile child (or none)
+    Tile.fillBag()                                              // put R/B/PS/L into draw bag.
     // setTable(table)
     this.table = table
     this.gStats = new TableStats(this, table) // upgrade to TableStats
@@ -116,6 +128,7 @@ export class GamePlay extends GamePlay0 {
     KeyBinder.keyBinder.setKey('S', { thisArg: this, func: this.skipMove })
     KeyBinder.keyBinder.setKey('M-K', { thisArg: this, func: this.resignMove })// S-M-k
     KeyBinder.keyBinder.setKey('Escape', {thisArg: table, func: table.stopDragging}) // Escape
+    KeyBinder.keyBinder.setKey('C-a', { thisArg: table, func: () => { table.shiftAuction()} })  // C-a new Tile
     KeyBinder.keyBinder.setKey('C-s', { thisArg: this.gameSetup, func: () => { this.gameSetup.restart() } })// C-s START
     KeyBinder.keyBinder.setKey('C-c', { thisArg: this, func: this.stopPlayer })// C-c Stop Planner
     KeyBinder.keyBinder.setKey('m', { thisArg: this, func: this.makeMove, argVal: true })

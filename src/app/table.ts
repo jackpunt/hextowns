@@ -27,7 +27,8 @@ export class Table extends EventDispatcher  {
   scaleCont: Container
   bgRect: Shape
   hexMap: HexMap; // from gamePlay.hexMap
-  nextHex: Hex2;
+  origHex: Hex2
+  auctionCont: AuctionCont;
   undoCont: Container = new Container()
   undoShape: Shape = new Shape();
   skipShape: Shape = new Shape();
@@ -61,7 +62,7 @@ export class Table extends EventDispatcher  {
     undoC.addChild(this.redoText); this.redoText.y = -14;
     let bgrpt = this.bgRect.parent.localToLocal(bgr.x, bgr.h, undoC) // TODO: align with nextHex(x & y)
     this.undoText.mouseEnabled = this.redoText.mouseEnabled = false
-    this.enableHexInspector(52)
+    this.enableHexInspector()
     let aiControl = this.aiControl('pink', 75); aiControl.x = 0; aiControl.y = 100
     undoC.addChild(aiControl)
     let pmy = 0;
@@ -82,7 +83,7 @@ export class Table extends EventDispatcher  {
     this.winText.visible = this.winBack.visible = true
     this.hexMap.update()
   }
-  enableHexInspector(qY: number = 52) {
+  enableHexInspector(qY: number = 100) {
     let qShape = new Shape(), toggle = true
     qShape.graphics.f("black").dp(0, 0, 20, 6, 0, 0)
     qShape.y = qY  // size of skip Triangles
@@ -111,6 +112,11 @@ export class Table extends EventDispatcher  {
   }
   /** method invokes closure defined in enableHexInspector. */
   toggleText(evt: MouseEvent, vis?: boolean) {}
+  /** for KeyBinding test */
+  shiftAuction(tile?: Tile) {
+    this.auctionCont.shift(tile)
+    this.hexMap.update()
+  }
 
   aiControl(color = TP.bgColor, dx = 100, rad = 16) {
     let table = this
@@ -164,24 +170,25 @@ export class Table extends EventDispatcher  {
     mapCont.x = (bgr.w) / 2
     mapCont.y = (bgr.h) / 2
 
-    let nextHex = this.nextHex = new Hex2(hexMap, undefined, undefined, 'nextHex')
-    nextHex.cont.scaleX = nextHex.cont.scaleY = 2
-    nextHex.x = minx + 2 * wide; nextHex.y = miny + 1.4 * high;
-    // tweak when hexMap is tiny:
-    let nh = TP.nHexes, mh = TP.mHexes
-    // if (nh == 1 || nh + mh <= 5) { bgr.w += 3*wide; bgr.h += 50; mapCont.x += 3*wide; }
-    nextHex.x = Math.round(nextHex.x); nextHex.y = Math.round(nextHex.y)
-    nextHex.cont.visible = true;
+    let auctionCont = this.auctionCont = new AuctionCont(this.gamePlay.auction, hexMap, miny);
+    let nwCorner = this.hexMap.getCornerHex('W') as Hex2;
+    let [x, y, w, h] = nwCorner.xywh();
+    this.auctionCont.x = nwCorner.cont.localToLocal(x, y, this.scaleCont).x
+    this.scaleCont.addChild(this.auctionCont);
+    console.log(stime(this, `.layoutTable: auction.maxlen=`), this.auctionCont.maxlen);
+    this.auctionCont.shift()  // select first [+1] Tile
+    this.auctionCont.shift()  // select first [+1] Tile
+    this.auctionCont.shift()  // select first [+1] Tile
 
     this.bgRect = this.setBackground(this.scaleCont, bgr) // bounded by bgr
     let p00 = this.scaleCont.localToLocal(0, 0, hexCont)
     let pbr = this.scaleCont.localToLocal(bgr.w, bgr.h, hexCont)
     hexCont.cache(p00.x, p00.y, pbr.x-p00.x, pbr.y-p00.y) // cache hexCont (bounded by bgr)
 
-    nextHex.cont.parent.localToLocal(nextHex.x, nextHex.y+100, this.scaleCont, this.undoCont)
+    auctionCont.parent.localToLocal(auctionCont.x, auctionCont.y+100, this.scaleCont, this.undoCont)
     this.scaleCont.addChild(this.undoCont)
     // this.setupUndoButtons(55, 60, 45, bgr)
-    this.enableHexInspector(52)
+    this.enableHexInspector()
 
     // this.makeMiniMap(this.scaleCont, -(200+TP.mHexes*TP.hexRad), 600+100*TP.mHexes)
 
@@ -190,7 +197,6 @@ export class Table extends EventDispatcher  {
   lastDrag: Meeple; // last Meeple or Tile to be dragged [debug]
   startGame() {
     // initialize Players & TownStart & draw pile
-    Tile.makeTowns()
     this.gamePlay.forEachPlayer(p => {
       p.placeTown()
       p.meeples.forEach(meep => this.dragger.makeDragable(meep, this,
@@ -217,7 +223,7 @@ export class Table extends EventDispatcher  {
     const prev = lm ? `${lm.Aname}${lm.ind}#${tn-1}` : ""
     const board = !!this.hexMap.allStones[0] && lm?.board // TODO: hexMap.allStones>0 but history.len == 0
     const robo = curPlayer.useRobo ? AT.ansiText(['red','bold'],"robo") : "----"
-    const info = { turn: `#${tn}`, plyr: curPlayer.name, prev, gamePlay: this.gamePlay, board }
+    const info = { turn: `#${tn}`, plyr: curPlayer.Aname, prev, gamePlay: this.gamePlay, board }
     console.log(stime(this, `.logCurPlayer --${robo}--`), info);
   }
   showRedoUndoCount() {
@@ -238,14 +244,14 @@ export class Table extends EventDispatcher  {
   }
   _dropTarget: Hex2;
   get dropTarget() { return this._dropTarget}
-  set dropTarget(hex: Hex2) { hex = (hex || this.nextHex); this._dropTarget = hex; this.hexMap.showMark(hex)}
+  set dropTarget(hex: Hex2) { hex = (hex || this.origHex); this._dropTarget = hex; this.hexMap.showMark(hex)}
 
   dragShift = false // last shift state in dragFunc
   dragHex: Hex2 = undefined // last hex in dragFunc
   protoHex: Hex2 = undefined // hex showing protoMove influence & captures
   isDragging() { return this.dragHex !== undefined }
 
-  stopDragging(target: Hex2 = this.nextHex) {
+  stopDragging(target: Hex2 = this.origHex) {
     //console.log(stime(this, `.stopDragging: target=`), this.dragger.dragCont.getChildAt(0), {noMove, isDragging: this.isDragging()})
     if (!this.isDragging()) return
     target && (this.dropTarget = target)
@@ -308,12 +314,13 @@ export class Table extends EventDispatcher  {
     }
   }
 
-  setBackground(scaleC: Container, bounds: XYWH, bgColor: string = TP.bgColor) {
+  /** put a Rectangle Shape at (0,0) with XYWH bounds as given */
+  setBackground(parent: Container, bounds: XYWH, bgColor: string = TP.bgColor) {
     let bgRect = new Shape(); bgRect[S.Aname] = "BackgroundRect"
     if (!!bgColor) {
       // specify an Area that is Dragable (mouse won't hit "empty" space)
       bgRect.graphics.f(bgColor).r(bounds.x, bounds.y, bounds.w, bounds.h);
-      scaleC.addChildAt(bgRect, 0);
+      parent.addChildAt(bgRect, 0);
       //console.log(stime(this, ".makeScalableBack: background="), background);
     }
     return bgRect
@@ -351,5 +358,44 @@ export class Table extends EventDispatcher  {
     KeyBinder.keyBinder.setKey("a", { func: () => setScaleXY(nsA, apt) });
     KeyBinder.keyBinder.setKey("p", { func: () => goup(), thisArg: this});
     KeyBinder.keyBinder.dispatchChar(char)
+  }
+}
+
+class AuctionCont extends Container {
+  readonly maxlen;
+  readonly hexes: Hex2[] = []
+  constructor(readonly tiles: Tile[], hexMap: HexMap, miny: number) {
+    super()
+    this.maxlen = tiles.length;
+    let nwCorner = hexMap.getCornerHex('W') as Hex2;
+    let [x, y, w, h] = nwCorner.xywh(TP.hexRad);
+    for (let i = 0; i < this.maxlen; i++) {
+      let hex = this.hexes[i] = new Hex2(hexMap, undefined, undefined, `auctionHex${i}`)
+      // hexMap.mapCont.hexCont.addChild(hex)
+      hex.x = x + i * w;
+      hex.y = miny + h/2
+      hex['Costinc'] = (i == 0) ? 1 : (i == this.maxlen - 1) ? -1 : 0;
+    }
+  }
+
+  shift(tile: Tile = Tile.selectOne(Tile.tileBag)) {
+    let tiles = this.tiles, hexes = this.hexes
+    // put tile in slot-n (move previous tile to n+1)
+    let shift1 = (tile: Tile, n: number) => {
+      if (!!tiles[n]) {
+        shift1(tiles[n], n + 1);
+      }
+      // ASSERT: tiles[n] is undefined | redundant (== slots[n+1])
+      tiles[n] = tile;
+      tile.hex = hexes[n] // undefined at/above maxlen
+    }
+    shift1(tile, 0)
+    while (tiles[this.maxlen]) {
+      let tileN = this.tiles.pop()
+      Tile.tileBag.push(tileN);   // put it back into bag
+      tileN.hex = undefined       // already done from above?!
+      tileN.x = tileN.y = 0;
+    }
+    return
   }
 }

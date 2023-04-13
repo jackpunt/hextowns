@@ -6,37 +6,39 @@ import { IPlanner, newPlanner } from "./plan-proxy"
 import { Meeple } from "./meeple"
 import { Table } from "./table"
 import { PlayerColor, playerColors, TP } from "./table-params"
-import { Tile } from "./tile"
+import { Civic, Tile, TownStart } from "./tile"
 
 export class Player {
   static allPlayers: Player[] = [];
-  name: string
-  index: number = 0; // index in playerColors & allPlayers
-  color: PlayerColor = playerColors[this.index]
-  table: Table
-  meeples: Meeple[] = []
-  tiles = [];   // R/B/PS Tiles (& Civics?)
-  civics = [];  // TS, U, C, CH
+  readonly Aname: string;
+  readonly index: number = 0; // index in playerColors & allPlayers
+  readonly color: PlayerColor = playerColors[this.index];
+  readonly gamePlay: GamePlay;
+
+  readonly captures: Meeple|Tile[] = [];
+  readonly meeples: Meeple[] = [];
+  readonly reserved: Tile[] = [];  // Resi/Busi/PS/Lake reserved for Player (max 2?)
+  readonly tiles: Tile[] = [];     // Resi/Busi/PS/Lake/Civics in play on Map
+  get civics() { return this.tiles.filter(t => t instanceof Civic) as Civic[] }
+  get townstart() { return this.tiles.find(t => t instanceof TownStart) as TownStart }
+
   otherPlayer: Player
   planner: IPlanner
   /** if true then invoke plannerMove */
   useRobo: boolean = false
   get colorn() { return TP.colorScheme[this.color] }
 
-  constructor(index: number, color: PlayerColor, table: Table) {
+  constructor(index: number, color: PlayerColor, gameplay: GamePlay) {
     this.index = index
     this.color = color
-    this.table = table
-    this.name = `Player${index}-${this.colorn}`
+    this.gamePlay = gameplay
+    this.Aname = `Player${index}-${this.colorn}`
     Player.allPlayers[index] = this;
   }
-  makeMeeple() {
-    this.meeples = [];     // no meeple at startup@
-  }
+
   /** choose placement of TownStart */
-  placeTown() {
-    let town = Tile.selectOne(Tile.townStarts)
-    let hex = this.table.hexMap.centerHex as Hex;
+  placeTown(town = Tile.selectOne(Tile.townStarts)) {
+    let hex = this.gamePlay.hexMap.centerHex as Hex;
     let path: HexDir[] = [['NE', 'NW', 'NE'] as HexDir[], ['SE', 'SW', 'SW'] as HexDir[]][this.index];
     path.forEach(dir => {
       hex = hex.nextHex(dir)
@@ -45,7 +47,7 @@ export class Player {
   }
   /** place ship initially on a Hex adjacent to planet0 */
   chooseShipHex(ship: Meeple) {
-    let map = this.table.hexMap, hexes: Hex[] = []
+    let map = this.gamePlay.hexMap, hexes: Hex[] = []
     // find un-occupied hexes surrounding planet0
     H.ewDirs.forEach(dir => {
       let hex = map.centerHex.nextHex(dir) as Hex;
@@ -67,7 +69,6 @@ export class Player {
    * [make newPlanner for this Player]
    */
   newGame(gamePlay: GamePlay, url = TP.networkUrl) {
-    this.makeMeeple()
     this.planner?.terminate()
     // this.hgClient = (this.index == Player.remotePlayer) ? new HgClient(url, (hgClient) => {
     //   console.log(stime(this, `.hgClientOpen!`), hgClient)
@@ -90,7 +91,7 @@ export class Player {
     if (useRobo || this.useRobo) {
     // continue any semi-auto moves for ship:
       if (!this.meeples.find(ship => !ship.shipMove())) {
-        this.table.gamePlay.setNextPlayer();    // if all ships moved
+        this.gamePlay.setNextPlayer();    // if all ships moved
       }
       // start plannerMove from top of stack:
       // setTimeout(() => this.plannerMove(incb))

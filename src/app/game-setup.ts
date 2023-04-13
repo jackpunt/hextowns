@@ -15,7 +15,7 @@ stime.anno = (obj: string | { constructor: { name: string; }; }) => {
   return !!stage ? (!!stage.canvas ? " C" : " R") : " -" as string
 }
 
-/** initialize & reset & startup the application. */
+/** initialize & reset & startup the application/game. */
 export class GameSetup {
   stage: Stage;
   gamePlay: GamePlay
@@ -66,19 +66,18 @@ export class GameSetup {
    * @param ext Extensions from URL
    */
   startup(ext: string[] = []) {
-    let table = new Table(this.stage) // EventDispatcher, ScaleCont, GUI-Player
+    let table = new Table(this.stage)        // EventDispatcher, ScaleCont, GUI-Player
     let gamePlay = new GamePlay(table, this) // hexMap, players, gStats, mouse/keyboard->GamePlay
     this.gamePlay = gamePlay
-    gamePlay.hexMap[S.Aname] = `mainMap`
-    let statsx = -300, statsy = 30
-    table.layoutTable(gamePlay)           // mutual injection, all the GUI components, fill hexMap
+    table.layoutTable(gamePlay)              // mutual injection, all the GUI components, fill hexMap
     gamePlay.forEachPlayer(p => p.newGame(gamePlay))        // make Planner *after* table & gamePlay are setup
     if (this.stage.canvas) {
+      let statsx = -300, statsy = 30
       let statsPanel = this.makeStatsPanel(gamePlay.gStats, table.scaleCont, statsx, statsy)
       table.statsPanel = statsPanel
       let guiy = statsPanel.y + statsPanel.ymax + statsPanel.lead * 2
       console.groupCollapsed('initParamGUI')
-      this.paramGUIs = this.makeParamGUI(table, table.scaleCont, statsx, guiy) // modify TP.params...
+      this.paramGUIs = this.makeParamGUI(table.scaleCont, statsx, guiy) // modify TP.params...
       let [gui, gui2] = this.paramGUIs
       // table.miniMap.mapCont.y = Math.max(gui.ymax, gui2.ymax) + gui.y + table.miniMap.wh.height / 2
       console.groupEnd()
@@ -110,7 +109,7 @@ export class GameSetup {
    * ParamGUI2  --> AI Player     [left of ParamGUI]
    * NetworkGUI --> network       [below ParamGUI2]
    */
-  makeParamGUI(table: Table, parent: Container, x: number, y: number) {
+  makeParamGUI(parent: Container, x: number, y: number) {
     let restart = false, infName = "inf:sac"
     const gui = new ParamGUI(TP, { textAlign: 'right'})
     const schemeAry = TP.schemeNames.map(n => { return { text: n, value: TP[n] } })
@@ -129,22 +128,21 @@ export class GameSetup {
     }
     gui.spec("colorScheme").onChange = (item: ParamItem) => {
       gui.setValue(item)
-      let hexMap = table.hexMap
-      hexMap.update()
+      this.gamePlay.hexMap.update()
     }
     parent.addChild(gui)
     gui.x = x // (3*cw+1*ch+6*m) + max(line.width) - (max(choser.width) + 20)
     gui.y = y
     gui.makeLines()
-    const gui2 = this.makeParamGUI2(table, parent, x - 320, y)
-    const gui3 = this.makeNetworkGUI(table, parent, x - 320, y + gui.ymax + 200 )
+    const gui2 = this.makeParamGUI2(parent, x - 320, y)
+    const gui3 = this.makeNetworkGUI(parent, x - 320, y + gui.ymax + 200 )
     gui.parent.addChild(gui) // bring to top
     gui.stage.update()
     restart = true // *after* makeLines has stablilized selectValue
     return [gui, gui2, gui3]
   }
   /** configures the AI player */
-  makeParamGUI2(table: Table, parent: Container, x: number, y: number) {
+  makeParamGUI2(parent: Container, x: number, y: number) {
     let gui = new ParamGUI(TP, { textAlign: 'center' })
     gui.makeParamSpec("log", [-1, 0, 1, 2], { style: { textAlign: 'right' } }); TP.log
     gui.makeParamSpec("maxPlys", [1, 2, 3, 4, 5, 6, 7, 8], { fontColor: "blue" }); TP.maxPlys
@@ -165,7 +163,7 @@ export class GameSetup {
   netColor: string = "rgba(160,160,160, .8)"
   netStyle: DropdownStyle = { textAlign: 'right' };
   /** controls multiplayer network participation */
-  makeNetworkGUI (table: Table, parent: Container, x: number, y: number) {
+  makeNetworkGUI (parent: Container, x: number, y: number) {
     let gui = this.netGUI = new ParamGUI(TP, this.netStyle)
     gui.makeParamSpec("Network", [" ", "new", "join", "no", "ref", "cnx"], { fontColor: "red" })
     gui.makeParamSpec("PlayerId", ["     ", 0, 1, 2, 3, "ref"], { chooser: PidChoice, fontColor: "red" })

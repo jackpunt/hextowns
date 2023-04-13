@@ -514,6 +514,9 @@ export class HexMap extends Array<Array<Hex>> implements HexM {
     let cc = Math.floor((this.minCol + this.maxCol) / 2);
     return this[cr][cc] as Hex2
   }
+  getCornerHex(dn: InfDir) {
+    return this.centerHex.lastHex(dn)
+  }
 
   pickColor(hexAry: Hex2[]): string {
     let hex = hexAry[0]
