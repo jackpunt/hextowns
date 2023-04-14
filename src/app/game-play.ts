@@ -97,11 +97,11 @@ export class GamePlay extends GamePlay0 {
     this.logWriter.writeLine(line0)
 
     Tile.makeTowns();                      // the collection of Tile.townStart
+    Tile.fillBag()                         // put R/B/PS/L into draw bag.
     // Create and Inject all the Players: (picking a townStart?)
     Player.allPlayers.splice(0, Infinity);
     playerColors.forEach((color, ndx) => new Player(ndx, color, this))
     this.auction = new Array<Tile>(Player.allPlayers.length + 1);   // expect to have 1 Tile child (or none)
-    Tile.fillBag()                                              // put R/B/PS/L into draw bag.
     // setTable(table)
     this.table = table
     this.gStats = new TableStats(this, table) // upgrade to TableStats
@@ -142,7 +142,7 @@ export class GamePlay extends GamePlay0 {
 
     // diagnostics:
     KeyBinder.keyBinder.setKey('x', { thisArg: this, func: () => {this.table.enableHexInspector(); }})
-    KeyBinder.keyBinder.setKey('t', { thisArg: this, func: () => {this.table.toggleText(undefined, undefined); }})
+    KeyBinder.keyBinder.setKey('t', { thisArg: this, func: () => {this.table.toggleText(); }})
     KeyBinder.keyBinder.setKey('z', { thisArg: this, func: () => {this.gStats.updateStats(); }})
     KeyBinder.keyBinder.setKey('.', { thisArg: this, func: () => {this.table.lastDrag.dragAgain(); }})
     KeyBinder.keyBinder.setKey(',', { thisArg: this, func: () => {this.table.lastDrag.dragBack(); }})

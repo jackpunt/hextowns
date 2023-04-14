@@ -181,19 +181,18 @@ export class Hex2 extends Hex {
     this.cache(true)
 
     this.setHexColor("grey")  // new Hex2: until setHexColor(by district)
+    this.hexShape.name = this.Aname
 
     this.stoneIdText = new Text('', F.fontSpec(26))
     this.stoneIdText.textAlign = 'center'; this.stoneIdText.regY = -20
 
     if (row === undefined || col === undefined) return // args not supplied: nextHex
-    let [x, y, w, h] = this.xywh(this.radius)
+    let [x, y, w, h] = this.xywh(this.radius + this.radius/60); // include margin space between hexes
     this.x += x
     this.y += y
     this.cont.setBounds(-w/2, -h/2, w, h)
 
     let rc = `${row},${col}`, tdy = -25
-    this.hexShape.name = this.Aname
-
     let rct = this.rcText = new Text(rc, F.fontSpec(26), 'white'); // radius/2 ?
     rct.textAlign = 'center'; rct.y = tdy // based on fontSize? & radius
     this.cont.addChild(rct)
@@ -226,7 +225,8 @@ export class Hex2 extends Hex {
   setHexColor(color: string, district?: number | undefined) {
     if (district !== undefined) this.district = district // hex.setHexColor update district
     this.distColor = color
-    let hexShape = this.paintHexShape(color, this.hexShape, this.radius)
+    let hexShape = this.hexShape || new HexShape()
+    hexShape.paint(color)
     if (hexShape !== this.hexShape) {
       this.cont.removeChild(this.hexShape)
       this.cont.addChildAt(hexShape, 0)
@@ -236,17 +236,9 @@ export class Hex2 extends Hex {
     }
   }
 
-  /** makes a colored hex, outlined with bgColor */
-  paintHexShape(color: string, ns = new HexShape(), rad = this.radius): Shape {
-    let tilt = H.dirRot['NE']
-    //ns.graphics.s(TP.borderColor).dp(0, 0, rad+1, 6, 0, tilt)  // s = beginStroke(color) dp:drawPolyStar
-    ns.graphics.f(color).dp(0, 0, rad-1, 6, 0, tilt)             // f = beginFill(color)
-    return ns
-  }
-
   /** distance between Hexes: adjacent = 1 */
   metricDist(hex: Hex): number {
-    let [tx, ty, tw] = this.xywh(), [hx, hy] = hex.xywh()
+    let [tx, ty, tw] = this.xywh(1), [hx, hy] = hex.xywh(1)
     let dx = tx - hx, dy = ty - hy
     return Math.sqrt(dx * dx + dy * dy) / tw // tw == H.sqrt3
   }
@@ -267,8 +259,19 @@ export class Hex2 extends Hex {
 }
 
 /** the colored Shape that fills a Hex. */
-class HexShape extends Shape {
+export class HexShape extends Shape {
+  constructor(
+    readonly radius = TP.hexRad,
+    readonly tiltDir: HexDir = 'NE',
+  ) {
+    super()
+  }
 
+  paint(color: string) {
+    let tilt = H.dirRot[this.tiltDir];
+    //this.graphics.s(TP.borderColor).dp(0, 0, rad+1, 6, 0, tilt)  // s = beginStroke(color) dp:drawPolyStar
+    this.graphics.f(color).dp(0, 0, this.radius - 1, 6, 0, tilt)             // f = beginFill(color)
+  }
 }
 export class MapCont extends Container {
   constructor() {
@@ -320,7 +323,7 @@ export class HexMap extends Array<Array<Hex>> implements HexM {
   readonly resignHex: Hex;
   rcLinear(row: number, col: number): number { return col + row * (1 + (this.maxCol || 0) - (this.minCol||0)) }
 
-  radius: number = TP.hexRad
+  readonly radius: number = TP.hexRad
   /** height of hexagonal cell (1.5 * radius) with NS axis */
   height: number = this.radius * 1.5;
   /** width of hexagonal cell  (H.sqrt3 * radius with NS axis */

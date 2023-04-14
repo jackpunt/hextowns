@@ -8,6 +8,7 @@ import { Player } from "./player";
 import { StatsPanel, TableStats } from "./stats";
 import { Table } from "./table";
 import { TP } from "./table-params";
+import { Tile } from "./tile";
 
 /** show " R" for " N" */
 stime.anno = (obj: string | { constructor: { name: string; }; }) => {
@@ -29,7 +30,9 @@ export class GameSetup {
   constructor(canvasId: string, ext?: string[]) {
     stime.fmt = "MM-DD kk:mm:ss.SSS"
     this.stage = makeStage(canvasId, false)
-    this.startup(ext)
+    Tile.loadImages(() => {
+      this.startup(ext)
+    })
   }
   _netState = " " // or "yes" or "ref"
   set netState(val: string) {
@@ -67,7 +70,7 @@ export class GameSetup {
    */
   startup(ext: string[] = []) {
     let table = new Table(this.stage)        // EventDispatcher, ScaleCont, GUI-Player
-    let gamePlay = new GamePlay(table, this) // hexMap, players, gStats, mouse/keyboard->GamePlay
+    let gamePlay = new GamePlay(table, this) // hexMap, players, fillBag, gStats, mouse/keyboard->GamePlay
     this.gamePlay = gamePlay
     table.layoutTable(gamePlay)              // mutual injection, all the GUI components, fill hexMap
     gamePlay.forEachPlayer(p => p.newGame(gamePlay))        // make Planner *after* table & gamePlay are setup

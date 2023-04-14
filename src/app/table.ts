@@ -83,17 +83,17 @@ export class Table extends EventDispatcher  {
     this.winText.visible = this.winBack.visible = true
     this.hexMap.update()
   }
-  enableHexInspector(qY: number = 100) {
-    let qShape = new Shape(), toggle = true
+  enableHexInspector(qY: number = TP.hexRad * 2) {
+    let qShape = new Shape()
     qShape.graphics.f("black").dp(0, 0, 20, 6, 0, 0)
-    qShape.y = qY  // size of skip Triangles
+    qShape.y = qY  // size of 'skip' Triangles
     this.undoCont.addChild(qShape)
     this.dragger.makeDragable(qShape, this,
       // dragFunc:
       (qShape: Shape, ctx: DragInfo) => { },
       // dropFunc:
       (qShape: Shape, ctx: DragInfo) => {
-        toggle = false
+        this.downClick = true
         let hex = this.hexUnderObj(qShape)
         qShape.x = 0; qShape.y = qY // return to regular location
         this.undoCont.addChild(qShape)
@@ -101,17 +101,19 @@ export class Table extends EventDispatcher  {
         let info = hex; //{ hex, stone: hex.playerColor, InfName }
         console.log(`HexInspector:`, hex.Aname, info)
       })
-    let toggleText = (evt: MouseEvent, vis?: boolean) => {
-      if (!toggle) return (toggle = true, undefined) // skip one 'click' when pressup/dropfunc
-      this.hexMap.forEachHex<Hex2>(hex => hex.showText(vis))
-      this.hexMap.update()               // after toggleText & updateCache()
-    }
-    this.toggleText = toggleText         // define method --> closure (for KeyBinding)
-    qShape.on(S.click, toggleText, this) // toggle visible
-    toggleText(undefined, false)         // set initial visibility
+    qShape.on(S.click, () => this.toggleText(), this) // toggle visible
+    this.toggleText(false)         // set initial visibility
   }
+  downClick = false;
+  isVisible = false;
   /** method invokes closure defined in enableHexInspector. */
-  toggleText(evt: MouseEvent, vis?: boolean) {}
+  toggleText(vis?: boolean) {
+    if (this.downClick) return (this.downClick = false, undefined) // skip one 'click' when pressup/dropfunc
+    if (vis === undefined) vis = this.isVisible = !this.isVisible;
+    Tile.allTiles.forEach(tile => tile.textVis(vis))
+    this.hexMap.forEachHex<Hex2>(hex => hex.showText(vis))
+    this.hexMap.update()               // after toggleText & updateCache()
+  }
   /** for KeyBinding test */
   shiftAuction(tile?: Tile) {
     this.auctionCont.shift(tile)
@@ -172,13 +174,15 @@ export class Table extends EventDispatcher  {
 
     let auctionCont = this.auctionCont = new AuctionCont(this.gamePlay.auction, hexMap, miny);
     let nwCorner = this.hexMap.getCornerHex('W') as Hex2;
-    let [x, y, w, h] = nwCorner.xywh();
+    let [x, y, w, h] = nwCorner.xywh(TP.hexRad);
     this.auctionCont.x = nwCorner.cont.localToLocal(x, y, this.scaleCont).x
     this.scaleCont.addChild(this.auctionCont);
     console.log(stime(this, `.layoutTable: auction.maxlen=`), this.auctionCont.maxlen);
-    this.auctionCont.shift()  // select first [+1] Tile
-    this.auctionCont.shift()  // select first [+1] Tile
-    this.auctionCont.shift()  // select first [+1] Tile
+
+    // Shift a couple Tiles to get started:
+    for (let i = 0; i < Player.allPlayers.length; i++) {
+      this.auctionCont.shift()  // select first [+1] Tile
+    }
 
     this.bgRect = this.setBackground(this.scaleCont, bgr) // bounded by bgr
     let p00 = this.scaleCont.localToLocal(0, 0, hexCont)
@@ -380,6 +384,7 @@ class AuctionCont extends Container {
 
   shift(tile: Tile = Tile.selectOne(Tile.tileBag)) {
     let tiles = this.tiles, hexes = this.hexes
+    console.log(stime(this, `.shift`), tile.Aname, tile, tile?.children.slice(0));
     // put tile in slot-n (move previous tile to n+1)
     let shift1 = (tile: Tile, n: number) => {
       if (!!tiles[n]) {
@@ -396,6 +401,7 @@ class AuctionCont extends Container {
       tileN.hex = undefined       // already done from above?!
       tileN.x = tileN.y = 0;
     }
+    console.log(stime(this, `.shift`), tiles, tiles[0]?.children.slice(0), tiles[1]?.children.slice(0), tiles[2]?.children.slice(0))
     return
   }
 }
