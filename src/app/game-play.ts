@@ -10,7 +10,7 @@ import { LogWriter } from "./stream-writer";
 import { Table } from "./table";
 import { otherColor, PlayerColor, playerColors, TP } from "./table-params";
 import { Container } from "@thegraid/easeljs-module";
-import { Tile } from "./tile";
+import { Tile, TownRules } from "./tile";
 
 class HexEvent {}
 class Move{
@@ -78,7 +78,7 @@ export class GamePlayD extends GamePlay0 {
 export class GamePlay extends GamePlay0 {
   readonly table: Table   // access to GUI (drag/drop) methods.
   readonly logWriter: LogWriter
-  readonly auction: Tile[] = []
+  readonly auctionTiles: Tile[] = []
   declare readonly gStats: TableStats // https://github.com/TypeStrong/typedoc/issues/1597
   get allPlayers() { return Player.allPlayers; }
 
@@ -96,12 +96,13 @@ export class GamePlay extends GamePlay0 {
     this.logWriter = new LogWriter(logFile)
     this.logWriter.writeLine(line0)
 
-    Tile.makeTowns();                      // the collection of Tile.townStart
     Tile.fillBag()                         // put R/B/PS/L into draw bag.
+    TownRules.inst.fillRulesBag();
     // Create and Inject all the Players: (picking a townStart?)
-    Player.allPlayers.splice(0, Infinity);
+    Player.allPlayers.length = 0;
     playerColors.forEach((color, ndx) => new Player(ndx, color, this))
-    this.auction = new Array<Tile>(Player.allPlayers.length + 1);   // expect to have 1 Tile child (or none)
+    this.auctionTiles = new Array<Tile>(Player.allPlayers.length + 1);   // expect to have 1 Tile child (or none)
+    // Players have: civics & meeples & TownSpec
     // setTable(table)
     this.table = table
     this.gStats = new TableStats(this, table) // upgrade to TableStats

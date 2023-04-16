@@ -4,6 +4,7 @@ import { PlayerColor, TP } from "./table-params";
 import { H } from "./hex-intfs";
 import { Hex, HexMap, HexShape } from "./hex";
 import { ImageLoader } from "./image-loader";
+import { Player } from "./player";
 
 class C1 {
   static GREY = 'grey';
@@ -16,12 +17,16 @@ class Star extends Shape {
     this.graphics.f(C.briteGold).dp(0, 0, size, 5, 2, tilt)
   }
 }
+interface PaintableShape extends Shape {
+  paint(color: string): void;
+}
 export class Tile extends Container {
+  static allTiles: Tile[] = [];
   static serial = 0;    // serial number of each Tile created
   static imageMap = new Map<string, HTMLImageElement>()
   static imageArgs = {
     root: 'assets/images/',
-    fnames: ['Resi', 'Busi', 'Pstation', 'Lake'],
+    fnames: ['Resi', 'Busi', 'Pstation', 'Lake', 'TownStart', 'TownHall', 'University', 'Temple'],
     ext: 'png',
   };
   /** use ImageLoader to load images, THEN invoke callback. */
@@ -41,21 +46,22 @@ export class Tile extends Container {
     })
   }
   static textSize = 14;
-
-  hexShape = new HexShape();
   nameText: Text;
 
   _hex: Hex = undefined;
+  /** the map Hex on which this Tile sits. */
   get hex() { return this._hex; }
+  /** only one Tile on a Hex, Tile on only one Hex */
   set hex(hex: Hex) {
     if (this.hex !== undefined) this.hex.tile = undefined
     this._hex = hex
     if (hex !== undefined) hex.tile = this;
-   }
+  }
 
-  // TODO: construct image from TileSpec: { R/B/PS/CH/C/U/TS }
-  // TS - TownStart has bonus info
+  // TS - TownStart has bonus info...? NO: BonusTile [private] has bonus info.
   constructor(
+    /** the owning Player. */
+    public player: Player,
     public readonly Aname?: string,
     public readonly cost: number = 1,
     public readonly inf: number = 0,
@@ -63,18 +69,25 @@ export class Tile extends Container {
     public readonly econ: number = 1,
   ) {
     super()
+    let radius = this.radius
+    Tile.allTiles.push(this);
     if (!Aname) this.Aname = `${className(this)}-${Tile.serial++}`.replace('Star', '*');
-    this.addChild(this.hexShape)  // index = 0
+    this.addChild(this.childShape)// index = 0
     this.addNameText()            // index = 1
-    this.cache(-TP.hexRad, -TP.hexRad, 2 * TP.hexRad, 2 * TP.hexRad)
+    this.cache(-radius, -radius, 2 * radius, 2 * radius)
     this.paint()
   }
+  get radius() { return TP.hexRad};
+  readonly childShape: PaintableShape = this.makeShape();
+  makeShape(): HexShape {
+    return new HexShape(this.radius)
+  }
 
-  paint(pColor?: PlayerColor) {
+  paint(pColor = this.player?.color) {
     let color = pColor ? TP.colorScheme[pColor] : C1.grey;
-    let r3 = TP.hexRad * H.sqrt3 / 2 - 2, r2 = r3 - 3, r0 = r2 / 3, r1 = (r2 + r0) / 2
-    let g = this.hexShape.graphics.c(), pi2 = Math.PI * 2
-    this.hexShape.paint(color)
+    let r3 = this.radius * H.sqrt3 / 2 - 2, r2 = r3 - 3, r0 = r2 / 3, r1 = (r2 + r0) / 2
+    let g = this.childShape.graphics.c(), pi2 = Math.PI * 2
+    this.childShape.paint(color)
     //g.f(C.BLACK).dc(0, 0, r3)
     g.f(C.white).dc(0, 0, r2)
     this.updateCache()
@@ -89,7 +102,6 @@ export class Tile extends Container {
     bm.x = bm.y = -width / 2;
     bm.y -= Tile.textSize / 2;
     this.addChildAt(bm, 1)
-    console.log(stime(this, `.addBitmap ${this.Aname}`), this.children, this)
     this.updateCache()
     return bm
   }
@@ -98,7 +110,6 @@ export class Tile extends Container {
     let size = TP.hexRad/3, star = new Star(size)
     star.y += 1.2 * size
     this.addChildAt(star, this.children.length - 1)
-    console.log(stime(this, `.addStar ${this.Aname}`), this.children, this)
     this.updateCache()
     return star
   }
@@ -120,10 +131,6 @@ export class Tile extends Container {
     console.log(stime(this, `.rightclick:`), this.Aname, evt)
 
   }
-  static townStarts: Tile[]
-  static makeTowns() {
-    Tile.townStarts = TownStart.remakeTowns();
-  }
 
   static selectOne(tiles: Tile[], remove = true) {
     let index = Math.floor(Math.random() * tiles.length)
@@ -131,17 +138,14 @@ export class Tile extends Container {
     if (!remove) tiles.push(tile);
     return tile;
   }
-  static allTiles: Tile[] = [];
-  static tileBag: Tile[] = [];
+  static tileBag: AuctionTile[] = [];
   static fillBag() {
     let addTiles = (n: number, type: new () => Tile) => {
       for (let i = 0; i < n; i++) {
         let tile = new type();
-        Tile.allTiles.push(tile);
         Tile.tileBag.push(tile);
       }
     }
-    Tile.allTiles.length = 0;
     Tile.tileBag.length = 0;
     addTiles(16, Resi)
     addTiles(16, Busi)
@@ -152,60 +156,95 @@ export class Tile extends Container {
   }
 }
 
+// Leader.civicTile -> Civic; Civic does not point to its leader...
 export class Civic extends Tile {
-  constructor(Aname = `Civic-${Tile.serial++}`, cost = 2, inf = 1, vp = 1, econ = 1) {
-    super(Aname, cost, inf, vp, econ);
+  constructor(player: Player, type: string, image: string, cost = 2, inf = 1, vp = 1, econ = 1) {
+    super(player, `${type}-${player.index}`, cost, inf, vp, econ);
+    this.player = player;
+    this.addBitmap(image);
+    player.civicTiles.push(this);
   }
 }
 
+type TownSpec = string
+export type AuctionTile = Resi | ResiStar | Busi | BusiStar | PS | Lake;
+
+export class TownRules {
+  static rulesText: Array<Array<TownSpec>> = [
+    ['2nd build from TC', '+6 Econ (fast start)'],
+    ['+1 to each R/B in 37 meta-hex around TC, -1 each empty/non-econ tile'],
+    ['+1 per R/B*, R/B* are Level-1 (compact)',
+    '+2 for each adj TC, H, M, C', '+1 per edge of TC,H,M,C meta-triad (tactical)'],
+    ['+1 per tile in longest 1-connected strip of R & B', '+6 per strip >= length 5 (strip)'],
+    ['+1 to each business triad', '+4 for 3 business triads (triads)'],
+    ['+4 to each residential hex', '+10 for 2 residential hex (hexes)'],
+    ['+1 VP for Police & Station & Prisoner (police state)'],
+    ['+10, -1 per Police & Station (libertarian)'],
+    ['+1 for each Criminal placed', '+1 for each tile corrupted (crime lord)'],
+  ];
+  rulesBag: TownSpec[] = [];
+  fillRulesBag() {
+    this.rulesBag = TownRules.rulesText.slice(0)[0];
+  }
+  selectOne(bag = this.rulesBag) {
+    return bag.splice(Math.floor(Math.random() * bag.length), 1);
+  }
+  static inst = new TownRules();
+}
 export class TownStart extends Civic {
-  static remakeTowns() {
-    return [
-      new Tile('TS0'),
-      new Tile('TS1'),
-      new Tile('TS2'),
-      new Tile('TS3'),
-      new Tile('TS4'),
-      new Tile('TS5'),
-      new Tile('TS6'),
-      new Tile('TS7'),
-      new Tile('TS8'),
-    ]
+  rule: TownSpec;
+  constructor(player: Player) {
+    super(player, 'TS', 'TownStart')
   }
 }
-class Resi extends Tile {
-  constructor(Aname?: string, cost = 1, inf = 0, vp = 1, econ = 1) {
-    super(Aname, cost, inf, vp, econ);
+export class TownHall extends Civic {
+  constructor(player: Player) {
+    super(player, 'TH', 'TownHall')
+  }
+}
+export class University extends Civic {
+  constructor(player: Player) {
+    super(player, 'U', 'University')
+  }
+}
+export class Church extends Civic {
+  constructor(player: Player) {
+    super(player, 'C', 'Temple')
+  }
+}
+export class Resi extends Tile {
+  constructor(player?: Player, Aname?: string, cost = 1, inf = 0, vp = 1, econ = 1) {
+    super(player, Aname, cost, inf, vp, econ);
     this.addBitmap('Resi')
   }
 }
-class Busi extends Tile {
-  constructor(Aname?: string, cost = 1, inf = 0, vp = 1, econ = 1) {
-    super(Aname, cost, inf, vp, econ);
+export class Busi extends Tile {
+  constructor(player?: Player, Aname?: string, cost = 1, inf = 0, vp = 1, econ = 1) {
+    super(player, Aname, cost, inf, vp, econ);
     this.addBitmap('Busi')
   }
 }
-class ResiStar extends Resi {
-  constructor(Aname?: string, cost = 2, inf = 1, vp = 2, econ = 1) {
-    super(Aname, cost, inf, vp, econ);
+export class ResiStar extends Resi {
+  constructor(player?: Player, Aname?: string, cost = 2, inf = 1, vp = 2, econ = 1) {
+    super(player, Aname, cost, inf, vp, econ);
     this.addStar()
   }
 }
-class BusiStar extends Busi {
-  constructor(Aname?: string, cost = 2, inf = 1, vp = 2, econ = 1) {
-    super(Aname, cost, inf, vp, econ);
+export class BusiStar extends Busi {
+  constructor(player?: Player, Aname?: string, cost = 2, inf = 1, vp = 2, econ = 1) {
+    super(player, Aname, cost, inf, vp, econ);
     this.addStar()
   }
 }
-class PS extends Tile {
-  constructor(Aname?: string, cost = 1, inf = 0, vp = 0, econ = 0) {
-    super(Aname, cost, inf, vp, econ);
+export class PS extends Tile {
+  constructor(player?: Player, Aname?: string, cost = 1, inf = 0, vp = 0, econ = 0) {
+    super(player, Aname, cost, inf, vp, econ);
     this.addBitmap('Pstation')
   }
 }
-class Lake extends Tile {
-  constructor(Aname?: string, cost = 1, inf = 0, vp = 0, econ = 0) {
-    super(Aname, cost, inf, vp, econ);
+export class Lake extends Tile {
+  constructor(player?: Player, Aname?: string, cost = 1, inf = 0, vp = 0, econ = 0) {
+    super(player, Aname, cost, inf, vp, econ);
     this.addBitmap('Lake')
   }
 }

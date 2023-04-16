@@ -29,6 +29,7 @@ class HexCont extends Container {
 }
 
 /** Base Hex, has no connection to graphics.
+ * topological links to adjacent hex objects.
  *
  * each Hex may contain a Planet [and?] or a Ship.
  *
@@ -57,12 +58,25 @@ export class Hex {
     this.col = col
     this.links = {}
   }
-  /** (x,y): center of hex; (width,height) of hex; scaled by radius if supplied */
-  xywh(radius = 1, row = this.row, col = this.col) {
-    let w = radius * H.sqrt3, h = radius * 1.5
-    let x = w * col + w * Math.abs(row % 2) / 2
-    let y = h * row
-    return [x, y, w, h]
+  /** (x,y): center of hex; (width,height) of hex; scaled by radius if supplied
+   * @param radius [1] radius used in drawPolyStar(radius,,, H.dirRot[tiltDir])
+   * @param nsAxis [true] suitable for nsTopo (long axis of hex is N/S)
+   * @param row [this.row]
+   * @param col [this.col]
+   * @returns [x, y, w, h] of cell at [row, col]
+   */
+  xywh(radius = TP.hexRad, nsAxis = true, row = this.row, col = this.col) {
+    if (nsAxis) { // tiltDir = 'NE'; tilt = 30-degrees; nsTOPO
+      let h = 2 * radius, w = radius * H.sqrt3;  // h height of hexagon (long-vertical axis)
+      let x = (col + Math.abs(row % 2) / 2) * w;
+      let y = row * 1.5 * radius;   // dist between rows
+      return [x, y, w, h]
+    } else { // tiltdir == 'N'; tile = 0-degrees; ewTOPO
+      let w = 2 * radius, h = radius * H.sqrt3 // radius * 1.732
+      let x = (col) * 1.5 * radius;
+      let y = (row + Math.abs(col % 2) / 2) * h;
+      return [x, y, w, h]
+    }
   }
   readonly Aname: string
   _tile: Tile; // Tile?
@@ -164,21 +178,30 @@ export class Hex2 extends Hex {
   }
 
   override get meep() { return super.meep; }
-  override set meep(ship: Meeple) {
+  override set meep(meep: Meeple) {
     let cont: Container = this.map.mapCont.shipCont
-    if (this.meep !== undefined) cont.removeChild(this.meep)
-    super.meep = ship
-    if (ship !== undefined) {
-      ship.x = this.x; ship.y = this.y;
-      cont.addChild(ship)
+    if (this.meep !== undefined) cont.removeChild(this.meep) // remove prior meep from this hex !?
+    super.meep = meep
+    if (meep !== undefined) {
+      meep.x = this.x; meep.y = this.y;
+      cont.addChild(meep)
     }
   }
+
   /** Hex2 cell with graphics; shown as a polyStar Shape of radius @ (XY=0,0) */
   constructor(map: HexMap, row: number, col: number, name?: string) {
     super(map, row, col, name);
     map.mapCont.hexCont.addChild(this.cont)
     this.radius = TP.hexRad;
-    this.cache(true)
+
+    //if (row === undefined || col === undefined) return // args not supplied: nextHex
+    let [x, y, w, h] = this.xywh(this.radius, undefined, this.row || 0, this.col || 0); // include margin space between hexes
+    this.x += x
+    this.y += y
+    this.cont.setBounds(-w/2, -h/2, w, h)
+    // initialize cache bounds:
+    let b = this.cont.getBounds();
+    this.cont.cache(b.x, b.y, b.width, b.height);
 
     this.setHexColor("grey")  // new Hex2: until setHexColor(by district)
     this.hexShape.name = this.Aname
@@ -186,13 +209,7 @@ export class Hex2 extends Hex {
     this.stoneIdText = new Text('', F.fontSpec(26))
     this.stoneIdText.textAlign = 'center'; this.stoneIdText.regY = -20
 
-    if (row === undefined || col === undefined) return // args not supplied: nextHex
-    let [x, y, w, h] = this.xywh(this.radius + this.radius/60); // include margin space between hexes
-    this.x += x
-    this.y += y
-    this.cont.setBounds(-w/2, -h/2, w, h)
-
-    let rc = `${row},${col}`, tdy = -25
+    let rc = `${row||''},${col||''}`, tdy = -25
     let rct = this.rcText = new Text(rc, F.fontSpec(26), 'white'); // radius/2 ?
     rct.textAlign = 'center'; rct.y = tdy // based on fontSize? & radius
     this.cont.addChild(rct)
@@ -202,20 +219,11 @@ export class Hex2 extends Hex {
     this.cont.addChild(this.distText)
     this.showText(true); // & this.cache()
   }
-  /** cache() or updateCache() */
-  cache(initial = false) {
-    if (initial) {
-      let width = (this.radius + 2) * H.sqrt3, height = (this.radius + 1) * 2
-      let b = { x: -width / 2, y: -height / 2, width, height }
-      this.cont.cache(b.x, b.y, b.width, b.height);
-    } else {
-      this.cont.updateCache()
-    }
-  }
+
   /** set visibility of rcText & distText */
   showText(vis = !this.rcText.visible) {
     this.rcText.visible = this.distText.visible = vis
-    this.cache()
+    this.cont.updateCache()
   }
 
   /** set hexShape using color: draw border and fill
@@ -232,15 +240,15 @@ export class Hex2 extends Hex {
       this.cont.addChildAt(hexShape, 0)
       this.cont.hitArea = hexShape
       this.hexShape = hexShape
-      this.cache()
+      this.cont.updateCache()
     }
   }
 
-  /** distance between Hexes: adjacent = 1 */
+  /** unit distance between Hexes: adjacent = 1; see also: radialDist */
   metricDist(hex: Hex): number {
-    let [tx, ty, tw] = this.xywh(1), [hx, hy] = hex.xywh(1)
+    let [tx, ty] = this.xywh(1), [hx, hy] = hex.xywh(1)
     let dx = tx - hx, dy = ty - hy
-    return Math.sqrt(dx * dx + dy * dy) / tw // tw == H.sqrt3
+    return Math.sqrt(dx * dx + dy * dy); // tw == H.sqrt3
   }
   /** location of corner between dir0 and dir1; in parent coordinates. */
   cornerPoint(dir0: HexDir, dir1: HexDir) {
@@ -258,7 +266,10 @@ export class Hex2 extends Hex {
   }
 }
 
-/** the colored Shape that fills a Hex. */
+/**
+ * The colored PaintableShape that fills a Hex.
+ * @param radius in call to drawPolyStar()
+ */
 export class HexShape extends Shape {
   constructor(
     readonly radius = TP.hexRad,
@@ -267,10 +278,10 @@ export class HexShape extends Shape {
     super()
   }
 
+  /** draw a Hexagon 1/60th inside the given radius */
   paint(color: string) {
     let tilt = H.dirRot[this.tiltDir];
-    //this.graphics.s(TP.borderColor).dp(0, 0, rad+1, 6, 0, tilt)  // s = beginStroke(color) dp:drawPolyStar
-    this.graphics.f(color).dp(0, 0, this.radius - 1, 6, 0, tilt)             // f = beginFill(color)
+    this.graphics.f(color).dp(0, 0, Math.floor(this.radius * 59 / 60), 6, 0, tilt)             // f = beginFill(color)
   }
 }
 export class MapCont extends Container {
@@ -323,11 +334,48 @@ export class HexMap extends Array<Array<Hex>> implements HexM {
   readonly resignHex: Hex;
   rcLinear(row: number, col: number): number { return col + row * (1 + (this.maxCol || 0) - (this.minCol||0)) }
 
-  readonly radius: number = TP.hexRad
-  /** height of hexagonal cell (1.5 * radius) with NS axis */
-  height: number = this.radius * 1.5;
-  /** width of hexagonal cell  (H.sqrt3 * radius with NS axis */
-  width: number = this.radius * H.sqrt3
+  //
+  //                         |
+  //         2        .      |  1
+  //            .            |
+  //      .                  |
+  //  -----------------------+
+  //         sqrt3
+  //
+  //                         |
+  //         1        .      |  .5
+  //            .            |
+  //      .                  |
+  //  -----------------------+
+  //         sqrt3/2
+  //
+  //                         |
+  //      2/sqrt3     .      |  1 / sqrt3
+  //            .            |
+  //      .                  |
+  //  -----------------------+
+  //
+  //         1
+  //
+  //                         |
+  //      1/sqrt3     .      |  .5 / sqrt3
+  //            .            |
+  //      .                  |
+  //  -----------------------+
+  //         .5
+  //
+  //
+
+  readonly radius = TP.hexRad
+  /** height per row of cells with NS axis */
+  get rowHeight() { return this.radius * 1.5 };
+  /** height of hexagonal cell with NS axis */
+  get cellHeight() { return this.radius * 2 }
+  /** width per col of cells with NS axis */
+  get colWidth() { return this.radius * H.sqrt3 }
+  /** width of hexagonal cell with NS axis */
+  get cellWidth() { return this.radius * H.sqrt3 }
+
   mark: DisplayObject | undefined                              // a cached DisplayObject, used by showMark
   private minCol: number | undefined = undefined               // Array.forEach does not look at negative indices!
   private maxCol: number | undefined = undefined               // used by rcLinear
@@ -336,10 +384,10 @@ export class HexMap extends Array<Array<Hex>> implements HexM {
 
   readonly metaMap = Array<Array<Hex>>()           // hex0 (center Hex) of each MetaHex, has metaLinks to others.
 
-  /** bounding box: XYWH = {0, 0, w, h} */
+  /** bounding box of HexMap: XYWH = {0, 0, w, h} */
   get wh() {
     let hexRect = this.mapCont.hexCont.getBounds()
-    let wh = { width: hexRect.width + 2 * this.width, height: hexRect.height + 2 * this.width }
+    let wh = { width: hexRect.width + 2 * this.colWidth, height: hexRect.height + 2 * this.rowHeight }
     return wh
   }
   /** for contrast paint it black AND white, leave a hole in the middle unpainted. */
@@ -363,8 +411,8 @@ export class HexMap extends Array<Array<Hex>> implements HexM {
   constructor(radius: number = TP.hexRad, addToMapCont = false) {
     super(); // Array<Array<Hex>>()
     this.radius = radius
-    this.height = radius * H.sqrt3
-    this.width = radius * 1.5
+    //this.height = radius * H.sqrt3
+    //this.width = radius * 1.5
     this.skipHex = new Hex(this, -1, -1, S_Skip)
     this.resignHex = new Hex(this, -1, -2, S_Resign)
     if (addToMapCont) this.addToMapCont()
@@ -496,7 +544,7 @@ export class HexMap extends Array<Array<Hex>> implements HexM {
   /**
    *
    * @param dbp Distance Between Planets; determines size of main map meta-hex (~4)
-   * @param dop Dsitance Outside Planets; extra hexes beyond planets (~2)
+   * @param dop Distance Outside Planets; extra hexes beyond planets (~2)
    */
   makeAllDistricts(dbp = TP.dbp, dop = TP.dop) {
     this.makeDistrict(dbp + 2 + dop, 0, 1, 0);    // dop hexes on outer ring; single meta-hex

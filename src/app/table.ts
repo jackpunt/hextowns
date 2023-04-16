@@ -162,34 +162,29 @@ export class Table extends EventDispatcher  {
     let mapCont = hexMap.mapCont, hexCont = mapCont.hexCont; // local reference
     this.scaleCont.addChild(mapCont)
 
-    let hexRect = hexCont.getBounds()
     // background sized for hexMap:
-    let high = hexMap.height, wide = hexMap.width // h=rad*1.5; w=rad*r(3)
-    let miny = hexRect.y - high, minx = hexRect.x - wide
-    let { width, height } = hexMap.wh
-    let bgr: XYWH = { x: 0, y: 0, w: width, h: height + high}
+    let { x: rx, y: ry, width: rw, height: rh } = hexCont.getBounds()
+    let rowh = hexMap.rowHeight, colw = hexMap.colWidth
+    let miny = ry - rowh, minx = rx - colw
+    let bgr: XYWH = { x: 0, y: -rowh * .6, w: rw + 2 * colw, h: rh + 3 * rowh }
     // align center of mapCont(0,0) == hexMap(center) with center of background
-    mapCont.x = (bgr.w) / 2
-    mapCont.y = (bgr.h) / 2
-
-    let auctionCont = this.auctionCont = new AuctionCont(this.gamePlay.auction, hexMap, miny);
-    let nwCorner = this.hexMap.getCornerHex('W') as Hex2;
-    let [x, y, w, h] = nwCorner.xywh(TP.hexRad);
-    this.auctionCont.x = nwCorner.cont.localToLocal(x, y, this.scaleCont).x
-    this.scaleCont.addChild(this.auctionCont);
-    console.log(stime(this, `.layoutTable: auction.maxlen=`), this.auctionCont.maxlen);
-
-    // Shift a couple Tiles to get started:
-    for (let i = 0; i < Player.allPlayers.length; i++) {
-      this.auctionCont.shift()  // select first [+1] Tile
-    }
+    mapCont.x = (bgr.w - bgr.x) / 2
+    mapCont.y = (bgr.h - bgr.y) / 2
 
     this.bgRect = this.setBackground(this.scaleCont, bgr) // bounded by bgr
-    let p00 = this.scaleCont.localToLocal(0, 0, hexCont)
+    let p00 = this.scaleCont.localToLocal(bgr.x, bgr.y, hexCont)
     let pbr = this.scaleCont.localToLocal(bgr.w, bgr.h, hexCont)
     hexCont.cache(p00.x, p00.y, pbr.x-p00.x, pbr.y-p00.y) // cache hexCont (bounded by bgr)
 
-    auctionCont.parent.localToLocal(auctionCont.x, auctionCont.y+100, this.scaleCont, this.undoCont)
+    let [xc, , wc] = hexMap.centerHex.xywh(), at = this.gamePlay.auctionTiles
+    let xy = { x: xc - (at.length / 2) * wc, y: miny }
+    let auctionCont = this.auctionCont = new AuctionCont(at, hexMap, xy);
+
+    // Shift a couple Tiles to get started:
+    for (let i = 0; i < Player.allPlayers.length; i++) {
+      auctionCont.shift()  // select first [+1] Tile
+    }
+
     this.scaleCont.addChild(this.undoCont)
     // this.setupUndoButtons(55, 60, 45, bgr)
     this.enableHexInspector()
@@ -201,8 +196,23 @@ export class Table extends EventDispatcher  {
   lastDrag: Meeple; // last Meeple or Tile to be dragged [debug]
   startGame() {
     // initialize Players & TownStart & draw pile
+    let xw = this.hexMap.getCornerHex('W').xywh()[0]
+    let xe = this.hexMap.getCornerHex('E').xywh()[0]
+    let yy = this.auctionCont.hexes[0].y
+
     this.gamePlay.forEachPlayer(p => {
+      p.makePlayerBits();
+      // place [civic/leader] meepleHex on Table
+      p.leaderHex.forEach((hex, ndx) => {
+        let w = hex.xywh()[2]
+        hex.x = (p.index == 0) ? (xw + ndx * w) : (xe - ndx * w);
+        hex.y = yy
+        hex.tile.hex = hex // re-set hex.tile [the Civic] to follow hex
+      })
+      // place Town on hexMap
       p.placeTown()
+
+      // all meeples are Draggable (Leaders & Police)
       p.meeples.forEach(meep => this.dragger.makeDragable(meep, this,
         // dragFunc
         (meep: Meeple, ctx) => {
@@ -366,25 +376,31 @@ export class Table extends EventDispatcher  {
 }
 
 class AuctionCont extends Container {
-  readonly maxlen;
+  readonly maxlen: number;
   readonly hexes: Hex2[] = []
-  constructor(readonly tiles: Tile[], hexMap: HexMap, miny: number) {
+  constructor(
+    readonly tiles: Tile[],
+    hexMap: HexMap,
+    xy: XY,
+  )
+  {
     super()
     this.maxlen = tiles.length;
-    let nwCorner = hexMap.getCornerHex('W') as Hex2;
-    let [x, y, w, h] = nwCorner.xywh(TP.hexRad);
+    this.hexes.length = 0;
     for (let i = 0; i < this.maxlen; i++) {
-      let hex = this.hexes[i] = new Hex2(hexMap, undefined, undefined, `auctionHex${i}`)
+      // make auctionHex:
+      let hex = new Hex2(hexMap, undefined, i, `auctionHex${i}`)
+      this.hexes.push(hex)
+      let [x, y, w, h] = hex.xywh();
       // hexMap.mapCont.hexCont.addChild(hex)
-      hex.x = x + i * w;
-      hex.y = miny + h/2
+      hex.x = xy.x + i * w;
+      hex.y = xy.y
       hex['Costinc'] = (i == 0) ? 1 : (i == this.maxlen - 1) ? -1 : 0;
     }
   }
 
   shift(tile: Tile = Tile.selectOne(Tile.tileBag)) {
     let tiles = this.tiles, hexes = this.hexes
-    console.log(stime(this, `.shift`), tile.Aname, tile, tile?.children.slice(0));
     // put tile in slot-n (move previous tile to n+1)
     let shift1 = (tile: Tile, n: number) => {
       if (!!tiles[n]) {
@@ -401,7 +417,7 @@ class AuctionCont extends Container {
       tileN.hex = undefined       // already done from above?!
       tileN.x = tileN.y = 0;
     }
-    console.log(stime(this, `.shift`), tiles, tiles[0]?.children.slice(0), tiles[1]?.children.slice(0), tiles[2]?.children.slice(0))
+    console.log(stime(this, `.shift`), tiles)
     return
   }
 }
