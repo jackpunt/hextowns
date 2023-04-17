@@ -1,15 +1,30 @@
 import { C } from "@thegraid/common-lib";
 import { DragInfo } from "@thegraid/easeljs-lib";
-import { Hex2, HexShape } from "./hex";
-import { EwDir } from "./hex-intfs";
+import { Hex, Hex2, HexShape } from "./hex";
+import { EwDir, H } from "./hex-intfs";
 import { Player } from "./player";
-import { Church, Civic, Tile, TownHall, TownStart, University } from "./tile";
+import { C1, Church, Civic, PaintableShape, Tile, TownHall, TownStart, University } from "./tile";
 import { newPlanner } from "./plan-proxy";
 import { TP } from "./table-params";
+import { Shape } from "@thegraid/easeljs-module";
 
+class MeepleShape extends Shape {
+  constructor(public player: Player, public radius = TP.hexRad * .4, public y0 = radius - 4) {
+    super()
+  }
+  paint() {
+    let x0 = 0, y0 = this.y0, r = this.radius;
+    let g = this.graphics.c().ss(2)
+    g.s(this.player.colorn).dc(x0, y0, r - 1)
+    g.f('rgba(250,250,250,.8)').dc(x0, y0, r - 1)
+    this.setBounds(x0 - r, y0 - r, 2 * r, 2 * r)
+    return g
+  }
+}
 export class Meeple extends Tile {
 
   readonly colorValues = C.nameToRgba("blue"); // with alpha component
+  get y0() { return (this.childShape as MeepleShape).y0; }
 
   newTurn() { this.moved = false; }
 
@@ -26,74 +41,61 @@ export class Meeple extends Tile {
     super(player, Aname, 2, 1, 1, 0);
     this.player = player
     this.civicTile = civicTile;
+    let { x, y, width, height } = this.childShape.getBounds()
+    this.nameText.visible = true
+    this.nameText.y = y + height/2 - Tile.textSize/2;
+    this.cache(x, y, width, height);
+    this.paint()
     //this.startHex = player.meepleHex.find(hex => hex.Aname.startsWith(Aname.substring(0, 5)))
   }
-  override get radius() { return TP.hexRad / 1.2 }
 
-  /** move to hex, incur cost to fuel.
-   * @return false if move not possible (no Hex, insufficient fuel)
+  override get radius() { return TP.hexRad / 1.9 }
+  override textVis(v: boolean) { super.textVis(true); }
+  override makeShape(): PaintableShape { return new MeepleShape(this.player); }
+
+
+  override paint(pColor = this.player?.color) {
+    let color = pColor ? TP.colorScheme[pColor] : C1.grey;
+    let g = this.childShape.paint(color)
+    this.updateCache()
+    return g;
+  }
+  /** move in direction.
+   * @return false if move not possible (no Hex, occupied)
    */
-  move(dir: EwDir, hex = this.hex.nextHex(dir)) {
-    if (hex.occupied) return false;
-    this.hex = hex;
+  moveDir(dir: EwDir, hex = this.hex.nextHex(dir)) {
+    if (hex.meep) return false;
+    this.moveTo(hex);
     hex.map.update()    // TODO: invoke in correct place...
     return true
+  }
+  override moveTo(hex: Hex) {
+    if (this.hex) this.hex.meep = undefined; // remove from prior!
+    this.hex = hex;
+    hex.meep = this;
+    return hex;
+  }
+
+  /** the map Hex on which this Meeple sits. */
+  override get hex() { return this._hex; }
+  /** only one Meep on a Hex, Meep on only one Hex */
+  override set hex(hex: Hex) {
+    if (this.hex !== undefined) this.hex.meep = undefined
+    this._hex = hex
+    if (hex !== undefined) hex.meep = this;
   }
 
   startHex: Hex2;       // player.meepleHex[]
   civicTile: Civic;
-  originHex: Hex2;      // where meeple was picked [dragStart]
-  targetHex: Hex2;      // where meeple was placed [dropFunc] (if legal dropTarget; else originHex)
-  lastShift: boolean;
 
-  isLegalTarget(hex: Hex2) {
+  override isLegalTarget(hex: Hex2) {
     if (!hex) return false;
-    if (hex.occupied) return false;
+    if (hex.meep) return false;
     // can move from startHex to civicTile
-    if (this.originHex == this.startHex && hex.tile == this.civicTile) return true
-    return false;
-  }
-  // highlight legal targets, record targetHex when meeple is over a legal target hex.
-  dragFunc(hex: Hex2, ctx: DragInfo) {
-    if (ctx?.first) {
-      this.originHex = this.hex as Hex2  // player.meepleHex[]
-      this.targetHex = this.originHex;
-      this.lastShift = undefined
-    }
-    if (this.isLegalTarget(hex)) {
-      this.targetHex = hex
-      //hex.showMark(true);
-    } else {
-      this.targetHex = this.originHex;
-      //hex.showMark(false)
-    }
-    if (!hex || hex.occupied) return; // do not move over non-existant or occupied hex
-
-    const shiftKey = ctx?.event?.nativeEvent?.shiftKey
-    if (shiftKey === this.lastShift && !ctx?.first && this.targetHex === hex) return;   // nothing new (unless/until ShiftKey)
-    this.lastShift = shiftKey
-    // do shift-down/shift-up actions...
+    //if (this.originHex == this.startHex && hex.tile == this.civicTile) return true
+    return true;
   }
 
-  dropFunc(hex: Hex2, ctx: DragInfo) {
-    this.hex = this.targetHex
-    this.hex.meep = this;
-    //
-    this.lastShift = undefined
-  }
-
-  dragBack() {
-    this.hex = this.targetHex = this.originHex
-    this.originHex.meep = this;
-    this.hex.map.update()
-  }
-  dragAgain() {
-    let targetHex = this.targetHex;
-    // this.pCont.removeAllChildren()
-    this.dragBack()
-    this.dragFunc(this.hex as Hex2, undefined); // targetHex = this.hex; removeChildren
-    this.hex.map.update()
-  }
   // false if [still] available to move this turn
   moved = true;
   /** continue any planned, semi-auto moves toward this.targetHex */

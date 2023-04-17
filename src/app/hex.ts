@@ -168,23 +168,26 @@ export class Hex2 extends Hex {
 
   override get tile() { return super.tile; }
   override set tile(tile: Tile) {
-    let cont: Container = this.map.mapCont.shipCont
-    if (this.tile !== undefined) cont.removeChild(this.tile)
-    super.tile = tile
+    let cont: Container = this.map.mapCont.tileCont
+    // if (this.tile !== undefined) cont.removeChild(this.tile)
+    super.tile = tile  // this._tile = tile
     if (tile !== undefined) {
       tile.x = this.x; tile.y = this.y;
       cont.addChild(tile)
+      if (this.meep) cont.addChildAt(tile, cont.getChildIndex(this.meep))
     }
   }
 
   override get meep() { return super.meep; }
   override set meep(meep: Meeple) {
-    let cont: Container = this.map.mapCont.shipCont
-    if (this.meep !== undefined) cont.removeChild(this.meep) // remove prior meep from this hex !?
-    super.meep = meep
+    let cont: Container = this.map.mapCont.tileCont
+    //if (this.meep !== undefined) cont.removeChild(this.meep) // remove meep [from prior location]
+    super.meep = meep // this._meep = meep    super.meep = meep
     if (meep !== undefined) {
       meep.x = this.x; meep.y = this.y;
       cont.addChild(meep)
+      // then put tile under meep
+      if (this.tile) cont.addChildAt(this.tile, cont.getChildIndex(meep) - 1)
     }
   }
 
@@ -280,17 +283,17 @@ export class HexShape extends Shape {
 
   /** draw a Hexagon 1/60th inside the given radius */
   paint(color: string) {
-    let tilt = H.dirRot[this.tiltDir];
-    this.graphics.f(color).dp(0, 0, Math.floor(this.radius * 59 / 60), 6, 0, tilt)             // f = beginFill(color)
+    let g = this.graphics.c(), tilt = H.dirRot[this.tiltDir];
+    return g.f(color).dp(0, 0, Math.floor(this.radius * 59 / 60), 6, 0, tilt);
   }
 }
 export class MapCont extends Container {
   constructor() {
     super()
   }
-  static cNames = ['hexCont', 'shipCont', 'markCont', 'pathCont0', 'pathCont1'];
+  static cNames = ['hexCont', 'tileCont', 'markCont', 'pathCont0', 'pathCont1'];
   hexCont: Container     // hex shapes on bottom stats: addChild(dsText), parent.rotation
-  shipCont: Container    // Ship/Planets
+  tileCont: Container    // Tiles & Meeples on Hex2/HexMap.
   markCont: Container    // showMark over Stones new CapMark [localToLocal]
   pathCont0: Container   // ship paths on top
   pathCont1: Container   // ship paths on top

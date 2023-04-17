@@ -10,7 +10,7 @@ import { Meeple } from "./meeple";
 import { StatsPanel } from "./stats";
 //import { StatsPanel } from "./stats";
 import { PlayerColor, playerColor0, playerColor1, TP } from "./table-params";
-import { Tile } from "./tile";
+import { Civic, Tile } from "./tile";
 
 
 /** to own file... */
@@ -193,7 +193,7 @@ export class Table extends EventDispatcher  {
 
     this.on(S.add, this.gamePlay.playerMoveEvent, this.gamePlay)[S.Aname] = "playerMoveEvent"
   }
-  lastDrag: Meeple; // last Meeple or Tile to be dragged [debug]
+
   startGame() {
     // initialize Players & TownStart & draw pile
     let xw = this.hexMap.getCornerHex('W').xywh()[0]
@@ -207,29 +207,27 @@ export class Table extends EventDispatcher  {
         let w = hex.xywh()[2]
         hex.x = (p.index == 0) ? (xw + ndx * w) : (xe - ndx * w);
         hex.y = yy
-        hex.tile.hex = hex // re-set hex.tile [the Civic] to follow hex
+        hex.tile?.moveTo(hex) // re-set hex.tile [the Civic] to follow hex
+        hex.meep?.moveTo(hex)
       })
       // place Town on hexMap
       p.placeTown()
+      // Civics are Draggable:
+      p.civicTiles.forEach(tile => this.dragger.makeDragable(tile, this, this.dragFunc0, this.dropFunc0));
+      // Meeples are Draggable (Leaders & Police)
+      p.meeples.forEach(meep => this.dragger.makeDragable(meep, this, this.dragFunc0, this.dropFunc0));
 
-      // all meeples are Draggable (Leaders & Police)
-      p.meeples.forEach(meep => this.dragger.makeDragable(meep, this,
-        // dragFunc
-        (meep: Meeple, ctx) => {
-          this.lastDrag = meep
-          let hex = this.hexUnderObj(meep)
-          if (hex) meep.dragFunc(hex, ctx)
-        },
-        // dropFunc
-        (meep: Meeple, ctx) => {
-          let hex = this.hexUnderObj(meep)
-          if (hex) meep.dropFunc(hex, ctx)
-        })
-      )
       this.hexMap.update()
     })
     this.gamePlay.setNextPlayer(this.gamePlay.allPlayers[0])
   }
+  dragFunc0(tile: Tile, ctx) {
+    tile.dragFunc(this.hexUnderObj(tile), ctx)
+  }
+  dropFunc0(tile: Tile, ctx) {
+    tile.dropFunc(this.hexUnderObj(tile), ctx)
+  }
+
   logCurPlayer(curPlayer: Player) {
     const history = this.gamePlay.history
     const tn = this.gamePlay.turnNumber
@@ -392,7 +390,7 @@ class AuctionCont extends Container {
       let hex = new Hex2(hexMap, undefined, i, `auctionHex${i}`)
       this.hexes.push(hex)
       let [x, y, w, h] = hex.xywh();
-      // hexMap.mapCont.hexCont.addChild(hex)
+      hexMap.mapCont.hexCont.addChild(hex.cont)
       hex.x = xy.x + i * w;
       hex.y = xy.y
       hex['Costinc'] = (i == 0) ? 1 : (i == this.maxlen - 1) ? -1 : 0;
@@ -403,7 +401,7 @@ class AuctionCont extends Container {
     let tiles = this.tiles, hexes = this.hexes
     // put tile in slot-n (move previous tile to n+1)
     let shift1 = (tile: Tile, n: number) => {
-      if (!!tiles[n]) {
+      if (!!tiles[n] && n + 1 < this.maxlen) {
         shift1(tiles[n], n + 1);
       }
       // ASSERT: tiles[n] is undefined | redundant (== slots[n+1])

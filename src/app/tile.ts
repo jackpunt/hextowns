@@ -1,12 +1,13 @@
 import { C, F, className, stime } from "@thegraid/common-lib";
-import { Bitmap, Container, DisplayObject, MouseEvent, Shape, Text } from "@thegraid/easeljs-module";
+import { Bitmap, Container, DisplayObject, Graphics, MouseEvent, Shape, Text } from "@thegraid/easeljs-module";
 import { PlayerColor, TP } from "./table-params";
 import { H } from "./hex-intfs";
-import { Hex, HexMap, HexShape } from "./hex";
+import { Hex, Hex2, HexMap, HexShape } from "./hex";
 import { ImageLoader } from "./image-loader";
 import { Player } from "./player";
+import { DragInfo } from "@thegraid/easeljs-lib";
 
-class C1 {
+export class C1 {
   static GREY = 'grey';
   static grey = 'grey';
   static lightgrey = 'lightgrey'
@@ -17,16 +18,17 @@ class Star extends Shape {
     this.graphics.f(C.briteGold).dp(0, 0, size, 5, 2, tilt)
   }
 }
-interface PaintableShape extends Shape {
-  paint(color: string): void;
+export interface PaintableShape extends Shape {
+  paint(color: string): Graphics;
 }
 export class Tile extends Container {
+  static Uname = ['Univ0', 'Univ1'];
   static allTiles: Tile[] = [];
   static serial = 0;    // serial number of each Tile created
   static imageMap = new Map<string, HTMLImageElement>()
   static imageArgs = {
     root: 'assets/images/',
-    fnames: ['Resi', 'Busi', 'Pstation', 'Lake', 'TownStart', 'TownHall', 'University', 'Temple'],
+    fnames: ['Resi', 'Busi', 'Pstation', 'Lake', 'TownStart', 'TownHall', 'Temple', ...Tile.Uname],
     ext: 'png',
   };
   /** use ImageLoader to load images, THEN invoke callback. */
@@ -79,7 +81,7 @@ export class Tile extends Container {
   }
   get radius() { return TP.hexRad};
   readonly childShape: PaintableShape = this.makeShape();
-  makeShape(): HexShape {
+  makeShape(): PaintableShape {
     return new HexShape(this.radius)
   }
 
@@ -117,7 +119,7 @@ export class Tile extends Container {
   addNameText() {
     let nameText = this.nameText = new Text(this.Aname, F.fontSpec(Tile.textSize))
     nameText.textAlign = 'center'
-    nameText.y = (TP.hexRad - Tile.textSize) / 2;
+    nameText.y = (this.radius - Tile.textSize) * .55;
     nameText.visible = false
     this.addChild(nameText);
   }
@@ -130,6 +132,45 @@ export class Tile extends Container {
   onRightClick(evt: MouseEvent) {
     console.log(stime(this, `.rightclick:`), this.Aname, evt)
 
+  }
+
+  moveTo(hex: Hex) {
+    this.hex = hex;
+    // hex.tile = this; // tile: set hex(hex) INCLUDES hex.tile = tile
+    return hex;
+  }
+  originHex: Hex2;      // where meeple was picked [dragStart]
+  targetHex: Hex2;      // where meeple was placed [dropFunc] (if legal dropTarget; else originHex)
+  lastShift: boolean;
+
+  isLegalTarget(hex: Hex2) {
+    if (!hex) return false;
+    if (hex.tile) return false;
+    return false;
+  }
+  // highlight legal targets, record targetHex when meeple is over a legal target hex.
+  dragFunc(hex: Hex2, ctx: DragInfo) {
+    if (ctx?.first) {
+      this.originHex = this.hex as Hex2  // player.meepleHex[]
+      this.targetHex = this.originHex;
+      this.lastShift = undefined
+    }
+    if (this.isLegalTarget(hex)) {
+      this.targetHex = hex
+      //hex.showMark(true);
+    } else {
+      this.targetHex = this.originHex;
+      //hex.showMark(false)
+    }
+    // const shiftKey = ctx?.event?.nativeEvent?.shiftKey
+    // if (shiftKey === this.lastShift && !ctx?.first && this.targetHex === hex) return;   // nothing new (unless/until ShiftKey)
+    // this.lastShift = shiftKey
+    // do shift-down/shift-up actions...
+  }
+
+  dropFunc(hex: Hex2, ctx: DragInfo) {
+    this.moveTo(this.targetHex)
+    this.lastShift = undefined
   }
 
   static selectOne(tiles: Tile[], remove = true) {
@@ -164,6 +205,13 @@ export class Civic extends Tile {
     this.addBitmap(image);
     player.civicTiles.push(this);
   }
+  override isLegalTarget(hex: Hex2) {
+    if (!hex) return false;
+    if (hex.tile) return false;
+    // if insufficient influence(hex) return false;
+    return true;
+  }
+
 }
 
 type TownSpec = string
@@ -204,7 +252,7 @@ export class TownHall extends Civic {
 }
 export class University extends Civic {
   constructor(player: Player) {
-    super(player, 'U', 'University')
+    super(player, 'U', Tile.Uname[player.index])
   }
 }
 export class Church extends Civic {

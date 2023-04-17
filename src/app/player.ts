@@ -44,7 +44,7 @@ export class Player {
 
   /** make Civics, Leaders & Police; also makeLeaderHex() */
   makePlayerBits() {
-    this.civics.length = this.meeples.length = 0;
+    this.civicTiles.length = this.meeples.length = 0;
     Leader.makeLeaders(this); // push new Civic onto this.civics, push new Leader onto this.meeples
     for (let i = 0; i < 10; i++) {
       new Police(this);      // Note: Player will claim/paint PS from Tile.tileBag/auction
@@ -59,8 +59,8 @@ export class Player {
       // make leaderHex: (not positioned on Table)
       let hex = new Hex2(this.gamePlay.hexMap, 0, 0, meep.name)
       this.leaderHex.push(hex)
-      meep.civicTile.hex = hex
-      hex.tile = meep.civicTile;
+      meep.civicTile.moveTo(hex)
+      meep.moveTo(hex)
       // meep.hex = hex;
       // hex.meep = meep
     })
@@ -76,7 +76,7 @@ export class Player {
     path.forEach(dir => {
       hex = hex.nextHex(dir)
     });
-    hex.tile = town
+    town.moveTo(hex)
   }
 
   endGame(): void {
