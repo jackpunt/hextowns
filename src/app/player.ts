@@ -1,4 +1,4 @@
-import { stime, S, XY } from "@thegraid/common-lib"
+import { stime, S, XY, C } from "@thegraid/common-lib"
 import { GamePlay } from "./game-play"
 import { Hex, Hex2, IHex } from "./hex"
 import { H, HexDir } from "./hex-intfs"
@@ -7,6 +7,7 @@ import { Builder, Dean, Leader, Mayor, Meeple, Police, Priest } from "./meeple"
 import { Table } from "./table"
 import { PlayerColor, playerColors, TP } from "./table-params"
 import { AuctionTile, Church, Civic, PS, Tile, TownHall, TownRules, TownStart, University } from "./tile"
+import { ValueCounter } from "@thegraid/easeljs-lib"
 
 export class Player {
   static allPlayers: Player[] = [];
@@ -62,14 +63,30 @@ export class Player {
       meep.civicTile.moveTo(hex)
       meep.moveTo(hex)
     })
-    this.policeAcademy.hex = new Hex2(this.gamePlay.hexMap, 0, 0, 'PoliceAcademy')
-    this.policeAcademy.available = this.allPolice.slice();
-    this.leaderHex.push(this.policeAcademy.hex);
-    this.recruitPolice().moveTo(this.policeAcademy.hex);
+    this.leaderHex.push(this.makeAcademy().hex);
   }
-  readonly policeAcademy: { hex?: Hex2, available?: Police[] } = {};
+  makeAcademy() {
+    let hex = new Hex2(this.gamePlay.hexMap, 0, 0, 'PoliceAcademy')
+    let available = this.allPolice.slice();
+    let counter = new ValueCounter('academy', available.length, C.coinGold);
+    counter.attachToContainer(hex.cont, { x: 0, y: -TP.hexRad / 2 })
+    let academy = this.policeAcademy = { hex, available, counter };
+    this.recruitPolice(false);
+    return academy;
+  }
+  policeAcademy: { hex?: Hex2, available?: Police[], counter?: ValueCounter } = {};
+
   /** recruit each Police ONCE; they never go back to the academy. */
-  recruitPolice() { return this.policeAcademy.available.shift() }
+  recruitPolice(recruit = true) {
+    let academy = this.policeAcademy;
+    if (!recruit) academy.available = this.allPolice.slice();
+    let police = academy.available.shift();
+    police?.moveTo(academy.hex);
+    academy.counter?.updateValue(academy.available.length);
+    academy.hex.cont.updateCache();
+    academy.hex.map.update();
+    return police;
+  }
 
   /** choose TownRules & placement of TownStart */
   placeTown(town = this.civicTiles[0] as TownStart) {

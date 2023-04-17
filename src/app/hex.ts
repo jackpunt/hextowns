@@ -23,6 +23,13 @@ export function newHSC(hex: Hex, sc: PlayerColor, Aname = hex.Aname) { return { 
 
 /** to recognize this class in hexUnderPoint and obtain the contained Hex. */
 class HexCont extends Container {
+  // useCache = false;
+  // override cache(x, y, w, h) {
+  //   this.useCache && super.cache(x, y, w, h);
+  // }
+  // override updateCache() {
+  //   this.useCache && super.updateCache()
+  // }
   constructor(public hex: Hex2) {
     super()
   }
@@ -201,8 +208,8 @@ export class Hex2 extends Hex {
     let [x, y, w, h] = this.xywh(this.radius, undefined, this.row || 0, this.col || 0); // include margin space between hexes
     this.x += x
     this.y += y
-    this.cont.setBounds(-w/2, -h/2, w, h)
     // initialize cache bounds:
+    this.cont.setBounds(-w / 2, -h / 2, w, h)
     let b = this.cont.getBounds();
     this.cont.cache(b.x, b.y, b.width, b.height);
 

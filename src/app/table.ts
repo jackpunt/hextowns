@@ -54,13 +54,22 @@ export class Table extends EventDispatcher  {
     this.scaleCont = this.makeScaleCont(!!this.stage.canvas) // scaleCont & background
   }
   setupUndoButtons(xOffs: number, bSize: number, skipRad: number, bgr: XYWH) {
+    let undoC = this.undoCont; undoC.name = "undo buttons" // holds the undo buttons.
+    let [x, y, w, h] = this.hexMap.centerHex.xywh()
+    undoC.x = w; undoC.y = y * 1.5;
+    let progressBg = new Shape(), bgw = 200, bgym = 240, y0 = 0
+    let bgc = C.nameToRgbaString(TP.bgColor, .8)
+    progressBg.graphics.f(bgc).r(-bgw/2, y0, bgw, bgym-y0)
+    undoC.addChildAt(progressBg, 0)
+    this.enableHexInspector()
+    this.dragger.makeDragable(undoC)
+    if (true && xOffs > 0) return
     this.skipShape.graphics.f("white").dp(0, 0, 40, 4, 0, skipRad)
     this.undoShape.graphics.f("red").dp(-xOffs, 0, bSize, 3, 0, 180);
     this.redoShape.graphics.f("green").dp(+xOffs, 0, bSize, 3, 0, 0);
     this.undoText.x = -52; this.undoText.textAlign = "center"
     this.redoText.x = 52; this.redoText.textAlign = "center"
     this.winText.x = 0; this.winText.textAlign = "center"
-    let undoC = this.undoCont; undoC.name = "undo buttons" // holds the undo buttons.
     undoC.addChild(this.skipShape)
     undoC.addChild(this.undoShape)
     undoC.addChild(this.redoShape)
@@ -68,17 +77,11 @@ export class Table extends EventDispatcher  {
     undoC.addChild(this.redoText); this.redoText.y = -14;
     let bgrpt = this.bgRect.parent.localToLocal(bgr.x, bgr.h, undoC) // TODO: align with nextHex(x & y)
     this.undoText.mouseEnabled = this.redoText.mouseEnabled = false
-    this.enableHexInspector()
     let aiControl = this.aiControl('pink', 75); aiControl.x = 0; aiControl.y = 100
-    undoC.addChild(aiControl)
     let pmy = 0;
-    let progressBg = new Shape(), bgw = 200, bgym = 240, y0 = 0
-    let bgc = C.nameToRgbaString(TP.bgColor, .8)
-    progressBg.graphics.f(bgc).r(-bgw/2, y0, bgw, bgym-y0)
-    undoC.addChildAt(progressBg, 0)
+    undoC.addChild(aiControl)
     undoC.addChild(this.winBack);
     undoC.addChild(this.winText);
-    this.dragger.makeDragable(undoC)
     this.winText.y = Math.min(pmy, bgrpt.y) // 135 = winBack.y = winBack.h
     this.winBack.visible = this.winText.visible = false
     this.winBack.x = this.winText.x; this.winBack.y = this.winText.y;
@@ -89,7 +92,7 @@ export class Table extends EventDispatcher  {
     this.winText.visible = this.winBack.visible = true
     this.hexMap.update()
   }
-  enableHexInspector(qY: number = TP.hexRad * 2) {
+  enableHexInspector(qY = 52) {
     let qShape = new Shape()
     qShape.graphics.f("black").dp(0, 0, 20, 6, 0, 0)
     qShape.y = qY  // size of 'skip' Triangles
@@ -116,7 +119,9 @@ export class Table extends EventDispatcher  {
   toggleText(vis?: boolean) {
     if (this.downClick) return (this.downClick = false, undefined) // skip one 'click' when pressup/dropfunc
     if (vis === undefined) vis = this.isVisible = !this.isVisible;
-    Tile.allTiles.forEach(tile => tile.textVis(vis))
+    Tile.allTiles.forEach(tile => tile.textVis(vis));
+    Player.allPlayers.forEach(p => p.leaderHex.forEach(hex => hex.showText(vis)))
+    this.auctionCont.hexes.forEach(hex => hex.showText(vis))
     this.hexMap.forEachHex<Hex2>(hex => hex.showText(vis))
     this.hexMap.update()               // after toggleText & updateCache()
   }
@@ -183,7 +188,7 @@ export class Table extends EventDispatcher  {
     hexCont.cache(p00.x, p00.y, pbr.x-p00.x, pbr.y-p00.y) // cache hexCont (bounded by bgr)
 
     let [xc, , wc] = hexMap.centerHex.xywh(), at = this.gamePlay.auctionTiles
-    let xy = { x: xc - (at.length / 2) * wc, y: miny }
+    let xy = { x: xc - ((at.length - 1) / 2) * wc, y: miny }
     let auctionCont = this.auctionCont = new AuctionCont(at, hexMap, xy);
 
     // Shift a couple Tiles to get started:
@@ -192,8 +197,7 @@ export class Table extends EventDispatcher  {
     }
 
     this.scaleCont.addChild(this.undoCont)
-    // this.setupUndoButtons(55, 60, 45, bgr)
-    this.enableHexInspector()
+    this.setupUndoButtons(55, 60, 45, bgr) // & enableHexInspector()
 
     // this.makeMiniMap(this.scaleCont, -(200+TP.mHexes*TP.hexRad), 600+100*TP.mHexes)
 
@@ -209,7 +213,7 @@ export class Table extends EventDispatcher  {
 
     this.gamePlay.forEachPlayer(p => {
       p.makePlayerBits();
-      // place [civic/leader] meepleHex on Table
+      // place [civic/leader, academy/police] meepleHex on Table
       p.leaderHex.forEach((hex, ndx) => {
         let w = hex.xywh()[2]
         hex.x = (p.index == 0) ? (xw + ndx * w) : (xe - ndx * w);
@@ -217,13 +221,14 @@ export class Table extends EventDispatcher  {
         hex.tile?.moveTo(hex) // re-set hex.tile [the Civic] to follow hex
         hex.meep?.moveTo(hex)
       })
+      p.recruitPolice(false);
       // place Town on hexMap
       p.placeTown()
       // All Tiles (Civics, Resi, Busi, PStation, Lake) are Draggable:
       Tile.allTiles.forEach(tile => dragger.makeDragable(tile, this, this.dragFunc, this.dropFunc))
       // All Meeples are Draggable (Leaders & Police)
       p.meeples.forEach(meep => dragger.makeDragable(meep, this, this.dragFunc, this.dropFunc));
-      this.hexMap.update()
+      this.toggleText(false)
     })
     this.gamePlay.setNextPlayer(this.gamePlay.allPlayers[0])
   }
@@ -393,9 +398,9 @@ class AuctionCont extends Container {
     this.hexes.length = 0;
     for (let i = 0; i < this.maxlen; i++) {
       // make auctionHex:
-      let hex = new Hex2(hexMap, undefined, i, `auctionHex${i}`)
+      let hex = new Hex2(hexMap, undefined, undefined, `auctionHex${i}`)
       this.hexes.push(hex)
-      let [x, y, w, h] = hex.xywh();
+      let w = hex.xywh()[2];
       hexMap.mapCont.hexCont.addChild(hex.cont)
       hex.x = xy.x + i * w;
       hex.y = xy.y

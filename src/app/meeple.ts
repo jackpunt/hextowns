@@ -150,9 +150,9 @@ export class Police extends Meeple {
   }
   override moveTo(hex: Hex) {
     let origHex = this.hex, academy = this.player.policeAcademy.hex;
-    super.moveTo(hex)
+    super.moveTo(hex);
     if (origHex == academy && hex !== academy) {
-      this.player.recruitPolice()?.moveTo(academy)
+      this.player.recruitPolice()   // shift, moveTo(hex), update counter on academy
     }
     return hex;
   }
