@@ -22,11 +22,11 @@ export class Player {
   readonly tiles: (Civic | AuctionTile)[] = []; // Resi/Busi/PS/Lake/Civics in play on Map
   readonly reserved: AuctionTile[] = [];        // Resi/Busi/PS/Lake reserved for Player (max 2?)
 
-  /** civicTiles in play on Map */
-  get civics() { return this.tiles.filter(t => t instanceof Civic) as Civic[] }
-  get leaders() { return this.meeples.filter(m => m instanceof Leader) }
   get townstart() { return this.tiles.find(t => t instanceof TownStart) as TownStart }
-  get police() { return this.meeples.filter(m => m instanceof Police) as Police[] }
+  /** civicTiles in play on Map */
+  get allCivics() { return this.tiles.filter(t => t instanceof Civic) as Civic[] }
+  get allLeaders() { return this.meeples.filter(m => m instanceof Leader) }
+  get allPolice() { return this.meeples.filter(m => m instanceof Police) as Police[] }
 
   otherPlayer: Player
   planner: IPlanner
@@ -46,8 +46,8 @@ export class Player {
   makePlayerBits() {
     this.civicTiles.length = this.meeples.length = 0;
     Leader.makeLeaders(this); // push new Civic onto this.civics, push new Leader onto this.meeples
-    for (let i = 0; i < 10; i++) {
-      new Police(this);      // Note: Player will claim/paint PS from Tile.tileBag/auction
+    for (let i = 0; i < 5; i++) {
+      new Police(this, i);      // Note: Player will claim/paint PS from Tile.tileBag/auction
       // PStations made in bulk, along with Resi & Busi (in Tile.tileBag)
     }
     this.makeLeaderHex(); // place for Civics before placed on hexMap.
@@ -55,16 +55,21 @@ export class Player {
   // Leader place *before* deployed to Civic on map.
   makeLeaderHex(xy: XY = {x: 50, y: 0}) {
     this.leaderHex.length = 0;
-    this.leaders.forEach((meep, i) => {
+    this.allLeaders.forEach((meep, i) => {
       // make leaderHex: (not positioned on Table)
       let hex = new Hex2(this.gamePlay.hexMap, 0, 0, meep.name)
       this.leaderHex.push(hex)
       meep.civicTile.moveTo(hex)
       meep.moveTo(hex)
-      // meep.hex = hex;
-      // hex.meep = meep
     })
+    this.policeAcademy.hex = new Hex2(this.gamePlay.hexMap, 0, 0, 'PoliceAcademy')
+    this.policeAcademy.available = this.allPolice.slice();
+    this.leaderHex.push(this.policeAcademy.hex);
+    this.recruitPolice().moveTo(this.policeAcademy.hex);
   }
+  readonly policeAcademy: { hex?: Hex2, available?: Police[] } = {};
+  /** recruit each Police ONCE; they never go back to the academy. */
+  recruitPolice() { return this.policeAcademy.available.shift() }
 
   /** choose TownRules & placement of TownStart */
   placeTown(town = this.civicTiles[0] as TownStart) {
@@ -73,9 +78,7 @@ export class Player {
     // in principle this could change based on the town.rule...
     let hex = this.gamePlay.hexMap.centerHex as Hex;
     let path: HexDir[] = [['NE', 'NW', 'NE'] as HexDir[], ['SE', 'SW', 'SW'] as HexDir[]][this.index];
-    path.forEach(dir => {
-      hex = hex.nextHex(dir)
-    });
+    path.forEach(dir => hex = hex.nextHex(dir));
     town.moveTo(hex)
   }
 

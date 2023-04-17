@@ -46,6 +46,7 @@ export class Meeple extends Tile {
     this.nameText.y = y + height/2 - Tile.textSize/2;
     this.cache(x, y, width, height);
     this.paint()
+    this.player.meeples.push(this);
     //this.startHex = player.meepleHex.find(hex => hex.Aname.startsWith(Aname.substring(0, 5)))
   }
 
@@ -111,7 +112,6 @@ export class Meeple extends Tile {
 export class Leader extends Meeple {
   constructor(tile: Civic, abbrev: string) {
     super(`${abbrev}-${tile.player.index}`, tile.player, tile)
-    this.player.meeples.push(this);
   }
   /** new Civic Tile with a Leader 'on' it. */
   static makeLeaders(p: Player, nPolice = 10) {
@@ -145,8 +145,15 @@ export class Priest extends Leader {
   }
 }
 export class Police extends Meeple {
-  static index = 0;
-  constructor(player: Player) {
-    super(`P:${player.index}-${Police.index++}`, player)
+  constructor(player: Player, index: number) {
+    super(`P:${player.index}-${index+1}`, player)
+  }
+  override moveTo(hex: Hex) {
+    let origHex = this.hex, academy = this.player.policeAcademy.hex;
+    super.moveTo(hex)
+    if (origHex == academy && hex !== academy) {
+      this.player.recruitPolice()?.moveTo(academy)
+    }
+    return hex;
   }
 }

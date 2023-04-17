@@ -6,6 +6,7 @@ import { Hex, Hex2, HexMap, HexShape } from "./hex";
 import { ImageLoader } from "./image-loader";
 import { Player } from "./player";
 import { DragInfo } from "@thegraid/easeljs-lib";
+import { Table } from "./table";
 
 export class C1 {
   static GREY = 'grey';
@@ -146,26 +147,26 @@ export class Tile extends Container {
   isLegalTarget(hex: Hex2) {
     if (!hex) return false;
     if (hex.tile) return false;
-    return false;
+    return true;
   }
   // highlight legal targets, record targetHex when meeple is over a legal target hex.
-  dragFunc(hex: Hex2, ctx: DragInfo) {
+  dragFunc0(hex: Hex2, ctx: DragInfo) {
     if (ctx?.first) {
       this.originHex = this.hex as Hex2  // player.meepleHex[]
       this.targetHex = this.originHex;
       this.lastShift = undefined
     }
-    if (this.isLegalTarget(hex)) {
-      this.targetHex = hex
-      //hex.showMark(true);
-    } else {
-      this.targetHex = this.originHex;
-      //hex.showMark(false)
-    }
+    this.targetHex = this.isLegalTarget(hex) ? hex : this.originHex;
+    //hex.showMark(true);
+
     // const shiftKey = ctx?.event?.nativeEvent?.shiftKey
     // if (shiftKey === this.lastShift && !ctx?.first && this.targetHex === hex) return;   // nothing new (unless/until ShiftKey)
     // this.lastShift = shiftKey
     // do shift-down/shift-up actions...
+  }
+
+  dropFunc0(hex: Hex2, ctx: DragInfo) {
+    this.dropFunc(hex || this.targetHex, ctx)
   }
 
   dropFunc(hex: Hex2, ctx: DragInfo) {
@@ -215,7 +216,6 @@ export class Civic extends Tile {
 }
 
 type TownSpec = string
-export type AuctionTile = Resi | ResiStar | Busi | BusiStar | PS | Lake;
 
 export class TownRules {
   static rulesText: Array<Array<TownSpec>> = [
@@ -239,58 +239,85 @@ export class TownRules {
   }
   static inst = new TownRules();
 }
+
 export class TownStart extends Civic {
   rule: TownSpec;
   constructor(player: Player) {
     super(player, 'TS', 'TownStart')
   }
 }
+
 export class TownHall extends Civic {
   constructor(player: Player) {
     super(player, 'TH', 'TownHall')
   }
 }
+
 export class University extends Civic {
   constructor(player: Player) {
     super(player, 'U', Tile.Uname[player.index])
   }
 }
+
 export class Church extends Civic {
   constructor(player: Player) {
     super(player, 'C', 'Temple')
   }
 }
-export class Resi extends Tile {
+
+export class AuctionTile extends Tile {
+  override dropFunc(hex: Hex2, ctx: DragInfo) {
+    let table = Table.stageTable(hex.cont);
+    let tiles = table.auctionCont.tiles, hexes = table.auctionCont.hexes, index: number;
+    // delete and repaint if removed from auction tiles:
+    tiles.find((tile, ndx) => {
+      if ((tile == this) && (hex !== hexes[ndx])) {
+        tiles[ndx] = undefined;
+        this.player = table.gamePlay.curPlayer;
+        this.paint();
+        return true;
+      } else {
+        return false;
+      }
+    })
+    super.dropFunc(hex, ctx)
+  }
+}
+
+export class Resi extends AuctionTile {
   constructor(player?: Player, Aname?: string, cost = 1, inf = 0, vp = 1, econ = 1) {
     super(player, Aname, cost, inf, vp, econ);
     this.addBitmap('Resi')
   }
 }
-export class Busi extends Tile {
+
+export class Busi extends AuctionTile {
   constructor(player?: Player, Aname?: string, cost = 1, inf = 0, vp = 1, econ = 1) {
     super(player, Aname, cost, inf, vp, econ);
     this.addBitmap('Busi')
   }
 }
+
 export class ResiStar extends Resi {
   constructor(player?: Player, Aname?: string, cost = 2, inf = 1, vp = 2, econ = 1) {
     super(player, Aname, cost, inf, vp, econ);
     this.addStar()
   }
 }
+
 export class BusiStar extends Busi {
   constructor(player?: Player, Aname?: string, cost = 2, inf = 1, vp = 2, econ = 1) {
     super(player, Aname, cost, inf, vp, econ);
     this.addStar()
   }
 }
-export class PS extends Tile {
+export class PS extends AuctionTile {
   constructor(player?: Player, Aname?: string, cost = 1, inf = 0, vp = 0, econ = 0) {
     super(player, Aname, cost, inf, vp, econ);
     this.addBitmap('Pstation')
   }
 }
-export class Lake extends Tile {
+export class Lake extends AuctionTile {
   constructor(player?: Player, Aname?: string, cost = 1, inf = 0, vp = 0, econ = 0) {
     super(player, Aname, cost, inf, vp, econ);
     this.addBitmap('Lake')

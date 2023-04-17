@@ -2,14 +2,12 @@ import { AT, json } from "@thegraid/common-lib";
 import { KeyBinder, ParamGUI, S, stime, Undo } from "@thegraid/easeljs-lib";
 import { GameSetup } from "./game-setup";
 import { Hex, Hex2, HexMap, HSC, IHex, S_Resign } from "./hex";
-import { H } from "./hex-intfs";
 import { Planner } from "./plan-proxy";
 import { Player } from "./player";
 import { GameStats, TableStats } from "./stats";
 import { LogWriter } from "./stream-writer";
 import { Table } from "./table";
 import { otherColor, PlayerColor, playerColors, TP } from "./table-params";
-import { Container } from "@thegraid/easeljs-module";
 import { Tile, TownRules } from "./tile";
 
 class HexEvent {}

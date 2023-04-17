@@ -17,10 +17,15 @@ import { Civic, Tile } from "./tile";
 class TablePlanner {
   constructor(gamePlay: GamePlay) {}
 }
+interface TableStage extends Stage {
+  table: Table;
+}
 
 /** layout display components, setup callbacks to GamePlay */
 export class Table extends EventDispatcher  {
-
+  static stageTable(obj: DisplayObject) {
+    return (obj.stage as TableStage).table
+  }
   statsPanel: StatsPanel;
   gamePlay: GamePlay;
   stage: Stage;
@@ -43,7 +48,8 @@ export class Table extends EventDispatcher  {
   constructor(stage: Stage) {
     super();
 
-    stage['table'] = this // backpointer so Containers can find their Table (& curMark)
+    // backpointer so Containers can find their Table (& curMark)
+    (stage as TableStage).table = this;
     this.stage = stage
     this.scaleCont = this.makeScaleCont(!!this.stage.canvas) // scaleCont & background
   }
@@ -199,6 +205,7 @@ export class Table extends EventDispatcher  {
     let xw = this.hexMap.getCornerHex('W').xywh()[0]
     let xe = this.hexMap.getCornerHex('E').xywh()[0]
     let yy = this.auctionCont.hexes[0].y
+    let dragger = this.dragger;
 
     this.gamePlay.forEachPlayer(p => {
       p.makePlayerBits();
@@ -212,20 +219,19 @@ export class Table extends EventDispatcher  {
       })
       // place Town on hexMap
       p.placeTown()
-      // Civics are Draggable:
-      p.civicTiles.forEach(tile => this.dragger.makeDragable(tile, this, this.dragFunc0, this.dropFunc0));
-      // Meeples are Draggable (Leaders & Police)
-      p.meeples.forEach(meep => this.dragger.makeDragable(meep, this, this.dragFunc0, this.dropFunc0));
-
+      // All Tiles (Civics, Resi, Busi, PStation, Lake) are Draggable:
+      Tile.allTiles.forEach(tile => dragger.makeDragable(tile, this, this.dragFunc, this.dropFunc))
+      // All Meeples are Draggable (Leaders & Police)
+      p.meeples.forEach(meep => dragger.makeDragable(meep, this, this.dragFunc, this.dropFunc));
       this.hexMap.update()
     })
     this.gamePlay.setNextPlayer(this.gamePlay.allPlayers[0])
   }
-  dragFunc0(tile: Tile, ctx) {
-    tile.dragFunc(this.hexUnderObj(tile), ctx)
+  dragFunc(tile: Tile, ctx: DragInfo) {
+    tile.dragFunc0(this.hexUnderObj(tile), ctx)
   }
-  dropFunc0(tile: Tile, ctx) {
-    tile.dropFunc(this.hexUnderObj(tile), ctx)
+  dropFunc(tile: Tile, ctx: DragInfo) {
+    tile.dropFunc0(this.hexUnderObj(tile), ctx)
   }
 
   logCurPlayer(curPlayer: Player) {
