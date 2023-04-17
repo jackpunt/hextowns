@@ -8,7 +8,7 @@ import { Player } from "./player";
 import { StatsPanel, TableStats } from "./stats";
 import { Table } from "./table";
 import { TP } from "./table-params";
-import { Tile } from "./tile";
+import { Cardboard, Tile } from "./tile";
 
 /** show " R" for " N" */
 stime.anno = (obj: string | { constructor: { name: string; }; }) => {
@@ -30,7 +30,7 @@ export class GameSetup {
   constructor(canvasId: string, ext?: string[]) {
     stime.fmt = "MM-DD kk:mm:ss.SSS"
     this.stage = makeStage(canvasId, false)
-    Tile.loadImages(() => {
+    Cardboard.loadImages(() => {
       this.startup(ext)
     })
   }

@@ -13,25 +13,51 @@ export class C1 {
   static grey = 'grey';
   static lightgrey = 'lightgrey'
 }
-class Star extends Shape {
+class StarMark extends Shape {
   constructor(size = TP.hexRad/3, tilt = -90) {
     super()
     this.graphics.f(C.briteGold).dp(0, 0, size, 5, 2, tilt)
   }
 }
+
+class CoinMark extends Shape {
+  constructor() {
+    super()
+    let rad = TP.hexRad * .4;
+    this.graphics.f(C.coinGold).dc(0, 0, rad)
+  }
+}
+
+class InfMark extends Container {
+  constructor(color = C.white) {
+    super()
+    let rad = TP.hexRad;
+    H.ewDirs.forEach(dir => {
+      let sl = new Shape(), gl = sl.graphics
+      gl.ss(3).mt(rad * .8, 0).lt(rad, 0);
+      sl.rotation = H.dirRot[dir]
+      this.addChild(sl)
+    })
+    let w = rad * H.sqrt3, h = rad * 2;
+    this.cache(-w / 2, -h / 2, w, h)
+  }
+}
+
 export interface PaintableShape extends Shape {
   paint(color: string): Graphics;
 }
-export class Tile extends Container {
+
+/** Someday refactor: all the cardboard bits (Tiles, Meeples & Coins) */
+export class Cardboard extends Container {
+
   static Uname = ['Univ0', 'Univ1'];
-  static allTiles: Tile[] = [];
-  static serial = 0;    // serial number of each Tile created
   static imageMap = new Map<string, HTMLImageElement>()
   static imageArgs = {
     root: 'assets/images/',
-    fnames: ['Resi', 'Busi', 'Pstation', 'Lake', 'TownStart', 'TownHall', 'Temple', ...Tile.Uname],
+    fnames: ['Resi', 'Busi', 'Pstation', 'Lake', 'TownStart', 'TownHall', 'Temple', ...Cardboard.Uname],
     ext: 'png',
   };
+
   /** use ImageLoader to load images, THEN invoke callback. */
   static loadImages(cb: () => void) {
     new ImageLoader(Tile.imageArgs, (imap) => {
@@ -39,6 +65,7 @@ export class Tile extends Container {
       cb()
     })
   }
+
   static setImageMap(imap: Map<string, HTMLImageElement>) {
     Tile.imageMap = imap;
     imap.forEach((img, fn) => {
@@ -48,6 +75,12 @@ export class Tile extends Container {
       bm.y -= Tile.textSize / 2
     })
   }
+}
+
+export class Tile extends Cardboard {
+  static allTiles: Tile[] = [];
+  static serial = 0;    // serial number of each Tile created
+
   static textSize = 14;
   nameText: Text;
 
@@ -80,6 +113,11 @@ export class Tile extends Container {
     this.cache(-radius, -radius, 2 * radius, 2 * radius)
     this.paint()
   }
+  star: false;  // extra VP at end of game
+  coin: false;  // gain coin when placed
+  pinf: false;  // provides positive inf (Civic does this, bonus on AuctionTile)
+  ninf: false;  // provides negative inf (slum does this: permanent Criminal on Tile)
+
   get radius() { return TP.hexRad};
   readonly childShape: PaintableShape = this.makeShape();
   makeShape(): PaintableShape {
@@ -89,10 +127,9 @@ export class Tile extends Container {
   paint(pColor = this.player?.color) {
     let color = pColor ? TP.colorScheme[pColor] : C1.grey;
     let r3 = this.radius * H.sqrt3 / 2 - 2, r2 = r3 - 3, r0 = r2 / 3, r1 = (r2 + r0) / 2
-    let g = this.childShape.graphics.c(), pi2 = Math.PI * 2
+    let g = this.childShape.graphics.c();
     this.childShape.paint(color)
-    //g.f(C.BLACK).dc(0, 0, r3)
-    g.f(C.white).dc(0, 0, r2)
+    g.f(C1.lightgrey).dc(0, 0, r2)
     this.updateCache()
     return g;
   }
@@ -110,7 +147,7 @@ export class Tile extends Container {
   }
 
   addStar() {
-    let size = TP.hexRad/3, star = new Star(size)
+    let size = TP.hexRad/3, star = new StarMark(size)
     star.y += 1.2 * size
     this.addChildAt(star, this.children.length - 1)
     this.updateCache()
@@ -204,6 +241,7 @@ export class Civic extends Tile {
     super(player, `${type}-${player.index}`, cost, inf, vp, econ);
     this.player = player;
     this.addBitmap(image);
+    this.addStar();
     player.civicTiles.push(this);
   }
   override isLegalTarget(hex: Hex2) {
