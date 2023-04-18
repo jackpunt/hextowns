@@ -8,14 +8,14 @@ import { newPlanner } from "./plan-proxy";
 import { TP } from "./table-params";
 import { Shape } from "@thegraid/easeljs-module";
 
-class MeepleShape extends Shape {
+class MeepleShape extends Shape implements PaintableShape {
   constructor(public player: Player, public radius = TP.hexRad * .4, public y0 = radius - 4) {
     super()
   }
-  paint() {
+  paint(colorn = this.player?.colorn || C1.grey) {
     let x0 = 0, y0 = this.y0, r = this.radius;
     let g = this.graphics.c().ss(2)
-    g.s(this.player.colorn).dc(x0, y0, r - 1)
+    g.s(colorn).dc(x0, y0, r - 1)
     g.f('rgba(250,250,250,.8)').dc(x0, y0, r - 1)
     this.setBounds(x0 - r, y0 - r, 2 * r, 2 * r)
     return g
@@ -47,7 +47,6 @@ export class Meeple extends Tile {
     this.cache(x, y, width, height);
     this.paint()
     this.player.meeples.push(this);
-    //this.startHex = player.meepleHex.find(hex => hex.Aname.startsWith(Aname.substring(0, 5)))
   }
 
   override get radius() { return TP.hexRad / 1.9 }
@@ -59,7 +58,6 @@ export class Meeple extends Tile {
     let color = pColor ? TP.colorScheme[pColor] : C1.grey;
     let g = this.childShape.paint(color)
     this.updateCache()
-    return g;
   }
   /** move in direction.
    * @return false if move not possible (no Hex, occupied)

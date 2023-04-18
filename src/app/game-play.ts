@@ -8,7 +8,7 @@ import { GameStats, TableStats } from "./stats";
 import { LogWriter } from "./stream-writer";
 import { Table } from "./table";
 import { otherColor, PlayerColor, playerColors, TP } from "./table-params";
-import { Tile, TownRules } from "./tile";
+import { AuctionTile, Tile, TownRules } from "./tile";
 
 class HexEvent {}
 class Move{
@@ -76,7 +76,7 @@ export class GamePlayD extends GamePlay0 {
 export class GamePlay extends GamePlay0 {
   readonly table: Table   // access to GUI (drag/drop) methods.
   readonly logWriter: LogWriter
-  readonly auctionTiles: Tile[] = []
+  readonly auctionTiles: AuctionTile[] = []
   declare readonly gStats: TableStats // https://github.com/TypeStrong/typedoc/issues/1597
   get allPlayers() { return Player.allPlayers; }
 
@@ -94,12 +94,12 @@ export class GamePlay extends GamePlay0 {
     this.logWriter = new LogWriter(logFile)
     this.logWriter.writeLine(line0)
 
-    Tile.fillBag()                         // put R/B/PS/L into draw bag.
+    AuctionTile.fillBag()                         // put R/B/PS/L into draw bag.
     TownRules.inst.fillRulesBag();
     // Create and Inject all the Players: (picking a townStart?)
     Player.allPlayers.length = 0;
     playerColors.forEach((color, ndx) => new Player(ndx, color, this))
-    this.auctionTiles = new Array<Tile>(Player.allPlayers.length + 1);   // expect to have 1 Tile child (or none)
+    this.auctionTiles = new Array<AuctionTile>(Player.allPlayers.length + 1);   // expect to have 1 Tile child (or none)
     // Players have: civics & meeples & TownSpec
     // setTable(table)
     this.table = table
@@ -274,10 +274,14 @@ export class GamePlay extends GamePlay0 {
 
   // TODO: use setNextPlayerNdx() and include in GamePlay0 ?
   setNextPlayer0(plyr: Player): Player {
+    this.table.buttonsForPlayer[this.curPlayerNdx].visible = false;
     this.turnNumber += 1 // this.history.length + 1
     this.curPlayerNdx = plyr.index
     this.curPlayer = plyr
-    this.curPlayer.newTurn()
+    this.curPlayer.newTurn();
+    this.table.buttonsForPlayer[this.curPlayerNdx].visible = true;
+    this.table.auctionCont.tiles.forEach(tile => tile?.paint(this.curPlayer.color))
+    this.hexMap.update()
     return plyr
   }
   setNextPlayer(plyr = this.otherPlayer()) {

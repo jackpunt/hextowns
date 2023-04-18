@@ -1,7 +1,7 @@
 import { C, F, RC, S, stime } from "@thegraid/easeljs-lib";
 import { Container, DisplayObject, MouseEvent, Point, Shape, Text } from "@thegraid/easeljs-module";
 import { EwDir, H, HexDir, InfDir, NsDir } from "./hex-intfs";
-import { Tile } from "./tile";
+import { PaintableShape, Tile } from "./tile";
 import { Meeple } from "./meeple";
 import { PlayerColor, TP } from "./table-params";
 
@@ -70,19 +70,19 @@ export class Hex {
    * @param nsAxis [true] suitable for nsTopo (long axis of hex is N/S)
    * @param row [this.row]
    * @param col [this.col]
-   * @returns [x, y, w, h] of cell at [row, col]
+   * @returns { x, y, w, h } of cell at [row, col]
    */
   xywh(radius = TP.hexRad, nsAxis = true, row = this.row, col = this.col) {
     if (nsAxis) { // tiltDir = 'NE'; tilt = 30-degrees; nsTOPO
       let h = 2 * radius, w = radius * H.sqrt3;  // h height of hexagon (long-vertical axis)
       let x = (col + Math.abs(row % 2) / 2) * w;
       let y = row * 1.5 * radius;   // dist between rows
-      return [x, y, w, h]
+      return { x, y, w, h }
     } else { // tiltdir == 'N'; tile = 0-degrees; ewTOPO
       let w = 2 * radius, h = radius * H.sqrt3 // radius * 1.732
       let x = (col) * 1.5 * radius;
       let y = (row + Math.abs(col % 2) / 2) * h;
-      return [x, y, w, h]
+      return { x, y, w, h }
     }
   }
   readonly Aname: string
@@ -135,7 +135,7 @@ export class Hex {
     return hex
   }
   /** return last Hex on axis in given direction */
-  lastHex(ds: InfDir): Hex {
+  lastHex(ds: HexDir): Hex {
     let hex: Hex = this, nhex: Hex
     while (!!(nhex = hex.links[ds])) { hex = nhex }
     return hex
@@ -143,7 +143,7 @@ export class Hex {
   /** distance between Hexes: adjacent = 1, based on row, col, sqrt3 */
   radialDist(hex: Hex): number {
     let unit = 1 / H.sqrt3 // so w = delta(col) = 1
-    let [tx, ty] = this.xywh(unit), [hx, hy] = hex.xywh(unit)
+    let { x: tx, y: ty } = this.xywh(unit), { x: hx, y: hy } = hex.xywh(unit)
     let dx = tx - hx, dy = ty - hy
     return Math.sqrt(dx * dx + dy * dy);
   }
@@ -159,6 +159,7 @@ export class Hex2 extends Hex {
   set y(v: number) { this.cont.y = v}
   get scaleX() { return this.cont.scaleX}
   get scaleY() { return this.cont.scaleY}
+  get isOnMap() { return this.district !== undefined; } // also: (row !== undefined) && (col !== undefined)
 
   // if override set, then must override get!
   override get district() { return this._district }
@@ -205,7 +206,7 @@ export class Hex2 extends Hex {
     this.radius = TP.hexRad;
 
     //if (row === undefined || col === undefined) return // args not supplied: nextHex
-    let [x, y, w, h] = this.xywh(this.radius, undefined, this.row || 0, this.col || 0); // include margin space between hexes
+    let { x, y, w, h } = this.xywh(this.radius, undefined, this.row || 0, this.col || 0); // include margin space between hexes
     this.x += x
     this.y += y
     // initialize cache bounds:
@@ -213,7 +214,7 @@ export class Hex2 extends Hex {
     let b = this.cont.getBounds();
     this.cont.cache(b.x, b.y, b.width, b.height);
 
-    this.setHexColor("grey")  // new Hex2: until setHexColor(by district)
+    this.setHexColor('grey')  // new Hex2: until setHexColor(by district)
     this.hexShape.name = this.Aname
 
     this.stoneIdText = new Text('', F.fontSpec(26))
@@ -256,7 +257,7 @@ export class Hex2 extends Hex {
 
   /** unit distance between Hexes: adjacent = 1; see also: radialDist */
   metricDist(hex: Hex): number {
-    let [tx, ty] = this.xywh(1), [hx, hy] = hex.xywh(1)
+    let { x: tx, y: ty } = this.xywh(1), { x: hx, y: hy } = hex.xywh(1)
     let dx = tx - hx, dy = ty - hy
     return Math.sqrt(dx * dx + dy * dy); // tw == H.sqrt3
   }
@@ -575,7 +576,7 @@ export class HexMap extends Array<Array<Hex>> implements HexM {
     let cc = Math.floor((this.minCol + this.maxCol) / 2);
     return this[cr][cc] as Hex2
   }
-  getCornerHex(dn: InfDir) {
+  getCornerHex(dn: HexDir) {
     return this.centerHex.lastHex(dn)
   }
 

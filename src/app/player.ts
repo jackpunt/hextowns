@@ -19,7 +19,6 @@ export class Player {
   readonly captures: Meeple | Tile[] = [];      // captured Criminals; Tiles captured by Criminals moved by Player
   readonly meeples: Meeple[] = [];              // Player's B, M, P, D, Police available
   readonly civicTiles: Civic[] = [];            // Player's S, H, C, U Tiles
-  readonly leaderHex: Hex2[] = [];              // Table Layout Hex2 for initial placement
   readonly tiles: (Civic | AuctionTile)[] = []; // Resi/Busi/PS/Lake/Civics in play on Map
   readonly reserved: AuctionTile[] = [];        // Resi/Busi/PS/Lake reserved for Player (max 2?)
 
@@ -49,24 +48,19 @@ export class Player {
     Leader.makeLeaders(this); // push new Civic onto this.civics, push new Leader onto this.meeples
     for (let i = 0; i < 5; i++) {
       new Police(this, i);      // Note: Player will claim/paint PS from Tile.tileBag/auction
-      // PStations made in bulk, along with Resi & Busi (in Tile.tileBag)
     }
-    this.makeLeaderHex(); // place for Civics before placed on hexMap.
   }
+
   // Leader place *before* deployed to Civic on map.
-  makeLeaderHex(xy: XY = {x: 50, y: 0}) {
-    this.leaderHex.length = 0;
-    this.allLeaders.forEach((meep, i) => {
-      // make leaderHex: (not positioned on Table)
-      let hex = new Hex2(this.gamePlay.hexMap, 0, 0, meep.name)
-      this.leaderHex.push(hex)
+  placeCivicLeaders(leaderHex: Hex2[]) {
+    leaderHex.forEach((hex, i) => {
+      let meep = this.allLeaders[i]
       meep.civicTile.moveTo(hex)
       meep.moveTo(hex)
     })
-    this.leaderHex.push(this.makeAcademy().hex);
   }
-  makeAcademy() {
-    let hex = new Hex2(this.gamePlay.hexMap, 0, 0, 'PoliceAcademy')
+
+  makeAcademy(hex: Hex2) {
     let available = this.allPolice.slice();
     let counter = new ValueCounter('academy', available.length, C.coinGold);
     counter.attachToContainer(hex.cont, { x: 0, y: -TP.hexRad / 2 })
@@ -76,7 +70,9 @@ export class Player {
   }
   policeAcademy: { hex?: Hex2, available?: Police[], counter?: ValueCounter } = {};
 
-  /** recruit each Police ONCE; they never go back to the academy. */
+  /** recruit each Police ONCE; they never go back to the academy.
+   * @param recruit [true] set false to reload allPolice to policeAcademy
+   */
   recruitPolice(recruit = true) {
     let academy = this.policeAcademy;
     if (!recruit) academy.available = this.allPolice.slice();
@@ -84,7 +80,6 @@ export class Player {
     police?.moveTo(academy.hex);
     academy.counter?.updateValue(academy.available.length);
     academy.hex.cont.updateCache();
-    academy.hex.map.update();
     return police;
   }
 

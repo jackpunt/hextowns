@@ -11,8 +11,23 @@ import { Table } from "./table";
 export class C1 {
   static GREY = 'grey';
   static grey = 'grey';
-  static lightgrey = 'lightgrey'
+  static lightergrey = 'rgb(225,225,225)' // needs to contrast with WHITE influence lines
 }
+
+export interface PaintableShape extends Shape {
+  /** paint with new player color; updateCache() */
+  paint(colorn: string): Graphics;
+}
+
+class TileShape extends HexShape implements PaintableShape {
+  /** HexShape filled with colored disk: */
+  override paint(colorn: string) {
+    let r2 = this.radius * H.sqrt3 * .5 * (55 / 60);
+    super.paint(colorn).f(C1.lightergrey).dc(0, 0, r2)
+    return this.graphics
+  }
+}
+
 class StarMark extends Shape {
   constructor(size = TP.hexRad/3, tilt = -90) {
     super()
@@ -43,10 +58,6 @@ class InfMark extends Container {
   }
 }
 
-export interface PaintableShape extends Shape {
-  paint(color: string): Graphics;
-}
-
 /** Someday refactor: all the cardboard bits (Tiles, Meeples & Coins) */
 export class Cardboard extends Container {
 
@@ -74,6 +85,17 @@ export class Cardboard extends Container {
       bm.x = bm.y = -width / 2;
       bm.y -= Tile.textSize / 2
     })
+  }
+  readonly childShape: PaintableShape = this.makeShape();
+  /** abstract: subclass should override. */
+  makeShape(): PaintableShape {
+    return new TileShape();
+  }
+  /** paint with PlayerColor; updateCache() */
+  paint(pColor?: PlayerColor) {
+    let color = pColor ? TP.colorScheme[pColor] : C1.grey;
+    this.childShape.paint(color)
+    this.updateCache()
   }
 }
 
@@ -113,25 +135,20 @@ export class Tile extends Cardboard {
     this.cache(-radius, -radius, 2 * radius, 2 * radius)
     this.paint()
   }
+
   star: false;  // extra VP at end of game
   coin: false;  // gain coin when placed
   pinf: false;  // provides positive inf (Civic does this, bonus on AuctionTile)
   ninf: false;  // provides negative inf (slum does this: permanent Criminal on Tile)
 
   get radius() { return TP.hexRad};
-  readonly childShape: PaintableShape = this.makeShape();
-  makeShape(): PaintableShape {
-    return new HexShape(this.radius)
+  override makeShape(): PaintableShape {
+    return new TileShape(this.radius)
   }
 
-  paint(pColor = this.player?.color) {
-    let color = pColor ? TP.colorScheme[pColor] : C1.grey;
-    let r3 = this.radius * H.sqrt3 / 2 - 2, r2 = r3 - 3, r0 = r2 / 3, r1 = (r2 + r0) / 2
-    let g = this.childShape.graphics.c();
-    this.childShape.paint(color)
-    g.f(C1.lightgrey).dc(0, 0, r2)
-    this.updateCache()
-    return g;
+  override paint(pColor = this.player?.color, colorn = pColor ? TP.colorScheme[pColor] : C1.grey) {
+    this.childShape.paint(colorn)
+    this.updateCache(); // draw other children and re-cache.
   }
 
   /** name in set of filenames loaded in GameSetup */
@@ -173,19 +190,33 @@ export class Tile extends Cardboard {
   }
 
   moveTo(hex: Hex) {
-    this.hex = hex;
-    // hex.tile = this; // tile: set hex(hex) INCLUDES hex.tile = tile
+    this.hex = hex;     // INCLUDES: hex.tile = tile
     return hex;
   }
   originHex: Hex2;      // where meeple was picked [dragStart]
   targetHex: Hex2;      // where meeple was placed [dropFunc] (if legal dropTarget; else originHex)
   lastShift: boolean;
 
+  /**
+   * Override in AuctionTile, Civic, Meeple/Leader
+   * @param hex a potential targetHex (table.hexUnderPoint(dragObj.xy))
+   */
   isLegalTarget(hex: Hex2) {
     if (!hex) return false;
     if (hex.tile) return false;
     return true;
   }
+
+  /**
+   * Override in AuctionTile, Civic, Meeple/Leader.
+   * @param hex Hex2 this Tile is over when dropped (may be undefined; see also: TargetHex)
+   * @param ctx DragInfo
+   */
+  dropFunc(hex: Hex2, ctx: DragInfo) {
+    this.moveTo(this.targetHex)
+    this.lastShift = undefined
+  }
+
   // highlight legal targets, record targetHex when meeple is over a legal target hex.
   dragFunc0(hex: Hex2, ctx: DragInfo) {
     if (ctx?.first) {
@@ -204,34 +235,6 @@ export class Tile extends Cardboard {
 
   dropFunc0(hex: Hex2, ctx: DragInfo) {
     this.dropFunc(hex || this.targetHex, ctx)
-  }
-
-  dropFunc(hex: Hex2, ctx: DragInfo) {
-    this.moveTo(this.targetHex)
-    this.lastShift = undefined
-  }
-
-  static selectOne(tiles: Tile[], remove = true) {
-    let index = Math.floor(Math.random() * tiles.length)
-    let tile = tiles.splice(index, 1)[0];
-    if (!remove) tiles.push(tile);
-    return tile;
-  }
-  static tileBag: AuctionTile[] = [];
-  static fillBag() {
-    let addTiles = (n: number, type: new () => Tile) => {
-      for (let i = 0; i < n; i++) {
-        let tile = new type();
-        Tile.tileBag.push(tile);
-      }
-    }
-    Tile.tileBag.length = 0;
-    addTiles(16, Resi)
-    addTiles(16, Busi)
-    addTiles(4, ResiStar)
-    addTiles(4, BusiStar)
-    addTiles(10, PS)
-    addTiles(10, Lake)
   }
 }
 
@@ -304,19 +307,67 @@ export class Church extends Civic {
 }
 
 export class AuctionTile extends Tile {
+
+  static selectOne(tiles: AuctionTile[], remove = true) {
+    let index = Math.floor(Math.random() * tiles.length)
+    let tile = tiles.splice(index, 1)[0];
+    if (!remove) tiles.push(tile);
+    return tile;
+  }
+  static tileBag: AuctionTile[] = [];
+  static fillBag() {
+    let addTiles = (n: number, type: new () => AuctionTile) => {
+      for (let i = 0; i < n; i++) {
+        let tile = new type();
+        AuctionTile.tileBag.push(tile);
+      }
+    }
+    AuctionTile.tileBag.length = 0;
+    addTiles(16, Resi)
+    addTiles(16, Busi)
+    addTiles(4, ResiStar)
+    addTiles(4, BusiStar)
+    addTiles(10, PS)
+    addTiles(10, Lake)
+  }
+
+  recycle() {
+    this.hex = undefined;
+    this.x = this.y = 0;
+    AuctionTile.tileBag.unshift(this)
+  }
+  get table() { return (this.hex instanceof Hex2) && Table.stageTable(this.hex.cont); }
+
+  indexInAuction() {
+    if (!(this.hex instanceof Hex2 )) return -1;
+    let table = this.table;
+    let tiles = table?.auctionCont.tiles;
+    return tiles ? tiles.indexOf(this) : -1;
+  }
+
+  override isLegalTarget(hex: Hex2): boolean {
+    if (hex.isOnMap && !hex.occupied) return true;
+    let table = this.table, curNdx = table.gamePlay.curPlayerNdx;
+    if (table.reserveHexes[curNdx].includes(hex)) return true;
+    return false
+  }
+
   override dropFunc(hex: Hex2, ctx: DragInfo) {
     let table = Table.stageTable(hex.cont);
-    let tiles = table.auctionCont.tiles, hexes = table.auctionCont.hexes, index: number;
+    let tiles = table.auctionCont.tiles, hexes = table.auctionCont.hexes;
+    let index = tiles.indexOf(this);
     // delete and repaint if removed from auction tiles:
+    // if (index >= 0) {
+    //   if (this.targetHex )
+    // }
     tiles.find((tile, ndx) => {
-      if ((tile == this) && (hex !== hexes[ndx])) {
-        tiles[ndx] = undefined;
-        this.player = table.gamePlay.curPlayer;
-        this.paint();
-        return true;
-      } else {
-        return false;
-      }
+      // FROM auction && not TO orig auction hex:
+      ((tile == this) && (this.targetHex !== hexes[ndx])) && (
+        tiles[ndx] = undefined,
+        this.player = table.gamePlay.curPlayer,
+        this.paint(),
+        true
+      )
     })
     super.dropFunc(hex, ctx)
   }

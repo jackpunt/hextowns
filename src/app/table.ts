@@ -1,4 +1,4 @@
-import { AT, C, Dragger, DragInfo, F, KeyBinder, S, ScaleableContainer, stime, XY } from "@thegraid/easeljs-lib";
+import { AT, C, Dragger, DragInfo, F, KeyBinder, S, ScaleableContainer, stime, ValueCounter, XY } from "@thegraid/easeljs-lib";
 import { Container, DisplayObject, EventDispatcher, Graphics, MouseEvent, Shape, Stage, Text } from "@thegraid/easeljs-module";
 import { GamePlay } from "./game-play";
 import { Hex, Hex2, HexMap, IHex } from "./hex";
@@ -10,7 +10,7 @@ import { Meeple } from "./meeple";
 import { StatsPanel } from "./stats";
 //import { StatsPanel } from "./stats";
 import { PlayerColor, playerColor0, playerColor1, TP } from "./table-params";
-import { Civic, Tile } from "./tile";
+import { AuctionTile, Civic, Tile } from "./tile";
 
 
 /** to own file... */
@@ -55,7 +55,7 @@ export class Table extends EventDispatcher  {
   }
   setupUndoButtons(xOffs: number, bSize: number, skipRad: number, bgr: XYWH) {
     let undoC = this.undoCont; undoC.name = "undo buttons" // holds the undo buttons.
-    let [x, y, w, h] = this.hexMap.centerHex.xywh()
+    let { y, w } = this.hexMap.centerHex.xywh()
     undoC.x = w; undoC.y = y * 1.5;
     let progressBg = new Shape(), bgw = 200, bgym = 240, y0 = 0
     let bgc = C.nameToRgbaString(TP.bgColor, .8)
@@ -120,13 +120,13 @@ export class Table extends EventDispatcher  {
     if (this.downClick) return (this.downClick = false, undefined) // skip one 'click' when pressup/dropfunc
     if (vis === undefined) vis = this.isVisible = !this.isVisible;
     Tile.allTiles.forEach(tile => tile.textVis(vis));
-    Player.allPlayers.forEach(p => p.leaderHex.forEach(hex => hex.showText(vis)))
+    this.homeRowHexes.forEach(pRow => pRow.forEach(hex => hex.showText(vis)))
     this.auctionCont.hexes.forEach(hex => hex.showText(vis))
     this.hexMap.forEachHex<Hex2>(hex => hex.showText(vis))
     this.hexMap.update()               // after toggleText & updateCache()
   }
   /** for KeyBinding test */
-  shiftAuction(tile?: Tile) {
+  shiftAuction(tile?: AuctionTile) {
     this.auctionCont.shift(tile)
     this.hexMap.update()
   }
@@ -163,6 +163,8 @@ export class Table extends EventDispatcher  {
     return bpanel
   }
 
+  homeRowHexes: Hex2[][] = [[], []]; // [pIndex][...leaderHex, academyHex]
+  reserveHexes: Hex2[][] = [[], []]; // [pIndex][...leaderHex, academyHex]
   layoutTable(gamePlay: GamePlay) {
     this.gamePlay = gamePlay
     let hexMap = this.hexMap = gamePlay.hexMap
@@ -187,14 +189,41 @@ export class Table extends EventDispatcher  {
     let pbr = this.scaleCont.localToLocal(bgr.w, bgr.h, hexCont)
     hexCont.cache(p00.x, p00.y, pbr.x-p00.x, pbr.y-p00.y) // cache hexCont (bounded by bgr)
 
-    let [xc, , wc] = hexMap.centerHex.xywh(), at = this.gamePlay.auctionTiles
+    let { x: xc, w: wc } = hexMap.centerHex.xywh(), at = this.gamePlay.auctionTiles
     let xy = { x: xc - ((at.length - 1) / 2) * wc, y: miny }
-    let auctionCont = this.auctionCont = new AuctionCont(at, hexMap, xy);
+    this.auctionCont = new AuctionCont(at, this, xy);
 
-    // Shift a couple Tiles to get started:
-    for (let i = 0; i < Player.allPlayers.length; i++) {
-      auctionCont.shift()  // select first [+1] Tile
+    let { x: x0, h } = this.hexMap.getCornerHex(H.W).xywh();
+    let x1 = this.hexMap.getCornerHex(H.E).xywh().x
+    let y0 = this.auctionCont.hexes[0].y
+    let y1 = y0 + h * 1;
+
+    this.homeRowHexes = [[], []];
+    this.reserveHexes = [[], []];
+    let homeRowHex = (pIndex: number, name: string, ndx: number, y = y0) => {
+      let hex = new Hex2(this.gamePlay.hexMap, 0, 0, name)
+      this.homeRowHexes[pIndex].push(hex);
+      let w = hex.xywh().w
+      hex.x = (pIndex == 0) ? (x0 + ndx * w) : (x1 - ndx * w);
+      hex.y = y
+      return hex
     }
+
+    this.buttonsForPlayer.length = 0; // TODO: maybe deconstruct
+    Player.allPlayers.forEach((p, index) => {
+      this.makeButtonsForPlayer(p);
+      p.makePlayerBits();
+      let leaderHex = p.allLeaders.map((meep, ndx) => homeRowHex(index, meep.Aname, ndx, y0))
+      let academyHex = homeRowHex(index, 'PoliceAcademy', leaderHex.length, y0)
+      this.reserveHexes[index].push(...[0, 1].map(i => homeRowHex(index, `ReserveHex-${i}`, i + 1.25, y1)))
+
+      // place [civic/leader, academy/police] meepleHex on Table
+      p.placeCivicLeaders(leaderHex);
+      p.makeAcademy(academyHex);
+      p.recruitPolice(false);
+      this.auctionCont.shift()             // QQQ: shift a Tile (per Player) to get started
+      this.hexMap.update();
+    })
 
     this.scaleCont.addChild(this.undoCont)
     this.setupUndoButtons(55, 60, 45, bgr) // & enableHexInspector()
@@ -204,24 +233,73 @@ export class Table extends EventDispatcher  {
     this.on(S.add, this.gamePlay.playerMoveEvent, this.gamePlay)[S.Aname] = "playerMoveEvent"
   }
 
+  readonly buttonsForPlayer: Container[] = [];
+  /** per player buttons to invoke GamePlay */
+  makeButtonsForPlayer(player: Player) {
+    let parent = this.scaleCont
+    let chex = this.hexMap.getCornerHex([H.W, H.E][player.index]) as Hex2;
+    let ehex = this.hexMap.getCornerHex(H.NE) as Hex2;
+    let { x: cx, y: cy } = chex.xywh();
+    let ptc = chex.cont.parent.localToLocal(cx, cy, parent)
+    let { x: ex, y: ey, h: eh } = ehex.xywh();
+    let pt0 = chex.cont.parent.localToLocal(ex, ey, parent)
+    let cont = new Container();
+    cont.x = ptc.x;
+    cont.y = pt0.y;
+    cont.visible = false;
+    parent.addChild(cont);
+
+    this.buttonsForPlayer[player.index] = cont;
+    let bLabels = ['Start', 'Crime', 'Police', 'Build', 'Reserve', 'Done'];
+    bLabels.forEach((label, i) => {
+      let b = new ValueCounter(label, label, 'lightgreen', eh/3);
+      b.mouseEnabled = true
+      b.attachToContainer(cont, { x: 0, y: i * eh / 2 }) // just a label
+      b.on(S.click, () => this.doButton(label), this)[S.Aname] = `b:${label}`;
+    })
+    this.hexMap
+  }
+  /**
+  // Start: SetPlayer, RollForCrime, Shift Auction,
+  // Do Reserve (add to Reserve Hexes)
+  // Do Crime (place, move, attack/resolve)
+  // Do Police (place, move, attack/resolve, collateral, dismiss)
+  // Do Build (place, move, build)
+  // Done: enable other player buttons
+  */
+  doButton(label: string) {
+    console.log(stime(this, `.doButton:`), label)
+    switch (label) {
+      case 'Start': {
+        break;
+      }
+      case 'Crime': {
+        break;
+      }
+      case 'Police': {
+        break;
+      }
+      case 'Build': {
+        break;
+      }
+      case 'Reserve': {
+        // dragPick (auctionCont.hexes[0, 1, 2]); click OR space to cycle through...
+        let legalTargets = this.reserveHexes[this.gamePlay.curPlayerNdx];
+        // on Drop(hex, tile): recycle targetHex.tile; hex.tile = targetHex;
+        break;
+      }
+      case 'Done': {
+        this.gamePlay.setNextPlayer()
+        break
+      }
+    }
+  }
+
   startGame() {
     // initialize Players & TownStart & draw pile
-    let xw = this.hexMap.getCornerHex('W').xywh()[0]
-    let xe = this.hexMap.getCornerHex('E').xywh()[0]
-    let yy = this.auctionCont.hexes[0].y
     let dragger = this.dragger;
 
     this.gamePlay.forEachPlayer(p => {
-      p.makePlayerBits();
-      // place [civic/leader, academy/police] meepleHex on Table
-      p.leaderHex.forEach((hex, ndx) => {
-        let w = hex.xywh()[2]
-        hex.x = (p.index == 0) ? (xw + ndx * w) : (xe - ndx * w);
-        hex.y = yy
-        hex.tile?.moveTo(hex) // re-set hex.tile [the Civic] to follow hex
-        hex.meep?.moveTo(hex)
-      })
-      p.recruitPolice(false);
       // place Town on hexMap
       p.placeTown()
       // All Tiles (Civics, Resi, Busi, PStation, Lake) are Draggable:
@@ -388,19 +466,20 @@ class AuctionCont extends Container {
   readonly maxlen: number;
   readonly hexes: Hex2[] = []
   constructor(
-    readonly tiles: Tile[],
-    hexMap: HexMap,
+    readonly tiles: AuctionTile[],
+    readonly table: Table,
     xy: XY,
   )
   {
     super()
     this.maxlen = tiles.length;
     this.hexes.length = 0;
+    let hexMap = table.hexMap;
     for (let i = 0; i < this.maxlen; i++) {
       // make auctionHex:
       let hex = new Hex2(hexMap, undefined, undefined, `auctionHex${i}`)
       this.hexes.push(hex)
-      let w = hex.xywh()[2];
+      let w = hex.xywh().w;
       hexMap.mapCont.hexCont.addChild(hex.cont)
       hex.x = xy.x + i * w;
       hex.y = xy.y
@@ -408,10 +487,11 @@ class AuctionCont extends Container {
     }
   }
 
-  shift(tile: Tile = Tile.selectOne(Tile.tileBag)) {
+  shift(tile = AuctionTile.selectOne(AuctionTile.tileBag)) {
+    tile.paint(this.table.gamePlay.curPlayer?.color)
     let tiles = this.tiles, hexes = this.hexes
     // put tile in slot-n (move previous tile to n+1)
-    let shift1 = (tile: Tile, n: number) => {
+    let shift1 = (tile: AuctionTile, n: number) => {
       if (!!tiles[n] && n + 1 < this.maxlen) {
         shift1(tiles[n], n + 1);
       }
@@ -421,10 +501,7 @@ class AuctionCont extends Container {
     }
     shift1(tile, 0)
     while (tiles[this.maxlen]) {
-      let tileN = this.tiles.pop()
-      Tile.tileBag.push(tileN);   // put it back into bag
-      tileN.hex = undefined       // already done from above?!
-      tileN.x = tileN.y = 0;
+      this.tiles.pop().recycle()             // put it back into bag
     }
     console.log(stime(this, `.shift`), tiles)
     return
