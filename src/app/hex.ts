@@ -220,7 +220,7 @@ export class Hex2 extends Hex {
     this.stoneIdText = new Text('', F.fontSpec(26))
     this.stoneIdText.textAlign = 'center'; this.stoneIdText.regY = -20
 
-    let rc = `${row||''},${col||''}`, tdy = -25
+    let rc = `${row!=undefined?row:''},${col!=undefined?col:''}`, tdy = -25
     let rct = this.rcText = new Text(rc, F.fontSpec(26), 'white'); // radius/2 ?
     rct.textAlign = 'center'; rct.y = tdy // based on fontSize? & radius
     this.cont.addChild(rct)

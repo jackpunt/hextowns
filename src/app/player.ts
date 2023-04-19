@@ -21,11 +21,13 @@ export class Player {
   readonly civicTiles: Civic[] = [];            // Player's S, H, C, U Tiles
   readonly tiles: (Civic | AuctionTile)[] = []; // Resi/Busi/PS/Lake/Civics in play on Map
   readonly reserved: AuctionTile[] = [];        // Resi/Busi/PS/Lake reserved for Player (max 2?)
+  coins = 0;
+  jailHex: Hex2
 
   get townstart() { return this.tiles.find(t => t instanceof TownStart) as TownStart }
   /** civicTiles in play on Map */
   get allCivics() { return this.tiles.filter(t => t instanceof Civic) as Civic[] }
-  get allLeaders() { return this.meeples.filter(m => m instanceof Leader) }
+  get allLeaders() { return this.meeples.filter(m => m instanceof Leader) as Leader[] }
   get allPolice() { return this.meeples.filter(m => m instanceof Police) as Police[] }
 
   otherPlayer: Player
@@ -89,7 +91,7 @@ export class Player {
     town.rule = ruleCard[Math.floor(Math.random() * 2)];
     // in principle this could change based on the town.rule...
     let hex = this.gamePlay.hexMap.centerHex as Hex;
-    let path: HexDir[] = [['NE', 'NW', 'NE'] as HexDir[], ['SE', 'SW', 'SW'] as HexDir[]][this.index];
+    let path: HexDir[] = [['NW', 'W', 'W'] as HexDir[], ['SE', 'E', 'E'] as HexDir[]][this.index];
     path.forEach(dir => hex = hex.nextHex(dir));
     town.moveTo(hex)
   }
@@ -125,12 +127,8 @@ export class Player {
     TP.log > 0 && console.log(stime(this, `(${this.colorn}).playerMove(${useRobo}): useRobo=${this.useRobo}, running=${running}`))
     if (running) return
     if (useRobo || this.useRobo) {
-    // continue any semi-auto moves for ship:
-      if (!this.meeples.find(ship => !ship.shipMove())) {
-        this.gamePlay.setNextPlayer();    // if all ships moved
-      }
-      // start plannerMove from top of stack:
-      // setTimeout(() => this.plannerMove(incb))
+    // start plannerMove from top of stack:
+    // setTimeout(() => this.plannerMove(incb))
     }
     return      // robo or GUI will invoke gamePlay.doPlayerMove(...)
   }

@@ -126,8 +126,8 @@ export class Table extends EventDispatcher  {
     this.hexMap.update()               // after toggleText & updateCache()
   }
   /** for KeyBinding test */
-  shiftAuction(tile?: AuctionTile) {
-    this.auctionCont.shift(tile)
+  shiftAuction() {
+    this.auctionCont.shift()
     this.hexMap.update()
   }
 
@@ -179,7 +179,7 @@ export class Table extends EventDispatcher  {
     let { x: rx, y: ry, width: rw, height: rh } = hexCont.getBounds()
     let rowh = hexMap.rowHeight, colw = hexMap.colWidth
     let miny = ry - rowh, minx = rx - colw
-    let bgr: XYWH = { x: 0, y: -rowh * .6, w: rw + 2 * colw, h: rh + 3 * rowh }
+    let bgr: XYWH = { x: 0, y: -rowh * .6, w: rw + 2 * colw, h: rh + 4 * rowh }
     // align center of mapCont(0,0) == hexMap(center) with center of background
     mapCont.x = (bgr.w - bgr.x) / 2
     mapCont.y = (bgr.h - bgr.y) / 2
@@ -189,33 +189,39 @@ export class Table extends EventDispatcher  {
     let pbr = this.scaleCont.localToLocal(bgr.w, bgr.h, hexCont)
     hexCont.cache(p00.x, p00.y, pbr.x-p00.x, pbr.y-p00.y) // cache hexCont (bounded by bgr)
 
-    let { x: xc, w: wc } = hexMap.centerHex.xywh(), at = this.gamePlay.auctionTiles
-    let xy = { x: xc - ((at.length - 1) / 2) * wc, y: miny }
-    this.auctionCont = new AuctionCont(at, this, xy);
+    let { x: xc, w: wc } = hexMap.centerHex.xywh(), auctionTiles = this.gamePlay.auctionTiles
+    let xy = { x: xc - ((auctionTiles.length - 1) / 2) * wc, y:  - .5 * rowh }
+    this.auctionCont = new AuctionCont(auctionTiles, this, xy);
 
-    let { x: x0, h } = this.hexMap.getCornerHex(H.W).xywh();
+    let hexW = this.hexMap.getCornerHex(H.W)
+    let { x: x0, h } = hexW.xywh();
     let x1 = this.hexMap.getCornerHex(H.E).xywh().x
     let y0 = this.auctionCont.hexes[0].y
-    let y1 = y0 + h * 1;
+    let y1 = y0 + this.hexMap.rowHeight
 
     this.homeRowHexes = [[], []];
     this.reserveHexes = [[], []];
-    let homeRowHex = (pIndex: number, name: string, ndx: number, y = y0) => {
-      let hex = new Hex2(this.gamePlay.hexMap, 0, 0, name)
+    let topRowHex = (pIndex: number, name: string, ndx: number, dy = -.6 * rowh, row = -1) => {
+      let [dx, col] = [[x0, ndx], [x1, -ndx]][pIndex];
+      let hex = new Hex2(this.gamePlay.hexMap, row, col, name)
       this.homeRowHexes[pIndex].push(hex);
-      let w = hex.xywh().w
-      hex.x = (pIndex == 0) ? (x0 + ndx * w) : (x1 - ndx * w);
-      hex.y = y
+      hex.x += dx
+      hex.y += dy
+      hex.distText.text = name;
       return hex
+    }
+    let secondRowHex = (pIndex: number, name: string, ndx: number, y = -.5 * rowh, row = 0) => {
+      return topRowHex(pIndex, name, ndx, y, row)
     }
 
     this.buttonsForPlayer.length = 0; // TODO: maybe deconstruct
     Player.allPlayers.forEach((p, index) => {
       this.makeButtonsForPlayer(p);
       p.makePlayerBits();
-      let leaderHex = p.allLeaders.map((meep, ndx) => homeRowHex(index, meep.Aname, ndx, y0))
-      let academyHex = homeRowHex(index, 'PoliceAcademy', leaderHex.length, y0)
-      this.reserveHexes[index].push(...[0, 1].map(i => homeRowHex(index, `ReserveHex-${i}`, i + 1.25, y1)))
+      let leaderHex = p.allLeaders.map((meep, ndx) => topRowHex(index, meep.Aname, ndx))
+      let academyHex = topRowHex(index, `Academy:${index}`, leaderHex.length)
+      p.jailHex = secondRowHex(index, `jailHex:${index}`, 0)
+      this.reserveHexes[index].push(...[2, 3].map(i => secondRowHex(index, `Reserve:${index}-${i-1}`, i)))
 
       // place [civic/leader, academy/police] meepleHex on Table
       p.placeCivicLeaders(leaderHex);
@@ -257,7 +263,11 @@ export class Table extends EventDispatcher  {
       b.attachToContainer(cont, { x: 0, y: i * eh / 2 }) // just a label
       b.on(S.click, () => this.doButton(label), this)[S.Aname] = `b:${label}`;
     })
-    this.hexMap
+
+    bLabels.forEach(label => {
+      let key = label.substring(0, 1);
+      KeyBinder.keyBinder.setKey(key, { thisArg: this, func: this.doButton, argVal: label })
+    })
   }
   /**
   // Start: SetPlayer, RollForCrime, Shift Auction,
@@ -268,6 +278,7 @@ export class Table extends EventDispatcher  {
   // Done: enable other player buttons
   */
   doButton(label: string) {
+    let player = this.gamePlay.curPlayer;
     console.log(stime(this, `.doButton:`), label)
     switch (label) {
       case 'Start': {
@@ -400,7 +411,7 @@ export class Table extends EventDispatcher  {
       //this.scaleUp(Dragger.dragCont, 1.7); // Items being dragged appear larger!
     }
     if (bindKeys) {
-      this.bindKeysToScale("a", scaleC, 820, 10)
+      this.bindKeysToScale("a", scaleC, 820, TP.hexRad)
       KeyBinder.keyBinder.setKey(' ', {thisArg: this, func: this.dragStone})
       KeyBinder.keyBinder.setKey('S-Space', {thisArg: this, func: this.dragStone})
     }
@@ -474,28 +485,36 @@ class AuctionCont extends Container {
     super()
     this.maxlen = tiles.length;
     this.hexes.length = 0;
-    let hexMap = table.hexMap;
+    let hexMap = table.hexMap, parent = hexMap.mapCont.hexCont;
     for (let i = 0; i < this.maxlen; i++) {
       // make auctionHex:
-      let hex = new Hex2(hexMap, undefined, undefined, `auctionHex${i}`)
+      let hex = new Hex2(hexMap, -1, undefined, `auctionHex${i}`)
       this.hexes.push(hex)
       let w = hex.xywh().w;
-      hexMap.mapCont.hexCont.addChild(hex.cont)
-      hex.x = xy.x + i * w;
-      hex.y = xy.y
+      parent.addChild(hex.cont)
+      hex.x += xy.x + i * w;
+      hex.y += xy.y
       hex['Costinc'] = (i == 0) ? 1 : (i == this.maxlen - 1) ? -1 : 0;
     }
+    let x0 = this.hexes[0].x, y0 = this.hexes[0].y
+    this.tileCounter = new ValueCounter('tileCounter', AuctionTile.tileBag.length, 'lightblue', TP.hexRad/2)
+    this.tileCounter.attachToContainer(parent, { x: x0 -1.5 * TP.hexRad, y: y0 })
   }
+  tileCounter: ValueCounter;
 
-  shift(tile = AuctionTile.selectOne(AuctionTile.tileBag)) {
+  shift(tile = AuctionTile.selectOne()) {
     tile.paint(this.table.gamePlay.curPlayer?.color)
     let tiles = this.tiles, hexes = this.hexes
     // put tile in slot-n (move previous tile to n+1)
     let shift1 = (tile: AuctionTile, n: number) => {
-      if (!!tiles[n] && n + 1 < this.maxlen) {
-        shift1(tiles[n], n + 1);
+      if (!!tiles[n]) {
+        if (n + 1 < this.maxlen)
+          shift1(tiles[n], n + 1);
+        else
+          tiles[n].recycle()
+          tiles[n] = undefined
       }
-      // ASSERT: tiles[n] is undefined | redundant (== slots[n+1])
+      // ASSERT: tiles[n] is undefined
       tiles[n] = tile;
       tile.hex = hexes[n] // undefined at/above maxlen
     }
@@ -503,6 +522,7 @@ class AuctionCont extends Container {
     while (tiles[this.maxlen]) {
       this.tiles.pop().recycle()             // put it back into bag
     }
+    this.tileCounter.stage && this.tileCounter.updateValue(AuctionTile.tileBag.length)
     console.log(stime(this, `.shift`), tiles)
     return
   }

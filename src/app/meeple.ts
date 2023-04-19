@@ -3,7 +3,7 @@ import { DragInfo } from "@thegraid/easeljs-lib";
 import { Hex, Hex2, HexShape } from "./hex";
 import { EwDir, H } from "./hex-intfs";
 import { Player } from "./player";
-import { C1, Church, Civic, PaintableShape, Tile, TownHall, TownStart, University } from "./tile";
+import { C1, Church, Civic, InfMark, PS, PaintableShape, Tile, TownHall, TownStart, University } from "./tile";
 import { newPlanner } from "./plan-proxy";
 import { TP } from "./table-params";
 import { Shape } from "@thegraid/easeljs-module";
@@ -26,7 +26,7 @@ export class Meeple extends Tile {
   readonly colorValues = C.nameToRgba("blue"); // with alpha component
   get y0() { return (this.childShape as MeepleShape).y0; }
 
-  newTurn() { this.moved = false; }
+  newTurn() { }
 
   /**
    * @param Aname
@@ -36,43 +36,15 @@ export class Meeple extends Tile {
   constructor(
     Aname: string,
     player?: Player,
-    civicTile?: Civic,
   ) {
     super(player, Aname, 2, 1, 1, 0);
     this.player = player
-    this.civicTile = civicTile;
     let { x, y, width, height } = this.childShape.getBounds()
     this.nameText.visible = true
     this.nameText.y = y + height/2 - Tile.textSize/2;
     this.cache(x, y, width, height);
     this.paint()
     this.player.meeples.push(this);
-  }
-
-  override get radius() { return TP.hexRad / 1.9 }
-  override textVis(v: boolean) { super.textVis(true); }
-  override makeShape(): PaintableShape { return new MeepleShape(this.player); }
-
-
-  override paint(pColor = this.player?.color) {
-    let color = pColor ? TP.colorScheme[pColor] : C1.grey;
-    let g = this.childShape.paint(color)
-    this.updateCache()
-  }
-  /** move in direction.
-   * @return false if move not possible (no Hex, occupied)
-   */
-  moveDir(dir: EwDir, hex = this.hex.nextHex(dir)) {
-    if (hex.meep) return false;
-    this.moveTo(hex);
-    hex.map.update()    // TODO: invoke in correct place...
-    return true
-  }
-  override moveTo(hex: Hex) {
-    if (this.hex) this.hex.meep = undefined; // remove from prior!
-    this.hex = hex;
-    hex.meep = this;
-    return hex;
   }
 
   /** the map Hex on which this Meeple sits. */
@@ -84,32 +56,64 @@ export class Meeple extends Tile {
     if (hex !== undefined) hex.meep = this;
   }
 
-  startHex: Hex2;       // player.meepleHex[]
-  civicTile: Civic;
+  startHex: Hex2;       // in player.meepleHex[]
+
+  override get radius() { return TP.hexRad / 1.9 }
+  override textVis(v: boolean) { super.textVis(true); }
+  override makeShape(): PaintableShape { return new MeepleShape(this.player); }
+
+  override paint(pColor = this.player?.color) {
+    let color = pColor ? TP.colorScheme[pColor] : C1.grey;
+    this.childShape.paint(color)
+    this.updateCache()
+  }
+
+  override setInfMark(inf?: number): void {
+    // do nothing; use setTileInf(inf)
+  }
+
+  setTileInf(inf: number) {
+    this.removeChildType(InfMark)
+    if (inf !== 0) {
+      this.addChildAt(new InfMark(inf), this.children.length - 1)
+    }
+    let radxy = -TP.hexRad, radwh = 2 * TP.hexRad
+    this.cache(radxy, radxy, radwh, radwh)
+  }
 
   override isLegalTarget(hex: Hex2) {
     if (!hex) return false;
+    if (hex.meep) return false;    // no move onto meeple
+    // no move onto other player's Tile:
+    if (hex.tile?.player && hex.tile.player !== this.player) return false;
+    return hex.isOnMap;
+  }
+
+  override dragStart(hex: Hex2): void {
+    if (this.inf !== 0) this.setTileInf(this.inf);
+  }
+
+  /** move in direction.
+   * @return false if move not possible (no Hex, occupied)
+   */
+  moveDir(dir: EwDir, hex = this.hex.nextHex(dir)) {
     if (hex.meep) return false;
-    // can move from startHex to civicTile
-    //if (this.originHex == this.startHex && hex.tile == this.civicTile) return true
-    return true;
-  }
-
-  // false if [still] available to move this turn
-  moved = true;
-  /** continue any planned, semi-auto moves toward this.targetHex */
-  shipMove() {
-    this.moved = this.takeSteps();
-    return this.moved; // NOTE: other Steps still in progress!
-  }
-
-  takeSteps() {
+    this.moveTo(hex);
+    hex.map.update()    // TODO: invoke in correct place...
     return true
+  }
+
+  override moveTo(hex: Hex) {
+    //this.hex ? this.hex.tile
+    this.hex = hex;
+    return hex
   }
 }
 export class Leader extends Meeple {
   constructor(tile: Civic, abbrev: string) {
-    super(`${abbrev}-${tile.player.index}`, tile.player, tile)
+    super(`${abbrev}-${tile.player.index}`, tile.player)
+    this.civicTile = tile;
+    this.addStar(this.radius/2)
   }
   /** new Civic Tile with a Leader 'on' it. */
   static makeLeaders(p: Player, nPolice = 10) {
@@ -118,6 +122,28 @@ export class Leader extends Meeple {
     new Dean(new University(p))
     new Priest(new Church(p))
   }
+  civicTile: Civic;     // the special tile for this Meeple/Leader
+
+  override isLegalTarget(hex: Hex2) {
+    if (!super.isLegalTarget(hex)) return false;
+    if (this.civicTile && (this.civicTile !== hex.tile) && !(this instanceof Builder)) return false;
+    return true
+  }
+
+  override dragStart(hex: Hex2): void {
+      this.civicTile?.setInfMark(1);
+      this.setTileInf(1);
+  }
+
+  override dropFunc(hex: Hex2, ctx: DragInfo): void {
+    let targetTile = this.targetHex.tile;
+    if (this.civicTile && this.civicTile === targetTile) {
+      this.civicTile.setInfMark(2)
+      this.setTileInf(0);
+    }
+    super.dropFunc(hex, ctx)
+  }
+
 }
 export class Builder extends Leader {
   constructor(tile: Civic) {
@@ -147,11 +173,16 @@ export class Police extends Meeple {
     super(`P:${player.index}-${index+1}`, player)
   }
   override moveTo(hex: Hex) {
-    let origHex = this.hex, academy = this.player.policeAcademy.hex;
+    let academyHex = this.player.policeAcademy.hex;
     super.moveTo(hex);
-    if (origHex == academy && hex !== academy) {
+    if (this.originHex == academyHex && hex !== academyHex) {
       this.player.recruitPolice()   // shift, moveTo(hex), update counter on academy
     }
     return hex;
+  }
+  override isLegalTarget(hex: Hex2): boolean {
+    if (!super.isLegalTarget(hex)) return false;
+    let academyHex = this.player.policeAcademy.hex;
+    return (this.originHex == academyHex) ? (hex.tile instanceof PS) : true;
   }
 }
