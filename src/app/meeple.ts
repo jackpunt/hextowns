@@ -113,14 +113,15 @@ export class Leader extends Meeple {
   constructor(tile: Civic, abbrev: string) {
     super(`${abbrev}-${tile.player.index}`, tile.player)
     this.civicTile = tile;
-    this.addStar(this.radius/2)
+    this.addBonus('star');
+    this.paint()
   }
   /** new Civic Tile with a Leader 'on' it. */
   static makeLeaders(p: Player, nPolice = 10) {
-    new Builder(new TownStart(p))
-    new Mayor(new TownHall(p))
-    new Dean(new University(p))
-    new Priest(new Church(p))
+    new Builder(new TownStart(p)) // Rook: Chariot, Rector, Count
+    new Mayor(new TownHall(p))    // King
+    new Dean(new University(p))   // Queen
+    new Priest(new Church(p))     // Bishop
   }
   civicTile: Civic;     // the special tile for this Meeple/Leader
 

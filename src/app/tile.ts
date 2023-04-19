@@ -29,17 +29,48 @@ class TileShape extends HexShape implements PaintableShape {
   }
 }
 
-class StarMark extends Shape {
-  constructor(size = TP.hexRad/3, tilt = -90) {
-    super()
-    this.graphics.f(C.briteGold).dp(0, 0, size, 5, 2, tilt)
-  }
+export type Bonus = 'star' | 'coin' | 'actn'
+type BonusInfo = {
+  type: Bonus, x: number, y: number, size: number,
+  paint?: (s: Shape, info: BonusInfo) => void
 }
 
-class CoinMark extends Shape {
-  constructor(rad = TP.hexRad / 4) {
+class BonusMark extends Shape {
+  static star = 'star'
+  static coin = 'coin'
+  static action = 'actn'
+  static bonusInfo: BonusInfo[] = [
+    {
+      type: 'star', x: 0, y: 1.2, size: TP.hexRad / 3, paint: (s, info, tilt = -90) => {
+        s.graphics.f(C.briteGold).dp(0, 0, info.size, 5, 2, tilt)
+      }
+    },
+    {
+      type: 'coin', x: 1.3, y: -1.3, size: TP.hexRad / 4, paint: (s, info) => {
+        s.graphics.f(C.coinGold).dc(0, 0, info.size)
+      }
+    },
+    {
+      type: 'actn', x: -1.4, y: -1.3, size: TP.hexRad / 4, paint: (s, info) => {
+        s.scaleX = s.scaleY = info.size / 4
+        let path: [x: number, y: number][] = [[-1, 4], [2, -1], [-2, 1], [1, -4]]
+        let g = s.graphics.ss(1).s(C.YELLOW).mt(...path.shift())
+        path.map((xy) => g.lt(...xy))
+        g.es()
+      }
+    },
+  ];
+  static bonusMap = new Map<Bonus, BonusInfo>()
+  static ignore = BonusMark.bonusInfo.map(info => BonusMark.bonusMap.set(info.type, info));
+
+  constructor(
+    public type?: Bonus,
+    public info = BonusMark.bonusMap.get(type),
+  ) {
     super()
-    this.graphics.f(C.coinGold).dc(0, 0, rad)
+    this.info.paint(this, this.info);
+    this.x += this.info.x * this.info.size
+    this.y += this.info.y * this.info.size
   }
 }
 
@@ -93,15 +124,34 @@ export class Cardboard extends Container {
     return new TileShape();
   }
   /** paint with PlayerColor; updateCache() */
-  paint(pColor?: PlayerColor) {
-    let colorn = pColor ? TP.colorScheme[pColor] : C1.grey;
+  paint(pColor?: PlayerColor, colorn = pColor ? TP.colorScheme[pColor] : C1.grey) {
     this.childShape.paint(colorn)
     this.updateCache()
   }
 
-  removeChildType(type: new() => DisplayObject ) {
-    let mark = this.children.find(c => c instanceof type)
-    this.removeChild(mark)
+  addBonus(type: Bonus) {
+    let mark = new BonusMark(type);
+    this[type] = true;
+    this.addChildAt(mark, this.numChildren -1);
+    this.paint();
+    return mark
+  }
+
+  removeBonus(type?: Bonus) {
+    if (!type) {
+      BonusMark.bonusInfo.forEach(info => this.removeBonus(info.type))
+      return
+    }
+    this[type] = false;
+    this.removeChildType(BonusMark, (c: BonusMark) => (c.info.type == type))
+    this.paint();
+  }
+
+  removeChildType(type: new() => DisplayObject, pred = (dobj: DisplayObject) => true ) {
+    let mark: DisplayObject;
+    while (mark = this.children.find(c => (c instanceof type) && pred(c))) {
+      this.removeChild(mark)
+    }
     this.updateCache()
   }
 }
@@ -138,7 +188,7 @@ export class Tile extends Cardboard {
     super()
     let radius = this.radius
     Tile.allTiles.push(this);
-    if (!Aname) this.Aname = `${className(this)}-${Tile.serial++}`.replace('Star', '*');
+    if (!Aname) this.Aname = `${className(this)}-${Tile.serial++}`;
     this.cache(-radius, -radius, 2 * radius, 2 * radius)
     this.addChild(this.childShape)// index = 0
     this.addNameText()            // index = 1
@@ -148,6 +198,7 @@ export class Tile extends Cardboard {
 
   star = false;  // extra VP at end of game
   coin = false;  // gain coin when placed
+  actn = false;  // extra action when placed
   pinf = false;  // provides positive inf (Civic does this, bonus on AuctionTile)
   ninf = false;  // provides negative inf (slum does this: permanent Criminal on Tile)
 
@@ -177,27 +228,6 @@ export class Tile extends Cardboard {
     let infMark = new InfMark(inf)
     this.addChildAt(infMark, this.children.length - 1)
     this.cache(-rad, -rad, 2 * rad, 2 * rad)
-  }
-
-  addStar(size = this.radius / 3, y = 1.2 * size) {
-    let star = new StarMark(size)
-    star.y = y
-    this.star = true;
-    this.addChildAt(star, this.children.length - 1)
-    this.updateCache()
-  }
-
-  addCoin() {
-    this.coin = true;
-    let size = this.radius / 4, coin = new CoinMark(size)
-    coin.x = +1.3 * size;
-    coin.y = -1.3 * size;
-    this.addChildAt(coin, this.children.length - 1)
-    this.updateCache()
-  }
-  removeCoin() {
-    this.coin = false;
-    this.removeChildType(CoinMark)
   }
 
   addNameText() {
@@ -280,6 +310,7 @@ export class Civic extends Tile {
     super(player, `${type}-${player.index}`, cost, inf, vp, econ);
     this.player = player;
     this.addImageBitmap(image);
+    this.addBonus('star').y += this.radius/12;
     player.civicTiles.push(this);
   }
 
@@ -364,24 +395,18 @@ export class AuctionTile extends Tile {
       }
     }
     AuctionTile.tileBag.length = 0;
-    addTiles(16, Resi)
-    addTiles(16, Busi)
-    addTiles(4, ResiStar)
-    addTiles(4, BusiStar)
+    addTiles(20, Resi)
+    addTiles(20, Busi)
     addTiles(10, PS)
     addTiles(10, Lake)
   }
 
   constructor(player: Player, ...rest) {
     super(player, ...rest)
-    if (!this.star && (Math.random() < .10)) {
-      this.addCoin()
-      this.paint()
-    }
   }
 
   recycle() {
-    this.removeCoin();
+    this.removeBonus();
     this.hex = undefined;
     this.x = this.y = 0;
     this.parent.removeChild(this);
@@ -414,7 +439,7 @@ export class AuctionTile extends Tile {
     if (this.coin) {
       let player = this.player || table.gamePlay.curPlayer
       player.coins += 1;
-      this.removeCoin();
+      this.removeBonus();
     }
     // recycle underlying reserve tile:
     let reserveNdx = table.reserveHexes[curNdx].indexOf(this.targetHex)
@@ -435,20 +460,6 @@ export class Busi extends AuctionTile {
   constructor(player?: Player, Aname?: string, cost = 1, inf = 0, vp = 1, econ = 1) {
     super(player, Aname, cost, inf, vp, econ);
     this.addImageBitmap('Busi')
-  }
-}
-
-export class ResiStar extends Resi {
-  constructor(player?: Player, Aname?: string, cost = 2, inf = 0, vp = 1, econ = 1) {
-    super(player, Aname, cost, inf, vp, econ);
-    this.addStar(); // ++vp
-  }
-}
-
-export class BusiStar extends Busi {
-  constructor(player?: Player, Aname?: string, cost = 2, inf = 0, vp = 1, econ = 1) {
-    super(player, Aname, cost, inf, vp, econ);
-    this.addStar()
   }
 }
 export class PS extends AuctionTile {

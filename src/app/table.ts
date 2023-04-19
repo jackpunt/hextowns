@@ -282,6 +282,7 @@ export class Table extends EventDispatcher  {
     console.log(stime(this, `.doButton:`), label)
     switch (label) {
       case 'Start': {
+        this.gamePlay.startTurn();
         break;
       }
       case 'Crime': {
@@ -524,6 +525,6 @@ class AuctionCont extends Container {
     }
     this.tileCounter.stage && this.tileCounter.updateValue(AuctionTile.tileBag.length)
     console.log(stime(this, `.shift`), tiles)
-    return
+    return tiles[0]
   }
 }

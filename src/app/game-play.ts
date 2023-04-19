@@ -8,7 +8,7 @@ import { GameStats, TableStats } from "./stats";
 import { LogWriter } from "./stream-writer";
 import { Table } from "./table";
 import { otherColor, PlayerColor, playerColors, TP } from "./table-params";
-import { AuctionTile, Tile, TownRules } from "./tile";
+import { AuctionTile, Bonus, Tile, TownRules } from "./tile";
 
 class HexEvent {}
 class Move{
@@ -106,6 +106,31 @@ export class GamePlay extends GamePlay0 {
     this.gStats = new TableStats(this, table) // upgrade to TableStats
     if (this.table.stage.canvas) this.bindKeys()
   }
+
+  /**
+   * 'Start' action.
+   *
+   * - Shift Auction
+   * - Roll 2xD6, enable effects.
+   * - - 1+1: add Star
+   * - - 2+2: add Action
+   * - - 3+3: add Coin
+   * - - 6+4-6: add Criminal
+   */
+  startTurn(dice = Dice.roll()) {
+    let tile = this.table.auctionCont.shift();
+    dice.sort(); // ascending
+    console.log(stime(this, `.startTurn:`), dice)
+    if (dice[0] == 1 && dice[1] == 1) { this.addBonus('actn'); }
+    if (dice[0] == 2 && dice[1] == 2) { this.addBonus('star'); }
+    if (dice[0] == 3 && dice[1] == 3) { this.addBonus('coin'); }
+  }
+  addBonus(type?: Bonus, tile = this.auctionTiles[0]) {
+    tile.addBonus(type);
+    if (this.auctionTiles.includes(tile)) tile.paint(this.curPlayer.color)
+    this.hexMap.update()
+  }
+
   bindKeys() {
     let table = this.table
     let roboPause = () => { this.forEachPlayer(p => this.pauseGame(p) )}
@@ -114,6 +139,9 @@ export class GamePlay extends GamePlay0 {
       let p = this.curPlayer, op = this.otherPlayer(p)
       this.pauseGame(op); this.resumeGame(p);
     }
+    KeyBinder.keyBinder.setKey('M-a', { thisArg: this, func: () => this.addBonus('actn') })
+    KeyBinder.keyBinder.setKey('M-b', { thisArg: this, func: () => this.addBonus('star') })
+    KeyBinder.keyBinder.setKey('M-c', { thisArg: this, func: () => this.addBonus('coin') })
     KeyBinder.keyBinder.setKey('p', { thisArg: this, func: roboPause })
     KeyBinder.keyBinder.setKey('r', { thisArg: this, func: roboResume })
     KeyBinder.keyBinder.setKey('s', { thisArg: this, func: roboStep })
@@ -124,7 +152,7 @@ export class GamePlay extends GamePlay0 {
     KeyBinder.keyBinder.setKey('M-z', { thisArg: this, func: this.undoMove })
     KeyBinder.keyBinder.setKey('b', { thisArg: this, func: this.undoMove })
     KeyBinder.keyBinder.setKey('f', { thisArg: this, func: this.redoMove })
-    KeyBinder.keyBinder.setKey('S', { thisArg: this, func: this.skipMove })
+    //KeyBinder.keyBinder.setKey('S', { thisArg: this, func: this.skipMove })
     KeyBinder.keyBinder.setKey('M-K', { thisArg: this, func: this.resignMove })// S-M-k
     KeyBinder.keyBinder.setKey('Escape', {thisArg: table, func: table.stopDragging}) // Escape
     KeyBinder.keyBinder.setKey('C-a', { thisArg: table, func: () => { table.shiftAuction()} })  // C-a new Tile
@@ -304,8 +332,12 @@ export class GamePlay extends GamePlay0 {
   playerMoveEvent(hev: HexEvent): void {
     this.localMoveEvent(hev)
   }
+}
 
-
+class Dice {
+  static roll(n = 2, d = 6) {
+    return new Array(n).fill(1).map(v => 1 + Math.floor(Math.random() * d));
+  }
 }
 
 /** a uniquifying 'symbol table' of Board.id */
