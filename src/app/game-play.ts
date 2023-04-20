@@ -124,6 +124,8 @@ export class GamePlay extends GamePlay0 {
     if (dice[0] == 1 && dice[1] == 1) { this.addBonus('actn'); }
     if (dice[0] == 2 && dice[1] == 2) { this.addBonus('star'); }
     if (dice[0] == 3 && dice[1] == 3) { this.addBonus('coin'); }
+    this.curPlayer.actionCounter.updateValue(this.curPlayer.actions = 1)
+    this.hexMap.update()
   }
   addBonus(type?: Bonus, tile = this.auctionTiles[0]) {
     tile.addBonus(type);
@@ -142,9 +144,9 @@ export class GamePlay extends GamePlay0 {
     KeyBinder.keyBinder.setKey('M-a', { thisArg: this, func: () => this.addBonus('actn') })
     KeyBinder.keyBinder.setKey('M-b', { thisArg: this, func: () => this.addBonus('star') })
     KeyBinder.keyBinder.setKey('M-c', { thisArg: this, func: () => this.addBonus('coin') })
-    KeyBinder.keyBinder.setKey('p', { thisArg: this, func: roboPause })
-    KeyBinder.keyBinder.setKey('r', { thisArg: this, func: roboResume })
-    KeyBinder.keyBinder.setKey('s', { thisArg: this, func: roboStep })
+    // KeyBinder.keyBinder.setKey('p', { thisArg: this, func: roboPause })
+    // KeyBinder.keyBinder.setKey('r', { thisArg: this, func: roboResume })
+    // KeyBinder.keyBinder.setKey('s', { thisArg: this, func: roboStep })
     KeyBinder.keyBinder.setKey('R', { thisArg: this, func: () => this.runRedo = true })
     KeyBinder.keyBinder.setKey('q', { thisArg: this, func: () => this.runRedo = false })
     KeyBinder.keyBinder.setKey(/1-9/, { thisArg: this, func: (e: string) => { TP.maxBreadth = Number.parseInt(e) } })
@@ -315,6 +317,7 @@ export class GamePlay extends GamePlay0 {
   setNextPlayer(plyr = this.otherPlayer()) {
     this.setNextPlayer0(plyr)
     this.table.showNextPlayer() // get to nextPlayer, waitPaused when Player tries to make a move.?
+    this.startTurn()
     this.makeMove()
   }
 

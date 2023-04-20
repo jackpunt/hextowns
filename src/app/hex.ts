@@ -128,6 +128,9 @@ export class Hex {
   rcspString(sc = this.meep?.player.color) {
     return `${TP.colorScheme[sc]}@${this.rcsp}`
   }
+  get neighbors() {
+    return Object.keys(this.links).map(k => this.links[k] as Hex)
+  }
 
   nextHex(ds: HexDir, ns: number = 1) {
     let hex: Hex = this, nhex: Hex
@@ -199,7 +202,12 @@ export class Hex2 extends Hex {
     }
   }
 
-  /** Hex2 cell with graphics; shown as a polyStar Shape of radius @ (XY=0,0) */
+  /** Hex2 in hexMap.mapCont.hexCont; hex.cont contains:
+   * - polyStar Shape of radius @ (XY=0,0)
+   * - stoneIdText (user settable stoneIdText.text)
+   * - rcText (r,c)
+   * - distText (d)
+   */
   constructor(map: HexMap, row: number, col: number, name?: string) {
     super(map, row, col, name);
     map.mapCont.hexCont.addChild(this.cont)
@@ -334,8 +342,8 @@ export interface HexM {
  *
  */
 export class HexMap extends Array<Array<Hex>> implements HexM {
-  // A color for each District:
-  static readonly distColor = ["lightgrey","limegreen","deepskyblue","rgb(255,165,0)","violet","rgb(250,80,80)","yellow"]
+  // A color for each District: 'rgb(198,198,198)'
+  static readonly distColor = ['lightgrey',"limegreen","deepskyblue","rgb(255,165,0)","violet","rgb(250,80,80)","yellow"]
 
   /** Each occupied Hex, with the occupying PlayerColor  */
   readonly allStones: HSC[] = []                    // aka hexStones in Board (readonly when we stop remove/filter)

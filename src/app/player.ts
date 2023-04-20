@@ -1,12 +1,11 @@
-import { stime, S, XY, C } from "@thegraid/common-lib"
+import { C, stime } from "@thegraid/common-lib"
 import { GamePlay } from "./game-play"
-import { Hex, Hex2, IHex } from "./hex"
-import { H, HexDir } from "./hex-intfs"
+import { Hex, Hex2 } from "./hex"
+import { HexDir } from "./hex-intfs"
+import { Leader, Meeple, Police } from "./meeple"
 import { IPlanner, newPlanner } from "./plan-proxy"
-import { Builder, Dean, Leader, Mayor, Meeple, Police, Priest } from "./meeple"
-import { Table } from "./table"
-import { PlayerColor, playerColors, TP } from "./table-params"
-import { AuctionTile, Church, Civic, PS, Tile, TownHall, TownRules, TownStart, University } from "./tile"
+import { PlayerColor, TP, otherColor, playerColors } from "./table-params"
+import { AuctionTile, Civic, Tile, TownRules, TownStart } from "./tile"
 import { ValueCounter } from "@thegraid/easeljs-lib"
 
 export class Player {
@@ -16,13 +15,31 @@ export class Player {
   readonly color: PlayerColor = playerColors[this.index];
   readonly gamePlay: GamePlay;
 
-  readonly captures: Meeple | Tile[] = [];      // captured Criminals; Tiles captured by Criminals moved by Player
+  private _captures: (Meeple | Tile)[] = [];    // captured Criminals; Tiles captured by Criminals moved by Player
   readonly meeples: Meeple[] = [];              // Player's B, M, P, D, Police available
   readonly civicTiles: Civic[] = [];            // Player's S, H, C, U Tiles
   readonly tiles: (Civic | AuctionTile)[] = []; // Resi/Busi/PS/Lake/Civics in play on Map
   readonly reserved: AuctionTile[] = [];        // Resi/Busi/PS/Lake reserved for Player (max 2?)
-  coins = 0;
   jailHex: Hex2
+
+  coinCounter: ValueCounter;
+  _coins = 0;
+  get coins() { return this._coins; }
+  set coins(v: number) {
+    this._coins = v
+    this.coinCounter?.updateValue(v)
+  }
+
+  actionCounter: ValueCounter;
+  _actions = 0;
+  get actions() { return this._actions; }
+  set actions(v: number) {
+    this._actions = v
+    this.actionCounter?.updateValue(v)
+  }
+
+  captureCounter: ValueCounter;
+  get captures() { return this._captures; }
 
   get townstart() { return this.tiles.find(t => t instanceof TownStart) as TownStart }
   /** civicTiles in play on Map */
@@ -30,7 +47,8 @@ export class Player {
   get allLeaders() { return this.meeples.filter(m => m instanceof Leader) as Leader[] }
   get allPolice() { return this.meeples.filter(m => m instanceof Police) as Police[] }
 
-  otherPlayer: Player
+  otherPlayer(plyr: Player = this.gamePlay.curPlayer) { return this.gamePlay.getPlayer(otherColor(plyr.color))}
+
   planner: IPlanner
   /** if true then invoke plannerMove */
   useRobo: boolean = false
@@ -48,9 +66,6 @@ export class Player {
   makePlayerBits() {
     this.civicTiles.length = this.meeples.length = 0;
     Leader.makeLeaders(this); // push new Civic onto this.civics, push new Leader onto this.meeples
-    for (let i = 0; i < 5; i++) {
-      new Police(this, i);      // Note: Player will claim/paint PS from Tile.tileBag/auction
-    }
   }
 
   // Leader place *before* deployed to Civic on map.
@@ -60,29 +75,6 @@ export class Player {
       meep.civicTile.moveTo(hex)
       meep.moveTo(hex)
     })
-  }
-
-  makeAcademy(hex: Hex2) {
-    let available = this.allPolice.slice();
-    let counter = new ValueCounter('academy', available.length, C.coinGold);
-    counter.attachToContainer(hex.cont, { x: 0, y: -TP.hexRad / 2 })
-    let academy = this.policeAcademy = { hex, available, counter };
-    this.recruitPolice(false);
-    return academy;
-  }
-  policeAcademy: { hex?: Hex2, available?: Police[], counter?: ValueCounter } = {};
-
-  /** recruit each Police ONCE; they never go back to the academy.
-   * @param recruit [true] set false to reload allPolice to policeAcademy
-   */
-  recruitPolice(recruit = true) {
-    let academy = this.policeAcademy;
-    if (!recruit) academy.available = this.allPolice.slice();
-    let police = academy.available.shift();
-    police?.moveTo(academy.hex);
-    academy.counter?.updateValue(academy.available.length);
-    academy.hex.cont.updateCache();
-    return police;
   }
 
   /** choose TownRules & placement of TownStart */

@@ -7,7 +7,7 @@ import { ImageLoader } from "./image-loader";
 import { Player } from "./player";
 import { DragInfo } from "@thegraid/easeljs-lib";
 import { Table } from "./table";
-import { Meeple } from "./meeple";
+import { EwDir } from "./hex-intfs";
 
 export class C1 {
   static GREY = 'grey';
@@ -29,7 +29,7 @@ class TileShape extends HexShape implements PaintableShape {
   }
 }
 
-export type Bonus = 'star' | 'coin' | 'actn'
+export type Bonus = 'star' | 'coin' | 'actn' | 'lstar'
 type BonusInfo = {
   type: Bonus, x: number, y: number, size: number,
   paint?: (s: Shape, info: BonusInfo) => void
@@ -41,19 +41,24 @@ class BonusMark extends Shape {
   static action = 'actn'
   static bonusInfo: BonusInfo[] = [
     {
+      type: 'lstar', x: 0, y: -3.1, size: TP.hexRad / 4, paint: (s, info, tilt = 90) => {
+        s.graphics.f(C.briteGold).dp(info.x*info.size, info.y*info.size, info.size, 5, 2, tilt)
+      }
+    },
+    {
       type: 'star', x: 0, y: 1.2, size: TP.hexRad / 3, paint: (s, info, tilt = -90) => {
-        s.graphics.f(C.briteGold).dp(0, 0, info.size, 5, 2, tilt)
+        s.graphics.f(C.briteGold).dp(info.x * info.size, info.y * info.size, info.size, 5, 2, tilt)
       }
     },
     {
       type: 'coin', x: 1.3, y: -1.3, size: TP.hexRad / 4, paint: (s, info) => {
-        s.graphics.f(C.coinGold).dc(0, 0, info.size)
+        s.graphics.f(C.coinGold).dc(info.x * info.size, info.y * info.size, info.size)
       }
     },
     {
       type: 'actn', x: -1.4, y: -1.3, size: TP.hexRad / 4, paint: (s, info) => {
         s.scaleX = s.scaleY = info.size / 4
-        let path: [x: number, y: number][] = [[-1, 4], [2, -1], [-2, 1], [1, -4]]
+        let path: [x: number, y: number][] = [[-1, 4], [2, -1], [-2, 1], [1, -4]].map(([x, y]) => [x + info.x*4, y + info.y*4])
         let g = s.graphics.ss(1).s(C.YELLOW).mt(...path.shift())
         path.map((xy) => g.lt(...xy))
         g.es()
@@ -69,8 +74,6 @@ class BonusMark extends Shape {
   ) {
     super()
     this.info.paint(this, this.info);
-    this.x += this.info.x * this.info.size
-    this.y += this.info.y * this.info.size
   }
 }
 
@@ -129,9 +132,10 @@ export class Cardboard extends Container {
     this.updateCache()
   }
 
+  readonly bonus = { star: false, coin: false, actn: false, lstar: false }
   addBonus(type: Bonus) {
     let mark = new BonusMark(type);
-    this[type] = true;
+    this.bonus[type] = true;
     this.addChildAt(mark, this.numChildren -1);
     this.paint();
     return mark
@@ -142,7 +146,7 @@ export class Cardboard extends Container {
       BonusMark.bonusInfo.forEach(info => this.removeBonus(info.type))
       return
     }
-    this[type] = false;
+    this.bonus[type] = false;
     this.removeChildType(BonusMark, (c: BonusMark) => (c.info.type == type))
     this.paint();
   }
@@ -172,17 +176,16 @@ export class Tile extends Cardboard {
     this._hex = hex
     if (hex !== undefined) hex.tile = this;
   }
-
-  get vp() { return this.star ? this._vp + 1 : this._vp; }
+  get table() { return (this.hex instanceof Hex2) && Table.stageTable(this.hex.cont); }
 
   // Tile
   constructor(
     /** the owning Player. */
     public player: Player,
     public readonly Aname?: string,
-    public readonly cost: number = 1,
     public readonly inf: number = 0,
     private readonly _vp: number = 0,
+    public readonly cost: number = 1,
     public readonly econ: number = 1,
   ) {
     super()
@@ -196,11 +199,10 @@ export class Tile extends Cardboard {
     this.paint()
   }
 
-  star = false;  // extra VP at end of game
-  coin = false;  // gain coin when placed
-  actn = false;  // extra action when placed
   pinf = false;  // provides positive inf (Civic does this, bonus on AuctionTile)
   ninf = false;  // provides negative inf (slum does this: permanent Criminal on Tile)
+
+  get vp() { return this._vp + (this.bonus.star ? 1 : 0); }
 
   get radius() { return TP.hexRad};
   override makeShape(): PaintableShape {
@@ -248,10 +250,26 @@ export class Tile extends Cardboard {
 
   }
 
+  // Tile
   moveTo(hex: Hex) {
     this.hex = hex;     // INCLUDES: hex.tile = tile
     return hex;
   }
+
+  recycle() {
+    // TODO: place in curPlayer.capturedHexes
+    if (this.player) {
+      console.log(stime(this, `.recycle: captured`), this.Aname, this.player?.colorn, this)
+      let op = this.player.otherPlayer();
+      op.captures.push(this)
+      op.captureCounter.updateValue(op.captures.length)
+    } else {
+      console.log(stime(this, `.recycle: destoryed`), this.Aname, this.player?.colorn, this)
+    }
+    this.moveTo(undefined);
+    this.parent.removeChild(this);
+  }
+
   originHex: Hex2;      // where meeple was picked [dragStart]
   targetHex: Hex2;      // where meeple was placed [dropFunc] (if legal dropTarget; else originHex)
   lastShift: boolean;
@@ -277,9 +295,15 @@ export class Tile extends Cardboard {
    * @param ctx DragInfo
    */
   dropFunc(hex: Hex2, ctx: DragInfo) {
+    if (this.targetHex == this.table.recycleHex) {
+      this.recycle();
+      return
+    }
+    // this.player = this.table.gamePlay.curPlayer; // Civic *already* has player
     this.moveTo(this.targetHex);
     this.lastShift = undefined;
-    if (this.hex instanceof Hex2 && this.hex.isOnMap && !(this instanceof Meeple)) this.mouseEnabled = false;
+    // TODO: when auto-capture is working, re-assert no dragging.
+    //if (this.hex instanceof Hex2 && this.hex.isOnMap && !(this instanceof Meeple)) this.mouseEnabled = false;
   }
 
   // highlight legal targets, record targetHex when meeple is over a legal target hex.
@@ -290,7 +314,8 @@ export class Tile extends Cardboard {
       this.lastShift = undefined;
       this.dragStart(hex);
     }
-    this.targetHex = this.isLegalTarget(hex) ? hex : this.originHex;
+    let isRecycle = (hex == this.table.recycleHex);
+    this.targetHex = (isRecycle || this.isLegalTarget(hex)) ? hex : this.originHex;
     //hex.showMark(true);
 
     // const shiftKey = ctx?.event?.nativeEvent?.shiftKey
@@ -306,8 +331,8 @@ export class Tile extends Cardboard {
 
 // Leader.civicTile -> Civic; Civic does not point to its leader...
 export class Civic extends Tile {
-  constructor(player: Player, type: string, image: string, cost = 2, inf = 1, vp = 1, econ = 1) {
-    super(player, `${type}-${player.index}`, cost, inf, vp, econ);
+  constructor(player: Player, type: string, image: string, inf = 1, vp = 1, cost = 2, econ = 1) {
+    super(player, `${type}-${player.index}`, inf, vp, cost, econ);
     this.player = player;
     this.addImageBitmap(image);
     this.addBonus('star').y += this.radius/12;
@@ -321,9 +346,11 @@ export class Civic extends Tile {
     return true;
   }
 
+  // Civic
   override dropFunc(hex: Hex2, ctx: DragInfo): void {
     super.dropFunc(hex, ctx)
-    this.mouseEnabled = false; // stop dragging...
+    // TODO: when auto-capture is working, re-assert no dragging.
+    //this.mouseEnabled = false; // prevent dragging...
   }
 
 }
@@ -401,18 +428,26 @@ export class AuctionTile extends Tile {
     addTiles(10, Lake)
   }
 
+  /** AuctionTile */
   constructor(player: Player, ...rest) {
     super(player, ...rest)
   }
 
-  recycle() {
+  override recycle() {
+    let table = this.table; // before removeChild()
     this.removeBonus();
+    if ((this.hex as Hex2)?.isOnMap) {
+      super.recycle();  // treat as Capture, not recycle to tilebag.
+      return;
+    }
+    console.log(stime(this, `.recycle: to tileBag`), this.Aname, this.player?.colorn, this)
     this.hex = undefined;
     this.x = this.y = 0;
     this.parent.removeChild(this);
     AuctionTile.tileBag.unshift(this)
+    table.auctionCont.tileCounter.setValue(AuctionTile.tileBag.length);
+    table.hexMap.update();
   }
-  get table() { return (this.hex instanceof Hex2) && Table.stageTable(this.hex.cont); }
 
   indexInAuction() {
     if (!(this.hex instanceof Hex2 )) return -1;
@@ -429,48 +464,97 @@ export class AuctionTile extends Tile {
     return false
   }
 
+  // AuctionTile
   override dropFunc(hex: Hex2, ctx: DragInfo) {
-    let table = this.table, curNdx = table.gamePlay.curPlayerNdx;
+    if (this.targetHex == this.originHex) {
+      super.dropFunc(hex, ctx);
+      return;
+    }
+    let table = this.table, player = table.gamePlay.curPlayer, curNdx = player.index;
     let tiles = table.auctionCont.tiles;
+    let info = [this.targetHex.Aname, this.Aname, this.bonus, this];
     // remove from Auction:
     let auctionNdx = tiles.indexOf(this); // if from auctionTiles
-    if (auctionNdx >= 0) tiles[auctionNdx] = undefined
-    // deposit Coins with Player; ASSERT is from auctionTiles...
-    if (this.coin) {
-      let player = this.player || table.gamePlay.curPlayer
-      player.coins += 1;
-      this.removeBonus();
+    if (auctionNdx >= 0) {
+      tiles[auctionNdx] = undefined
+      this.player = player;
     }
-    // recycle underlying reserve tile:
-    let reserveNdx = table.reserveHexes[curNdx].indexOf(this.targetHex)
-    if (reserveNdx >= 0) (this.targetHex.tile as AuctionTile)?.recycle();
-
+    if (this.targetHex.isOnMap) {
+      console.log(stime(this, `.dropFunc: Build`), ...info);
+      // deposit Coins with Player; ASSERT was from auctionTiles...
+      if (this.bonus.coin) {
+        player.coins += 1;
+        this.removeBonus('coin');
+      }
+      if (this.bonus.actn) {
+        player.actions += 1;
+        this.removeBonus('actn');
+      }
+    } else if (table.reserveHexes[curNdx].indexOf(this.targetHex) >= 0) {
+      console.log(stime(this, `.dropFunc: Reserve`), ...info);
+      // recycle underlying reserve tile:
+      (this.targetHex.tile as AuctionTile)?.recycle()
+    };
     super.dropFunc(hex, ctx)
   }
 }
 
 export class Resi extends AuctionTile {
-  constructor(player?: Player, Aname?: string, cost = 1, inf = 0, vp = 1, econ = 1) {
-    super(player, Aname, cost, inf, vp, econ);
+  constructor(player?: Player, Aname?: string, inf = 0, vp = 1, cost = 1, econ = 1) {
+    super(player, Aname, inf, vp, cost, econ);
     this.addImageBitmap('Resi')
   }
 }
 
 export class Busi extends AuctionTile {
-  constructor(player?: Player, Aname?: string, cost = 1, inf = 0, vp = 1, econ = 1) {
-    super(player, Aname, cost, inf, vp, econ);
+  constructor(player?: Player, Aname?: string, inf = 0, vp = 1, cost = 1, econ = 1) {
+    super(player, Aname, inf, vp, cost, econ);
     this.addImageBitmap('Busi')
   }
 }
 export class PS extends AuctionTile {
-  constructor(player?: Player, Aname?: string, cost = 1, inf = 0, vp = 0, econ = 0) {
-    super(player, Aname, cost, inf, vp, econ);
+  constructor(player?: Player, Aname?: string, inf = 0, vp = 0, cost = 1, econ = 0) {
+    super(player, Aname, inf, vp, cost, econ);
     this.addImageBitmap('Pstation')
   }
 }
+
+class LakeStar extends BonusMark {
+  static lStarInfo = (() => {
+    let { type, size: size0, paint } = BonusMark.bonusMap.get('star')
+    return { type, x: 0, y: -2, size: size0, paint }
+  })();
+
+  constructor(dir: EwDir) {
+    super('lstar')//, LakeStar.lStarInfo);
+    this.rotation = H.dirRot[dir]
+    this.dir = dir;
+  }
+
+  dir: EwDir;
+  // override draw(ctx: CanvasRenderingContext2D, ignoreCache?: boolean): boolean {
+  //   this.visible = ((this.parent as Lake).hex?.links[this.dir]?.tile instanceof Resi) || true
+  //   return super.draw(ctx, true);
+  // }
+}
 export class Lake extends AuctionTile {
-  constructor(player?: Player, Aname?: string, cost = 1, inf = 0, vp = 0, econ = 0) {
-    super(player, Aname, cost, inf, vp, econ);
+
+  myStars = H.ewDirs.map(dir => new LakeStar(dir));
+
+  constructor(player?: Player, Aname?: string, inf = 0, vp = 0, cost = 1, econ = 0) {
+    super(player, Aname, inf, vp, cost, econ);
     this.addImageBitmap('Lake')
+    this.addChild(...this.myStars);  // add all the stars; will tweak visibility during draw
+    //this.uncache()
+  }
+
+  //override updateCache(compositeOperation?: string): void { }
+
+  override draw(ctx: CanvasRenderingContext2D, ignoreCache?: boolean): boolean {
+      return super.draw(ctx, ignoreCache);
+  }
+
+  override get vp() {
+    return this.hex.neighbors.filter(hex => hex.tile instanceof Resi).length
   }
 }
