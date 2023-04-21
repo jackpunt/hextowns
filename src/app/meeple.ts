@@ -8,6 +8,7 @@ import { newPlanner } from "./plan-proxy";
 import { TP } from "./table-params";
 import { Shape } from "@thegraid/easeljs-module";
 import { Table } from "./table";
+import { GamePlay } from "./game-play";
 
 class MeepleShape extends Shape implements PaintableShape {
   constructor(public player: Player, public radius = TP.hexRad * .4, public y0 = radius - 4) {
@@ -23,6 +24,7 @@ class MeepleShape extends Shape implements PaintableShape {
   }
 }
 export class Meeple extends Tile {
+  static allMeeples = [];
 
   readonly colorValues = C.nameToRgba("blue"); // with alpha component
   get y0() { return (this.childShape as MeepleShape).y0; }
@@ -50,7 +52,7 @@ export class Meeple extends Tile {
     this.nameText.y = y + height/2 - Tile.textSize/2;
     this.cache(x, y, width, height);
     this.paint()
-    this.player?.meeples.push(this);
+    Meeple.allMeeples.push(this);
   }
 
   /** the map Hex on which this Meeple sits. */
@@ -69,11 +71,12 @@ export class Meeple extends Tile {
   override makeShape(): PaintableShape { return new MeepleShape(this.player); }
 
 
+  // Meeple
   override setInfMark(inf?: number): void {
-    // do nothing; use setTileInf(inf)
+    // do nothing; use setMeepInf(inf)
   }
 
-  setTileInf(inf: number) {
+  setMeepInf(inf: number) {
     this.removeChildType(InfMark)
     if (inf !== 0) {
       this.addChildAt(new InfMark(inf), this.children.length - 1)
@@ -82,7 +85,7 @@ export class Meeple extends Tile {
     this.cache(radxy, radxy, radwh, radwh)
   }
 
-  override isLegalTarget(hex: Hex2) {
+  override isLegalTarget(hex: Hex) {
     if (!hex) return false;
     if (hex.meep) return false;    // no move onto meeple
     // no move onto other player's Tile:
@@ -91,9 +94,24 @@ export class Meeple extends Tile {
   }
 
   override dragStart(hex: Hex2): void {
-    if (this.inf !== 0) this.setTileInf(this.inf);
+    this.hex.tile?.setInfMark(this.hex.tile.inf)
+    this.setMeepInf(this.inf);
   }
 
+  override dropFunc(hex: Hex2, ctx: DragInfo): void {
+    let cp = GamePlay.gamePlay.curPlayer, op = cp.otherPlayer()
+    this.dropInf();   // setInfMark
+    super.dropFunc(hex, ctx);
+    this.updateCounters(cp);
+    this.updateCounters(op);
+  }
+
+  dropInf(): void {
+    let targetTile = this.targetHex.tile
+    let totalInf = this.inf + (targetTile?.inf || 0);
+    targetTile?.setInfMark(totalInf);
+    this.setMeepInf(totalInf);
+  }
   /** move in direction.
    * @return false if move not possible (no Hex, occupied)
    */
@@ -105,7 +123,6 @@ export class Meeple extends Tile {
   }
 
   override moveTo(hex: Hex) {
-    //this.hex ? this.hex.tile
     this.hex = hex;
     return hex
   }
@@ -126,24 +143,10 @@ export class Leader extends Meeple {
   }
   civicTile: Civic;     // the special tile for this Meeple/Leader
 
-  override isLegalTarget(hex: Hex2) {
+  override isLegalTarget(hex: Hex) {
     if (!super.isLegalTarget(hex)) return false;
     if (this.civicTile && (this.civicTile !== hex.tile) && !(this instanceof Builder)) return false;
     return true
-  }
-
-  override dragStart(hex: Hex2): void {
-      this.civicTile?.setInfMark(1);
-      this.setTileInf(1);
-  }
-
-  override dropFunc(hex: Hex2, ctx: DragInfo): void {
-    let targetTile = this.targetHex.tile;
-    if (this.civicTile && this.civicTile === targetTile) {
-      this.civicTile.setInfMark(2)
-      this.setTileInf(0);
-    }
-    super.dropFunc(hex, ctx)
   }
 
 }
@@ -173,9 +176,11 @@ export class Priest extends Leader {
 
 class UnitSource<T extends Meeple> {
   readonly Aname: string
-  allUnits: T[] = new Array<T>();
-  available?: T[];
-  counter?: ValueCounter;
+  private readonly allUnits: T[] = new Array<T>();
+  private available?: T[];
+  readonly counter?: ValueCounter;
+
+  newUnit(unit: T) { this.allUnits.push(unit); }
 
   nextUnit(spawn = true) {
     let source = this
@@ -197,7 +202,7 @@ class UnitSource<T extends Meeple> {
 }
 
 export class Police extends Meeple {
-  private static source: UnitSource<Police>[] = [];
+  static source: UnitSource<Police>[] = [];
 
   static makeSource(player: Player, hex: Hex2, n = 0) {
     let source = Police.source[player.index] = new UnitSource(Police, player, hex)
@@ -207,8 +212,8 @@ export class Police extends Meeple {
 
   // Police
   constructor(player: Player, index: number) {
-    super(`P:${player.index}-${index+1}`, player, 1, 0, 1, -2); // 2 Econ to place & maintain
-    Police.source[player.index].allUnits.push(this);
+    super(`P:${player.index}-${index}`, player, 1, 0, 1, -2); // 2 Econ to place & maintain
+    Police.source[player.index].newUnit(this);
   }
 
   override moveTo(hex: Hex) {
@@ -220,10 +225,10 @@ export class Police extends Meeple {
     return hex;
   }
 
-  override isLegalTarget(hex: Hex2): boolean {
+  override isLegalTarget(hex: Hex): boolean {
     if (!super.isLegalTarget(hex)) return false;
     let sourceHex = Police.source[this.player.index].hex;
-    if (this.originHex == sourceHex) return (hex.tile instanceof PS)
+    if (this.hex == sourceHex && !(hex.tile instanceof PS)) return false;
     return true;
   }
 }
@@ -248,7 +253,7 @@ export class Criminal extends Meeple {
 
   constructor(index = ++Criminal.index) {
     super(`Barb-${index}`, undefined, -1, 0, 0, -3) // 3 econ to place; not to maintain.
-    Criminal.source.allUnits.push(this);
+    Criminal.source.newUnit(this);
   }
 
   override paint(pColor = this.player?.color) {
@@ -264,7 +269,7 @@ export class Criminal extends Meeple {
     super.moveTo(hex);
     if (this.originHex == sourceHex && hex !== sourceHex) {
       if (!this.player) {
-        this.player = (hex instanceof Hex2) && Table.stageTable(hex.cont).gamePlay.curPlayer; // no hex for recycle...
+        this.player = GamePlay.gamePlay.curPlayer; // no hex for recycle...
         this.paint()
         this.updateCache()
       }
@@ -272,16 +277,16 @@ export class Criminal extends Meeple {
     }
     return hex;
   }
-  super_isLegalTarget(hex: Hex2) {
+  super_isLegalTarget(hex: Hex) {
     if (!hex) return false;
     if (hex.meep) return false;    // no move onto meeple
     // Criminal can/must move onto other player tile!
     // if (hex.tile?.player && hex.tile.player !== this.player) return false;
     return hex.isOnMap;
   }
-  override isLegalTarget(hex: Hex2): boolean {
+  override isLegalTarget(hex: Hex): boolean {
     if (!this.super_isLegalTarget(hex)) return false;
-    let curPlayer = Table.stageTable(hex.cont).gamePlay.curPlayer
+    let curPlayer = GamePlay.gamePlay.curPlayer
     if (this.player && this.player !== curPlayer) return false;  // may not move Criminals placed by opponent.
     let otherPlayer = curPlayer.otherPlayer();
     // must NOT be on or adj to curPlayer Tile:

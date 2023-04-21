@@ -85,6 +85,7 @@ export class Hex {
       return { x, y, w, h }
     }
   }
+
   readonly Aname: string
   _tile: Tile; // Tile?
   get tile() { return this._tile; }
@@ -114,6 +115,8 @@ export class Hex {
   set district(d: number) {
     this._district = d
   }
+  get isOnMap() { return this.district !== undefined; } // also: (row !== undefined) && (col !== undefined)
+
   readonly map: HexMap;  // Note: this.parent == this.map.hexCont [cached]
   readonly row: number
   readonly col: number
@@ -162,7 +165,6 @@ export class Hex2 extends Hex {
   set y(v: number) { this.cont.y = v}
   get scaleX() { return this.cont.scaleX}
   get scaleY() { return this.cont.scaleY}
-  get isOnMap() { return this.district !== undefined; } // also: (row !== undefined) && (col !== undefined)
 
   // if override set, then must override get!
   override get district() { return this._district }

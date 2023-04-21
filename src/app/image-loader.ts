@@ -20,11 +20,13 @@ export class ImageLoader {
     })
   }
 
-  constructor(args: { root: string, fnames: string[], ext: string }, cb?: (imap: Map<string, HTMLImageElement>) => void) {
+  constructor(args: { root: string, fnames: string[], ext: string },
+    imap = new Map<string, HTMLImageElement>(),
+    cb?: (imap: Map<string, HTMLImageElement>) => void)
+  {
     let { root, fnames, ext } = args
     let paths = fnames.map(fn => `${root}${fn}.${ext}`)
     this.loadImages(paths, (images: HTMLImageElement[]) => {
-      let imap = new Map<string, HTMLImageElement>()
       fnames.forEach((fn, n) => {
         images[n][S.Aname] = fn;
         imap.set(fn, images[n])

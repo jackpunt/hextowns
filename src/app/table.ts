@@ -23,6 +23,7 @@ interface StageTable extends Stage {
 
 /** layout display components, setup callbacks to GamePlay */
 export class Table extends EventDispatcher  {
+  static table: Table
   static stageTable(obj: DisplayObject) {
     return (obj.stage as StageTable).table
   }
@@ -49,7 +50,7 @@ export class Table extends EventDispatcher  {
     super();
 
     // backpointer so Containers can find their Table (& curMark)
-    (stage as StageTable).table = this;
+    Table.table = (stage as StageTable).table = this;
     this.stage = stage
     this.scaleCont = this.makeScaleCont(!!this.stage.canvas) // scaleCont & background
   }
@@ -213,6 +214,7 @@ export class Table extends EventDispatcher  {
     this.crimeHex = secondRowHex(2, `Barbs`, 7)
     Criminal.makeSource(this.crimeHex, 10);
     this.recycleHex = secondRowHex(2, `recycle`, 8)
+    this.auctionCont.shift()             // Also shift in gamePlay.startTurn()
 
     this.buttonsForPlayer.length = 0; // TODO: maybe deconstruct
     Player.allPlayers.forEach((p, pIndex) => {
@@ -224,9 +226,8 @@ export class Table extends EventDispatcher  {
       this.reserveHexes[pIndex].push(...[2, 3].map(i => secondRowHex(pIndex, `Reserve:${pIndex}-${i-1}`, i)))
 
       // place [civic/leader, academy/police] meepleHex on Table
-      p.placeCivicLeaders(leaderHex);
+      p.allLeaders.forEach((meep, i) => meep.civicTile.moveTo(meep.moveTo(leaderHex[i])))
       Police.makeSource(p, academyHex, 5);
-      this.auctionCont.shift()             // QQQ: shift a Tile (per Player) to get started
       this.hexMap.update();
     })
 
@@ -269,26 +270,30 @@ export class Table extends EventDispatcher  {
       KeyBinder.keyBinder.setKey(key, { thisArg: this, func: this.doButton, argVal: label })
     })
 
-    let dir = (1 - 2 * player.index)
-    let pt0 = cont.localToLocal(dir * 2 * TP.hexRad, rowy(0), this.scaleCont)
-    player.actionCounter = new ValueCounter(`actionCounter-${player.index}`, player.actions, C.YELLOW, TP.hexRad*.75);
-    player.actionCounter.attachToContainer(this.scaleCont, pt0)
-    player.actionCounter.mouseEnabled = true
-    player.actionCounter.on(S.click, (evt: MouseEvent) => {
+    let layoutCounter = (name: string, color: string, rowy ) => {
+      let dir = 1 - player.index * 2
+      let cname = `${name}Counter`, cnames = `${name}s`
+      let counter = player[cname] = new ValueCounter(`${cname}:${player.index}`, player[cnames], color, TP.hexRad * .75)
+      let pt = cont.localToLocal(dir * 2 * TP.hexRad, rowy, this.scaleCont)
+      counter.attachToContainer(this.scaleCont, pt);
+      counter.mouseEnabled = true;
+      player[cname] = counter;
+      return counter
+    };
+    layoutCounter('action', C.YELLOW, rowy(0)).on(S.click, (evt: MouseEvent) => {
       player.actions = player.actions + (evt.nativeEvent.ctrlKey ? 1 : -1);
-    } )
-    let pt1 = cont.localToLocal(dir * 2 * TP.hexRad, rowy(1), this.scaleCont)
-    player.coinCounter = new ValueCounter(`coinCounter-${player.index}`, player.coins, C.coinGold, TP.hexRad*.75);
-    player.coinCounter.attachToContainer(this.scaleCont, pt1)
-    player.coinCounter.mouseEnabled = true
-    player.coinCounter.on(S.click, (evt: MouseEvent) => {
+    })
+
+    layoutCounter('coin', C.coinGold, rowy(1)).on(S.click, (evt: MouseEvent) => {
       player.coins = player.coins + (evt.nativeEvent.ctrlKey ? 1 : -1);
-    } )
-    let pt2 = cont.localToLocal(dir * 2 * TP.hexRad, rowy(2), this.scaleCont)
-    player.captureCounter = new ValueCounter(`captureCounter-${player.index}`, player.captures.length, `lightblue`, TP.hexRad*.75);
-    player.captureCounter.attachToContainer(this.scaleCont, pt2)
-    player.captureCounter.mouseEnabled = true
+    })
+
+    layoutCounter('capture', 'lightblue', rowy(2));
+    layoutCounter('econ', C.GREEN, rowy(3))
+    layoutCounter('expense', C.GREEN, rowy(4))
+    layoutCounter('vp', C.WHITE, rowy(5))
   }
+
   /**
   // Start: SetPlayer, RollForCrime, Shift Auction,
   // Do Reserve (add to Reserve Hexes)
@@ -332,14 +337,12 @@ export class Table extends EventDispatcher  {
   startGame() {
     // initialize Players & TownStart & draw pile
     let dragger = this.dragger;
+    // All Tiles (Civics, Resi, Busi, PStation, Lake, & Meeple) are Draggable:
+    Tile.allTiles.forEach(tile => dragger.makeDragable(tile, this, this.dragFunc, this.dropFunc))
 
     this.gamePlay.forEachPlayer(p => {
       // place Town on hexMap
       p.placeTown()
-      // All Tiles (Civics, Resi, Busi, PStation, Lake) are Draggable:
-      Tile.allTiles.forEach(tile => dragger.makeDragable(tile, this, this.dragFunc, this.dropFunc))
-      // All Meeples are Draggable (Leaders & Police & Criminals)
-      p.meeples.forEach(meep => dragger.makeDragable(meep, this, this.dragFunc, this.dropFunc));
       this.toggleText(false)
     })
     this.gamePlay.setNextPlayer(this.gamePlay.allPlayers[0])
@@ -512,9 +515,8 @@ class AuctionCont extends Container {
     let hexMap = table.hexMap, parent = hexMap.mapCont.hexCont;
     for (let i = 0; i < this.maxlen; i++) {
       // make auctionHex:
-      let hex = newHex(2, `auctionHex${i}`, col0 + i)
+      let hex = newHex(2, `auction${i}`, col0 + i)
       this.hexes.push(hex)
-      let w = hex.xywh().w;
       parent.addChild(hex.cont)
       hex['Costinc'] = (i == 0) ? 1 : (i == this.maxlen - 1) ? -1 : 0;
     }

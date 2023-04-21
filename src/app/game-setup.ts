@@ -1,14 +1,13 @@
-import { ParamMap } from "@angular/router";
-import { C, CycleChoice, DropdownStyle, makeStage, ParamGUI, ParamItem, S, stime } from "@thegraid/easeljs-lib";
+import { C, CycleChoice, DropdownStyle, makeStage, ParamGUI, ParamItem, stime } from "@thegraid/easeljs-lib";
 import { Container, Stage } from "@thegraid/easeljs-module";
-import { BC, EBC, PidChoice } from "./choosers";
+import { EBC, PidChoice } from "./choosers";
 import { GamePlay } from "./game-play";
-import { Hex2, HexMap } from "./hex";
-import { Player } from "./player";
 import { StatsPanel, TableStats } from "./stats";
 import { Table } from "./table";
 import { TP } from "./table-params";
-import { Cardboard, Tile } from "./tile";
+import { Tile, Tile0 } from "./tile";
+import { Meeple } from "./meeple";
+import { Player } from "./player";
 
 /** show " R" for " N" */
 stime.anno = (obj: string | { constructor: { name: string; }; }) => {
@@ -30,9 +29,7 @@ export class GameSetup {
   constructor(canvasId: string, ext?: string[]) {
     stime.fmt = "MM-DD kk:mm:ss.SSS"
     this.stage = makeStage(canvasId, false)
-    Cardboard.loadImages(() => {
-      this.startup(ext)
-    })
+    Tile0.loadImages(() => this.startup(ext));
   }
   _netState = " " // or "yes" or "ref"
   set netState(val: string) {
@@ -49,6 +46,7 @@ export class GameSetup {
     // this.gamePlay.closeNetwork('restart')
     // this.gamePlay.logWriter?.closeFile()
     this.gamePlay.forEachPlayer(p => p.endGame())
+    Tile.allTiles.forEach(tile => tile.hex = undefined)
     let deContainer = (cont: Container) => {
       cont.children.forEach(dObj => {
         dObj.removeAllEventListeners()
@@ -69,6 +67,10 @@ export class GameSetup {
    * @param ext Extensions from URL
    */
   startup(ext: string[] = []) {
+    Tile.allTiles = [];
+    Meeple.allMeeples = [];
+    Player.allPlayers = [];
+
     let table = new Table(this.stage)        // EventDispatcher, ScaleCont, GUI-Player
     let gamePlay = new GamePlay(table, this) // hexMap, players, fillBag, gStats, mouse/keyboard->GamePlay
     this.gamePlay = gamePlay

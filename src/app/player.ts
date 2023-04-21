@@ -1,8 +1,8 @@
 import { C, stime } from "@thegraid/common-lib"
-import { GamePlay } from "./game-play"
+import { GamePlay, GamePlay0 } from "./game-play"
 import { Hex, Hex2 } from "./hex"
 import { HexDir } from "./hex-intfs"
-import { Leader, Meeple, Police } from "./meeple"
+import { Criminal, Leader, Meeple, Police } from "./meeple"
 import { IPlanner, newPlanner } from "./plan-proxy"
 import { PlayerColor, TP, otherColor, playerColors } from "./table-params"
 import { AuctionTile, Civic, Tile, TownRules, TownStart } from "./tile"
@@ -15,12 +15,17 @@ export class Player {
   readonly color: PlayerColor = playerColors[this.index];
   readonly gamePlay: GamePlay;
 
-  private _captures: (Meeple | Tile)[] = [];    // captured Criminals; Tiles captured by Criminals moved by Player
-  readonly meeples: Meeple[] = [];              // Player's B, M, P, D, Police available
+  private _capture: (Meeple | Tile)[] = [];    // captured Criminals; Tiles captured by Criminals moved by Player
+
   readonly civicTiles: Civic[] = [];            // Player's S, H, C, U Tiles
-  readonly tiles: (Civic | AuctionTile)[] = []; // Resi/Busi/PS/Lake/Civics in play on Map
-  readonly reserved: AuctionTile[] = [];        // Resi/Busi/PS/Lake reserved for Player (max 2?)
-  jailHex: Hex2
+  // Player's B, M, P, D, Police & Criminals-claimed
+  get meeples() {return Meeple.allMeeples.filter(meep => meep.player == this)};
+  // Resi/Busi/PS/Lake/Civics in play on Map
+  get tiles() { return Tile.allTiles.filter(t => !(t instanceof Meeple) && t.player == this) }
+  get allLeaders() { return this.meeples.filter(m => m instanceof Leader && m.player == this) as Leader[] }
+  get allPolice() { return this.meeples.filter(m => m instanceof Police && m.player == this) as Police[] }
+
+  jailHex: Hex2 // QQQ: a place for captures? (just drag to recycle and sort them out...), maybe rt-click to see them?
 
   coinCounter: ValueCounter;
   _coins = 0;
@@ -38,43 +43,64 @@ export class Player {
     this.actionCounter?.updateValue(v)
   }
 
+  get capture() { return this._capture; }
   captureCounter: ValueCounter;
-  get captures() { return this._captures; }
+  get captures() { return this._capture.length; }
+  capture_push(tile: Tile) { this._capture.push(tile); this.captureCounter.updateValue(this.captures) }
 
-  get townstart() { return this.tiles.find(t => t instanceof TownStart) as TownStart }
-  /** civicTiles in play on Map */
-  get allCivics() { return this.tiles.filter(t => t instanceof Civic) as Civic[] }
-  get allLeaders() { return this.meeples.filter(m => m instanceof Leader) as Leader[] }
-  get allPolice() { return this.meeples.filter(m => m instanceof Police) as Police[] }
+  econCounter: ValueCounter;
+  get econs() {
+    let econ = 0;
+    this.gamePlay.hexMap.forEachHex(hex => {
+      if ((hex.tile?.player == this) && !(hex.meep instanceof Criminal)) {
+        econ += hex.tile.econ;
+        // console.log(stime(this, `.econs`), hex.tile.Aname, hex.Aname, hex.tile.econ, econ);
+      }
+    })
+    return econ;
+  }
+  expenseCounter: ValueCounter;
+  get expenses() {
+    let expense = 0
+    this.gamePlay.hexMap.forEachHex(hex => {
+      if (hex.meep?.player == this) {
+        expense += hex.meep.econ     // meeples have negative econ
+        // console.log(stime(this, `.expense`), hex.tile.Aname, hex.Aname, hex.tile.econ, expense);
+      }
+    })
+    return expense
+  }
+  vpCounter: ValueCounter;
+  get vps() {
+    let vp = 0;
+    this.gamePlay.hexMap.forEachHex(hex => {
+      if ((hex.tile?.player == this) && !(hex.meep instanceof Criminal)) {
+        vp += hex.tile.vp
+        // console.log(stime(this, `.vps`), hex.tile.Aname, hex.Aname, hex.tile.vp, vp);
+      }
+    })
+    return vp
+  }
 
-  otherPlayer(plyr: Player = this.gamePlay.curPlayer) { return this.gamePlay.getPlayer(otherColor(plyr.color))}
+  otherPlayer(plyr: Player = this.gamePlay.curPlayer) { return Player.allPlayers[1 - plyr.index] }
 
   planner: IPlanner
   /** if true then invoke plannerMove */
   useRobo: boolean = false
   get colorn() { return TP.colorScheme[this.color] }
 
-  constructor(index: number, color: PlayerColor, gameplay: GamePlay) {
+  constructor(index: number, color: PlayerColor, gameplay: GamePlay0) {
     this.index = index
     this.color = color
-    this.gamePlay = gameplay
+    this.gamePlay = gameplay as GamePlay;
     this.Aname = `Player${index}-${this.colorn}`
     Player.allPlayers[index] = this;
   }
 
   /** make Civics, Leaders & Police; also makeLeaderHex() */
   makePlayerBits() {
-    this.civicTiles.length = this.meeples.length = 0;
+    this.civicTiles.length = 0;
     Leader.makeLeaders(this); // push new Civic onto this.civics, push new Leader onto this.meeples
-  }
-
-  // Leader place *before* deployed to Civic on map.
-  placeCivicLeaders(leaderHex: Hex2[]) {
-    leaderHex.forEach((hex, i) => {
-      let meep = this.allLeaders[i]
-      meep.civicTile.moveTo(hex)
-      meep.moveTo(hex)
-    })
   }
 
   /** choose TownRules & placement of TownStart */

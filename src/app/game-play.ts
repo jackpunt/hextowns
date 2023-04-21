@@ -1,14 +1,15 @@
-import { AT, json } from "@thegraid/common-lib";
-import { KeyBinder, ParamGUI, S, stime, Undo } from "@thegraid/easeljs-lib";
+import { json } from "@thegraid/common-lib";
+import { KeyBinder, S, Undo, stime } from "@thegraid/easeljs-lib";
 import { GameSetup } from "./game-setup";
-import { Hex, Hex2, HexMap, HSC, IHex, S_Resign } from "./hex";
+import { Hex, HexMap, IHex } from "./hex";
+import { Criminal, Leader, Police } from "./meeple";
 import { Planner } from "./plan-proxy";
 import { Player } from "./player";
 import { GameStats, TableStats } from "./stats";
 import { LogWriter } from "./stream-writer";
 import { Table } from "./table";
-import { otherColor, PlayerColor, playerColors, TP } from "./table-params";
-import { AuctionTile, Bonus, Tile, TownRules } from "./tile";
+import { PlayerColor, TP, otherColor, playerColors } from "./table-params";
+import { AuctionTile, Bonus, TownRules } from "./tile";
 
 class HexEvent {}
 class Move{
@@ -32,22 +33,68 @@ class Move{
  * -
  */
 export class GamePlay0 {
+  /** the latest GamePlay instance in this VM/context/process */
+  static gamePlay: GamePlay0;
   static gpid = 0
   readonly id = GamePlay0.gpid++
   ll(n: number) { return TP.log > n }
+  readonly logWriter: LogWriter
+
+  get allPlayers() { return Player.allPlayers; }
 
   readonly hexMap: HexMap = new HexMap()
   readonly history: Move[] = []          // sequence of Move that bring board to its state
-  readonly gStats: GameStats       // 'readonly' (set once by clone constructor)
+  readonly gStats: GameStats             // 'readonly' (set once by clone constructor)
   readonly redoMoves = []
+  readonly auctionTiles: AuctionTile[] = []     // per game
+  readonly reservedTiles: AuctionTile[][];      // per player; 2-players, 2-Tiles
+
+  logWriterLine0() {
+    let time = stime('').substring(6,15)
+    let line = {
+      time: stime.fs(), maxBreadth: TP.maxBreadth, maxPlys: TP.maxPlys,
+      dpb: TP.dbp, mHexes: TP.mHexes, tHexes: TP.tHexes
+    }
+    let line0 = json(line, false)
+    let logFile = `log_${time}`
+    console.log(stime(this, `.constructor: -------------- ${line0} --------------`))
+    let logWriter = new LogWriter(logFile)
+    logWriter.writeLine(line0)
+    return logWriter;
+  }
 
   constructor() {
+    GamePlay.gamePlay = this;
+    this.logWriter = this.logWriterLine0()
     this.hexMap[S.Aname] = `mainMap`
     this.gStats = new GameStats(this.hexMap) // AFTER allPlayers are defined so can set pStats
+    // Create and Inject all the Players: (picking a townStart?)
+    Player.allPlayers.length = 0;
+    playerColors.forEach((color, ndx) => new Player(ndx, color, this))
+    this.auctionTiles = new Array<AuctionTile>(Player.allPlayers.length + 1);   // expect to have 1 Tile child (or none)
+    this.reservedTiles = new Array<AuctionTile[]>(2).fill(new Array<AuctionTile>(2), 0, 2);
   }
 
   turnNumber: number = 0    // = history.lenth + 1 [by this.setNextPlayer]
   curPlayerNdx: number = 0  // curPlayer defined in GamePlay extends GamePlay0
+  curPlayer: Player;
+
+  getPlayer(color: PlayerColor): Player {
+    return this.allPlayers.find(p => p.color == color)
+  }
+
+  otherPlayer(plyr: Player = this.curPlayer) { return this.getPlayer(otherColor(plyr.color))}
+
+  forEachPlayer(f: (p:Player, index?: number, players?: Player[]) => void) {
+    this.allPlayers.forEach((p, index, players) => f(p, index, players));
+  }
+
+  setNextPlayer(plyr: Player): void {
+    this.turnNumber += 1 // this.history.length + 1
+    this.curPlayer = plyr
+    this.curPlayerNdx = plyr.index
+    this.curPlayer.newTurn();
+  }
 
   /** Planner may override with alternative impl. */
   newMoveFunc: (hex: Hex, sc: PlayerColor, caps: Hex[], gp: GamePlay0) => Move
@@ -59,6 +106,51 @@ export class GamePlay0 {
     this.undoRecs.addUndoRec(obj, name, value);
   }
 
+  /** from auctionTiles to reservedTiles */
+  reserve(aIndex: number, rIndex: number) {
+    let tile = this.auctionTiles[aIndex], pIndex = this.curPlayerNdx;
+    this.auctionTiles[aIndex] = undefined;
+    this.reservedTiles[pIndex][rIndex]?.recycle();   // if another Tile in reserve slot, recycle it.
+    this.reservedTiles[pIndex][rIndex] = tile;
+    tile.player = Player.allPlayers[pIndex];
+    return true;
+  }
+
+  /** from AuctionTiles or ReserveTiles to hexMap: */
+  build(tile: AuctionTile, hex: Hex) {
+    if (!tile.isLegalTarget(hex)) return false
+    let pIndex = this.curPlayerNdx;
+    let player = Player.allPlayers[pIndex];
+    let rIndex = this.reservedTiles[pIndex].indexOf(tile);
+    if (rIndex > 0) this.reservedTiles[pIndex][rIndex] = undefined;
+    let aIndex = this.auctionTiles.indexOf(tile);
+    if (aIndex > 0) this.auctionTiles[aIndex] = undefined;
+    tile.moveTo(hex);
+    return true;
+  }
+
+  recruit(leader: Leader) {
+    if (leader.hex?.isOnMap) return false;
+    if (!leader.civicTile.hex?.isOnMap) return false;
+    leader.hex = leader.civicTile.hex
+    return true;
+  }
+
+  placePolice(hex: Hex) {
+    let meep = Police.source[this.curPlayerNdx].nextUnit(); // meep.moveTo(source.hex)
+    if (!meep) return false;
+    if (!meep.isLegalTarget(hex)) return false;
+    meep.moveTo(hex);
+    return true;
+  }
+
+  placeCriminal(hex: Hex) {
+    let meep = Criminal.source.nextUnit(); // meep.moveTo(source.hex)
+    if (!meep) return false;
+    if (!meep.isLegalTarget(hex)) return false;
+    meep.moveTo(hex);
+    return true;
+  }
 }
 
 /** GamePlayD has compatible hexMap(mh, nh) but does not share components. used by Planner */
@@ -75,31 +167,12 @@ export class GamePlayD extends GamePlay0 {
 /** GamePlay with Table & GUI (KeyBinder, ParamGUI & Dragger) */
 export class GamePlay extends GamePlay0 {
   readonly table: Table   // access to GUI (drag/drop) methods.
-  readonly logWriter: LogWriter
-  readonly auctionTiles: AuctionTile[] = []
   declare readonly gStats: TableStats // https://github.com/TypeStrong/typedoc/issues/1597
-  get allPlayers() { return Player.allPlayers; }
-
   /** GamePlay is the GUI-augmented extension of GamePlay0; uses Table */
   constructor(table: Table, public gameSetup: GameSetup) {
     super()            // hexMap, history, gStats...
-    let time = stime('').substring(6,15)
-    let line = {
-      time: stime.fs(), maxBreadth: TP.maxBreadth, maxPlys: TP.maxPlys,
-      dpb: TP.dbp, mHexes: TP.mHexes, tHexes: TP.tHexes
-    }
-    let line0 = json(line, false)
-    let logFile = `log_${time}`
-    console.log(stime(this, `.constructor: -------------- ${line0} --------------`))
-    this.logWriter = new LogWriter(logFile)
-    this.logWriter.writeLine(line0)
-
     AuctionTile.fillBag()                         // put R/B/PS/L into draw bag.
     TownRules.inst.fillRulesBag();
-    // Create and Inject all the Players: (picking a townStart?)
-    Player.allPlayers.length = 0;
-    playerColors.forEach((color, ndx) => new Player(ndx, color, this))
-    this.auctionTiles = new Array<AuctionTile>(Player.allPlayers.length + 1);   // expect to have 1 Tile child (or none)
     // Players have: civics & meeples & TownSpec
     // setTable(table)
     this.table = table
@@ -181,17 +254,6 @@ export class GamePlay extends GamePlay0 {
     table.undoShape.on(S.click, () => this.undoMove(), this)
     table.redoShape.on(S.click, () => this.redoMove(), this)
     table.skipShape.on(S.click, () => this.skipMove(), this)
-  }
-
-  curPlayer: Player;
-  getPlayer(color: PlayerColor): Player {
-    return this.allPlayers.find(p => p.color == color)
-  }
-
-  otherPlayer(plyr: Player = this.curPlayer) { return this.getPlayer(otherColor(plyr.color))}
-
-  forEachPlayer(f: (p:Player, index?: number, players?: Player[]) => void) {
-    this.allPlayers.forEach((p, index, players) => f(p, index, players));
   }
 
   useReferee = true
@@ -303,20 +365,13 @@ export class GamePlay extends GamePlay0 {
   }
 
   // TODO: use setNextPlayerNdx() and include in GamePlay0 ?
-  setNextPlayer0(plyr: Player): Player {
+  override setNextPlayer(plyr = this.otherPlayer()) {
     this.table.buttonsForPlayer[this.curPlayerNdx].visible = false;
-    this.turnNumber += 1 // this.history.length + 1
-    this.curPlayerNdx = plyr.index
-    this.curPlayer = plyr
-    this.curPlayer.newTurn();
+    super.setNextPlayer(plyr)
     this.table.buttonsForPlayer[this.curPlayerNdx].visible = true;
     this.table.auctionCont.tiles.forEach(tile => tile?.paint(this.curPlayer.color))
-    this.hexMap.update()
-    return plyr
-  }
-  setNextPlayer(plyr = this.otherPlayer()) {
-    this.setNextPlayer0(plyr)
     this.table.showNextPlayer() // get to nextPlayer, waitPaused when Player tries to make a move.?
+    this.hexMap.update()
     this.startTurn()
     this.makeMove()
   }
