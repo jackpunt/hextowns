@@ -7,6 +7,7 @@ import { EwDir, H } from "./hex-intfs";
 import { ImageLoader } from "./image-loader";
 import { Player } from "./player";
 import { PlayerColor, TP } from "./table-params";
+import { DragContext } from "./table";
 
 export class C1 {
   static GREY = 'grey';
@@ -167,14 +168,6 @@ export class Tile0 extends Container {
     this.updateCache()
   }
 
-  updateCounters(player: Player) {
-    // need to [always] update these after Action...
-    // also: Shift-Drop to put Tile back in Auction [Reserve]
-    player.econCounter.updateValue(player.econs)
-    player.expenseCounter.updateValue(player.expenses)
-    player.vpCounter.updateValue(player.vps)
-    player.gamePlay.hexMap.update()
-  }
 }
 
 export class Tile extends Tile0 {
@@ -288,41 +281,23 @@ export class Tile extends Tile0 {
     this.parent.removeChild(this);
   }
 
-  originHex: Hex2;      // where meeple was picked [dragStart]
-  targetHex: Hex2;      // where meeple was placed [dropFunc] (if legal dropTarget; else originHex)
-  lastShift: boolean;
-
   // highlight legal targets, record targetHex when meeple is over a legal target hex.
-  dragFunc0(hex: Hex2, ctx: DragInfo) {
-    if (ctx?.first) {
-      this.originHex = this.hex as Hex2;  // player.meepleHex[]
-      this.targetHex = this.originHex;
-      this.lastShift = undefined;
-      this.dragStart(hex);
-    }
+  dragFunc0(hex: Hex2, ctx: DragContext) {
     let isCapture = (hex == this.table.recycleHex); // dev/test: use manual capture.
-    this.targetHex = (isCapture || this.isLegalTarget(hex)) ? hex : this.originHex;
+    ctx.targetHex = (isCapture || this.isLegalTarget(hex)) ? hex : ctx.originHex;
     //hex.showMark(true);
-
-    // track shiftKey because we don't pass 'event' to isLegalTarget(hex)
-    const shiftKey = ctx?.event?.nativeEvent?.shiftKey
-    if (ctx?.first || shiftKey !== this.lastShift || this.targetHex !== hex) {
-      this.lastShift = shiftKey
-      // do shift-down/shift-up actions...
-      this.dragShift(shiftKey);
-    }
   }
 
-  dropFunc0(hex: Hex2, ctx: DragInfo) {
-    this.dropFunc(hex || this.targetHex, ctx)
-    this.lastShift = undefined;
+  dropFunc0(hex: Hex2, ctx: DragContext) {
+    this.dropFunc(ctx.targetHex, ctx)
+    ctx.lastShift = undefined;
   }
 
   /** override as necessary. */
-  dragStart(hex: Hex2) {}
+  dragStart(hex: Hex2, ctx: DragContext) { }
 
   /** state of shiftKey has changed during drag */
-  dragShift(shiftKey: boolean) {}
+  dragShift(shiftKey: boolean, ctx: DragContext) { }
 
   /**
    * Override in AuctionTile, Civic, Meeple/Leader
@@ -339,14 +314,12 @@ export class Tile extends Tile0 {
   /**
    * Tile.dropFunc; Override in AuctionTile, Civic, Meeple/Leader.
    * @param hex Hex2 this Tile is over when dropped (may be undefined; see also: TargetHex)
-   * @param ctx DragInfo
+   * @param ctx DragContext
    */
-  dropFunc(hex: Hex2, ctx: DragInfo) {
-    if (this.targetHex == this.table.recycleHex) {
-      this.recycle();
-      return
-    }
-    this.moveTo(this.targetHex);
+  dropFunc(targetHex: Hex2, ctx: DragContext) {
+    if (targetHex == this.table.recycleHex) return this.recycle();
+    this.moveTo(targetHex);
+    Player.updateCounters();      // drop an AuctionTile or Meeple
   }
 }
 
@@ -472,15 +445,16 @@ export class AuctionTile extends Tile {
     if (hex.isOnMap && !hex.tile && (!hex.meep || hex.meep.player == curPlayer)) return true;
     if (this.table.reserveHexes[curNdx].includes(hex as Hex2)) return true;
     // TODO: during dev/testing: allow return to auction, using shift key:
-    if (this.table.auctionCont.hexes.includes(hex as Hex2) && this.lastShift) return true;
+    if (this.table.reserveHexes[curNdx].includes(this.hex as Hex2)
+      && this.table.auctionCont.hexes.includes(hex as Hex2)) return true;
     return false
   }
 
   // AuctionTile
-  override dropFunc(hex: Hex2, ctx: DragInfo) {
+  override dropFunc(targetHex: Hex2, ctx: DragContext) {
     let player = GamePlay.gamePlay.curPlayer, pIndex = player.index;
-    let info = [this.targetHex.Aname, this.Aname, this.bonus, this];
-    if (this.targetHex !== this.originHex) {
+    let info = [ctx.targetHex.Aname, this.Aname, this.bonus, this];
+    if (targetHex !== ctx.originHex) {
       let tiles = this.table.auctionCont.tiles;
       // remove from Auction:
       let auctionNdx = tiles.indexOf(this); // if from auctionTiles
@@ -488,14 +462,14 @@ export class AuctionTile extends Tile {
         tiles[auctionNdx] = undefined
         this.player = player;
       }
-      let rIndex = this.table.reserveHexes[pIndex].indexOf(this.targetHex)
+      let rIndex = this.table.reserveHexes[pIndex].indexOf(ctx.targetHex)
       if (rIndex >= 0) {
         console.log(stime(this, `.dropFunc: Reserve`), ...info);
         player.gamePlay.reserve(this, rIndex)
       }
     }
-    super.dropFunc(hex, ctx)
-    if (this.targetHex.isOnMap) {
+    super.dropFunc(targetHex, ctx)
+    if (ctx.targetHex.isOnMap) {
       console.log(stime(this, `.dropFunc: Build`), ...info);
       // deposit Coins with Player; ASSERT was from auctionTiles...
       if (this.bonus.coin) {
@@ -507,7 +481,6 @@ export class AuctionTile extends Tile {
         player.actions += 1;      // triggers actionCounter.updateValue
       }
     }
-    this.updateCounters(player)
   }
 }
 

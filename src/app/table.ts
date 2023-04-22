@@ -21,6 +21,14 @@ interface StageTable extends Stage {
   table: Table;
 }
 
+export interface DragContext {
+  originHex: Hex2;      // where Tile was picked
+  targetHex: Hex2;      // last isLegalHex() or originHex
+  lastShift: boolean;
+  info: DragInfo;
+  tile: Tile;           // the DisplayObject being dragged
+}
+
 /** layout display components, setup callbacks to GamePlay */
 export class Table extends EventDispatcher  {
   static table: Table
@@ -347,11 +355,70 @@ export class Table extends EventDispatcher  {
     })
     this.gamePlay.setNextPlayer(this.gamePlay.allPlayers[0])
   }
-  dragFunc(tile: Tile, ctx: DragInfo) {
-    tile.dragFunc0(this.hexUnderObj(tile), ctx)
+  dragContext: DragContext;
+  dragFunc(tile: Tile, info: DragInfo) {
+    let hex = this.hexUnderObj(tile)
+    let ctx = this.dragContext;
+
+    if (info?.first) {
+      ctx = this.dragContext = {
+        tile: tile,
+        originHex: tile.hex as Hex2,      // where Tile was picked
+        targetHex: tile.hex as Hex2,      // last isLegalHex() or originHex
+        lastShift: undefined,
+        info: info,
+      }
+      this.dragStart(tile, hex, ctx);
+    }
+    this.checkShift(hex, ctx)
+    tile.dragFunc0(hex, this.dragContext)
   }
-  dropFunc(tile: Tile, ctx: DragInfo) {
-    tile.dropFunc0(this.hexUnderObj(tile), ctx)
+  checkShift(hex: Hex2, ctx: DragContext) {
+    let info = ctx.info
+    // track shiftKey because we don't pass 'event' to isLegalTarget(hex)
+    const shiftKey = info.event?.nativeEvent?.shiftKey
+    if (info.first || shiftKey !== ctx.lastShift || ctx.targetHex !== hex) {
+      ctx.lastShift = shiftKey
+      // do shift-down/shift-up actions...
+      this.dragShift(ctx.tile, shiftKey, ctx);
+    }
+  }
+
+  dragStart(tile: Tile, hex: Hex2, ctx: DragContext) {
+    tile.dragStart(hex, ctx)
+  }
+
+  /** state of shiftKey has changed during drag */
+  dragShift(tile: Tile, shiftKey: boolean, ctx: DragContext) {
+    tile.dragShift(shiftKey, ctx)
+  }
+
+  dropFunc(tile: Tile, info: DragInfo) {
+    tile.dropFunc0(this.hexUnderObj(tile), this.dragContext)
+    this.dragContext.tile = undefined; // mark not dragging
+  }
+
+  hexUnderObj(dragObj: DisplayObject) {
+    let pt = dragObj.parent.localToLocal(dragObj.x, dragObj.y, this.hexMap.mapCont.hexCont)
+    return this.hexMap.hexUnderPoint(pt.x, pt.y)
+  }
+
+  isDragging() { return this.dragContext.tile !== undefined }
+
+  stopDragging(target: Hex2 = this.dragContext.originHex) {
+    //console.log(stime(this, `.stopDragging: dragObj=`), this.dragger.dragCont.getChildAt(0), {noMove, isDragging: this.isDragging()})
+    if (!this.isDragging()) return
+    target && (this.dragContext.targetHex = target)
+    this.dragger.stopDrag(); // ---> dropFunc(this.dragContext.tile, info)
+  }
+
+  /** attach nextHex.stone to mouse-drag */
+  dragStone() {
+    if (this.isDragging()) {
+      this.stopDragging(this.dragContext.targetHex) // drop and make move
+    } else {
+      this.dragger.dragTarget(undefined, { x: TP.hexRad / 2, y: TP.hexRad / 2 })
+    }
   }
 
   logCurPlayer(curPlayer: Player) {
@@ -374,26 +441,6 @@ export class Table extends EventDispatcher  {
     this.showRedoUndoCount()
     // TODO: highlight Player & Ships that can/cannot move
     this.hexMap.update()
-  }
-
-  hexUnderObj(dragObj: DisplayObject) {
-    let pt = dragObj.parent.localToLocal(dragObj.x, dragObj.y, this.hexMap.mapCont.hexCont)
-    return this.hexMap.hexUnderPoint(pt.x, pt.y)
-  }
-  _dropTarget: Hex2;
-  get dropTarget() { return this._dropTarget}
-  set dropTarget(hex: Hex2) { hex = (hex || this.origHex); this._dropTarget = hex; this.hexMap.showMark(hex)}
-
-  dragShift = false // last shift state in dragFunc
-  dragHex: Hex2 = undefined // last hex in dragFunc
-  protoHex: Hex2 = undefined // hex showing protoMove influence & captures
-  isDragging() { return this.dragHex !== undefined }
-
-  stopDragging(target: Hex2 = this.origHex) {
-    //console.log(stime(this, `.stopDragging: target=`), this.dragger.dragCont.getChildAt(0), {noMove, isDragging: this.isDragging()})
-    if (!this.isDragging()) return
-    target && (this.dropTarget = target)
-    this.dragger.stopDrag()
   }
 
   _tablePlanner: TablePlanner
@@ -442,14 +489,6 @@ export class Table extends EventDispatcher  {
       KeyBinder.keyBinder.setKey('S-Space', {thisArg: this, func: this.dragStone})
     }
     return scaleC
-  }
-  /** attach nextHex.stone to mouse-drag */
-  dragStone() {
-    if (this.isDragging()) {
-      this.stopDragging(this.dropTarget) // drop and make move
-    } else {
-      this.dragger.dragTarget(undefined, { x: TP.hexRad / 2, y: TP.hexRad / 2 })
-    }
   }
 
   /** put a Rectangle Shape at (0,0) with XYWH bounds as given */

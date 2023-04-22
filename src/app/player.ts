@@ -10,6 +10,19 @@ import { ValueCounter } from "@thegraid/easeljs-lib"
 
 export class Player {
   static allPlayers: Player[] = [];
+
+  /** econ, expense, vp */
+  static updateCounters() {
+    Player.allPlayers.forEach(player => {
+      player.econCounter.updateValue(player.econs)
+      player.expenseCounter.updateValue(player.expenses)
+      player.vpCounter.updateValue(player.vps)
+    })
+    GamePlay.gamePlay.hexMap.update()
+  }
+
+
+
   readonly Aname: string;
   readonly index: number = 0; // index in playerColors & allPlayers
   readonly color: PlayerColor = playerColors[this.index];

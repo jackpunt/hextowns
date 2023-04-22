@@ -7,7 +7,7 @@ import { C1, Church, Civic, InfMark, PS, PaintableShape, Tile, TownHall, TownSta
 import { newPlanner } from "./plan-proxy";
 import { TP } from "./table-params";
 import { Shape } from "@thegraid/easeljs-module";
-import { Table } from "./table";
+import { DragContext } from "./table";
 import { GamePlay } from "./game-play";
 
 class MeepleShape extends Shape implements PaintableShape {
@@ -98,16 +98,14 @@ export class Meeple extends Tile {
     this.setMeepInf(this.inf);
   }
 
-  override dropFunc(hex: Hex2, ctx: DragInfo): void {
-    let cp = GamePlay.gamePlay.curPlayer, op = cp.otherPlayer()
-    this.dropInf();   // setInfMark
-    super.dropFunc(hex, ctx);
-    this.updateCounters(cp);
-    this.updateCounters(op);
+  // Meeple
+  override dropFunc(targetHex: Hex2, ctx: DragContext): void {
+    this.dropInf(ctx);   // setInfMark
+    super.dropFunc(targetHex, ctx);
   }
 
-  dropInf(): void {
-    let targetTile = this.targetHex.tile
+  dropInf(ctx: DragContext): void {
+    let targetTile = ctx.targetHex.tile
     let totalInf = this.inf + (targetTile?.inf || 0);
     targetTile?.setInfMark(totalInf);
     this.setMeepInf(totalInf);
@@ -217,9 +215,10 @@ export class Police extends Meeple {
   }
 
   override moveTo(hex: Hex) {
-    let source = Police.source[this.player.index], sourceHex = source.hex;
+    let source = Police.source[this.player.index]
+    let fromSrc = (this.hex == source.hex), toSrc = (hex == source.hex);
     super.moveTo(hex);
-    if (this.originHex == sourceHex && hex !== sourceHex) {
+    if (fromSrc && !toSrc) {
       Police.source[this.player.index].nextUnit()   // shift; moveTo(source.hex); update source counter
     }
     return hex;
@@ -265,9 +264,10 @@ export class Criminal extends Meeple {
   }
 
   override moveTo(hex: Hex) {
-    let sourceHex = Criminal.source.hex
+    let source = Criminal.source
+    let fromSrc = (this.hex == source.hex), toSrc = (hex == source.hex);
     super.moveTo(hex);
-    if (this.originHex == sourceHex && hex !== sourceHex) {
+    if (fromSrc && !toSrc) {
       if (!this.player) {
         this.player = GamePlay.gamePlay.curPlayer; // no hex for recycle...
         this.paint()
