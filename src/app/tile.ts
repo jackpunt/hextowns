@@ -28,34 +28,53 @@ class TileShape extends HexShape implements PaintableShape {
   }
 }
 
-export type Bonus = 'star' | 'coin' | 'actn' | 'lstar'
-type BonusInfo = {
-  type: Bonus, x: number, y: number, size: number,
-  paint?: (s: Shape, info: BonusInfo) => void
+export type Bonus = 'star' | 'coin' | 'actn' | 'econ' | 'Bank' | 'Lake'
+type BonusInfo<T extends DisplayObject> = {
+  type: Bonus, dtype: new () => T,
+  x: number, y: number, size: number,
+  paint?: (s: T, info: BonusInfo<T>) => void
 }
 
-class BonusMark extends Shape {
-  static star = 'star'
-  static coin = 'coin'
-  static action = 'actn'
-  static bonusInfo: BonusInfo[] = [
+class BonusMark extends Container {
+
+  static bonusInfo: BonusInfo<DisplayObject>[] = [
     {
-      type: 'lstar', x: 0, y: -3.1, size: TP.hexRad / 4, paint: (s, info, tilt = 90) => {
+      type: 'Bank', dtype: Text, x: 0, y: -2.6, size: TP.hexRad / 3, paint: (t: Text, info, tilt = 90) => {
+        t.text = '$'
+        t.color = C.GREEN
+        t.textAlign = 'center'
+        t.font = F.fontSpec(info.size)
+        t.x = info.x * info.size
+        t.y = info.y * info.size
+      }
+    },
+    {
+      type: 'econ', dtype: Text, x: 0, y: -2.6, size: TP.hexRad / 3, paint: (t: Text, info, tilt = 90) => {
+        t.text = '$'
+        t.color = C.GREEN
+        t.textAlign = 'center'
+        t.font = F.fontSpec(info.size)
+        t.x = info.x * info.size
+        t.y = info.y * info.size
+      }
+    },
+    {
+      type: 'Lake', dtype: Shape, x: 0, y: -2.7, size: TP.hexRad / 4, paint: (s: Shape, info, tilt = 90) => {
         s.graphics.f(C.briteGold).dp(info.x*info.size, info.y*info.size, info.size, 5, 2, tilt)
       }
     },
     {
-      type: 'star', x: 0, y: 1.2, size: TP.hexRad / 3, paint: (s, info, tilt = -90) => {
+      type: 'star', dtype: Shape, x: 0, y: 1.2, size: TP.hexRad / 3, paint: (s: Shape, info, tilt = -90) => {
         s.graphics.f(C.briteGold).dp(info.x * info.size, info.y * info.size, info.size, 5, 2, tilt)
       }
     },
     {
-      type: 'coin', x: 1.3, y: -1.3, size: TP.hexRad / 4, paint: (s, info) => {
+      type: 'coin', dtype: Shape, x: 1.3, y: -1.3, size: TP.hexRad / 4, paint: (s: Shape, info) => {
         s.graphics.f(C.coinGold).dc(info.x * info.size, info.y * info.size, info.size)
       }
     },
     {
-      type: 'actn', x: -1.4, y: -1.3, size: TP.hexRad / 4, paint: (s, info) => {
+      type: 'actn', dtype: Shape, x: -1.4, y: -1.3, size: TP.hexRad / 4, paint: (s: Shape, info) => {
         s.scaleX = s.scaleY = info.size / 4
         let path: [x: number, y: number][] = [[-1, 4], [2, -1], [-2, 1], [1, -4]].map(([x, y]) => [x + info.x*4, y + info.y*4])
         let g = s.graphics.ss(1).s(C.YELLOW).mt(...path.shift())
@@ -64,15 +83,17 @@ class BonusMark extends Shape {
       }
     },
   ];
-  static bonusMap = new Map<Bonus, BonusInfo>()
+  static bonusMap = new Map<Bonus, BonusInfo<DisplayObject>>()
   static ignore = BonusMark.bonusInfo.map(info => BonusMark.bonusMap.set(info.type, info));
 
   constructor(
     public type?: Bonus,
     public info = BonusMark.bonusMap.get(type),
+    public mark = new info.dtype(),
   ) {
     super()
-    this.info.paint(this, this.info);
+    this.addChild(mark)
+    this.info.paint(this.mark, this.info);
   }
 }
 
@@ -99,7 +120,7 @@ export class Tile0 extends Container {
   static imageMap = new Map<string, HTMLImageElement>()
   static imageArgs = {
     root: 'assets/images/',
-    fnames: ['Resi', 'Busi', 'Pstation', 'Lake', 'TownStart', 'TownHall', 'Temple', ...Tile0.Uname],
+    fnames: ['Resi', 'Busi', 'Pstation', 'Bank', 'Lake', 'TownStart', 'TownHall', 'Temple', ...Tile0.Uname],
     ext: 'png',
   };
 
@@ -115,11 +136,11 @@ export class Tile0 extends Container {
   }
   /** paint with PlayerColor; updateCache() */
   paint(pColor?: PlayerColor, colorn = pColor ? TP.colorScheme[pColor] : C1.grey) {
-    this.childShape.paint(colorn)
+    this.childShape.paint(colorn); // recache childShape
     this.updateCache()
   }
 
-  readonly bonus = { star: false, coin: false, actn: false, lstar: false }
+  readonly bonus = { star: false, coin: false, actn: false, econ: false }
   addBonus(type: Bonus) {
     let mark = new BonusMark(type);
     this.bonus[type] = true;
@@ -182,7 +203,7 @@ export class Tile extends Tile0 {
     public readonly inf: number = 0,
     private readonly _vp: number = 0,
     public readonly cost: number = 1,
-    public readonly econ: number = 1,
+    public readonly _econ: number = 1,
   ) {
     super()
     let radius = this.radius
@@ -198,7 +219,8 @@ export class Tile extends Tile0 {
   pinf = false;  // provides positive inf (Civic does this, bonus on AuctionTile)
   ninf = false;  // provides negative inf (slum does this: permanent Criminal on Tile)
 
-  get vp() { return this._vp + (this.bonus.star ? 1 : 0); }
+  get vp() { return this._vp + (this.bonus.star ? 1 : 0); } // override in Lake
+  get econ() { return this._econ + (this.bonus.econ ? 1 : 0); } // override in Bank
 
   get radius() { return TP.hexRad};
   override makeShape(): PaintableShape {
@@ -415,8 +437,9 @@ export class AuctionTile extends Tile {
     AuctionTile.tileBag.length = 0;
     addTiles(20, Resi)
     addTiles(20, Busi)
-    addTiles(10, PS)
-    addTiles(10, Lake)
+    addTiles(5, PS)
+    addTiles(5, Bank)
+    addTiles(5, Lake)
   }
 
   /** AuctionTile */
@@ -468,8 +491,7 @@ export class AuctionTile extends Tile {
       let rIndex = this.table.reserveHexes[pIndex].indexOf(this.targetHex)
       if (rIndex >= 0) {
         console.log(stime(this, `.dropFunc: Reserve`), ...info);
-        player.gamePlay.reserve(auctionNdx, rIndex)
-        // player.reserveTile(this, rIndex);
+        player.gamePlay.reserve(this, rIndex)
       }
     }
     super.dropFunc(hex, ctx)
@@ -509,42 +531,45 @@ export class PS extends AuctionTile {
   }
 }
 
-class LakeStar extends BonusMark {
-  static lStarInfo = (() => {
-    let { type, size: size0, paint } = BonusMark.bonusMap.get('star')
-    return { type, x: 0, y: -2, size: size0, paint }
-  })();
-
-  constructor(dir: EwDir) {
-    super('lstar')//, LakeStar.lStarInfo);
-    this.rotation = H.dirRot[dir]
-    this.dir = dir;
-  }
-
-  dir: EwDir;
-  // override draw(ctx: CanvasRenderingContext2D, ignoreCache?: boolean): boolean {
-  //   this.visible = ((this.parent as Lake).hex?.links[this.dir]?.tile instanceof Resi) || true
-  //   return super.draw(ctx, true);
-  // }
-}
-export class Lake extends AuctionTile {
-
-  myStars = H.ewDirs.map(dir => new LakeStar(dir));
-
-  constructor(player?: Player, Aname?: string, inf = 0, vp = 0, cost = 1, econ = 0) {
+class AdjBonusTile extends AuctionTile {
+  /** dodgy? merging Bonus.type with asset/image name */
+  constructor(
+    public type: Bonus,
+    public claz: new () => AuctionTile,
+     player?: Player, Aname?: string, inf = 0, vp = 0, cost = 1, econ = 0) {
     super(player, Aname, inf, vp, cost, econ);
-    this.addImageBitmap('Lake')
-    this.addChild(...this.myStars);  // add all the stars; will tweak visibility during draw
-    //this.uncache()
+    this.addImageBitmap(type)
+    this.addChild(...this.myMarks);  // add all the stars; will tweak visibility during draw
   }
 
-  //override updateCache(compositeOperation?: string): void { }
+  myMarks = H.ewDirs.map(dir => {
+    let mark = new BonusMark(this.type);
+    mark.rotation = H.dirRot[dir];
+    return mark;
+  });
 
   override draw(ctx: CanvasRenderingContext2D, ignoreCache?: boolean): boolean {
-      return super.draw(ctx, ignoreCache);
+    this.myMarks?.forEach((m, ndx) => {
+      let tile = this.hex?.nextHex(H.ewDirs[ndx]).tile; // may be undefined
+      m.visible = ((tile instanceof this.claz) && tile.player == this.player);
+    })
+    return super.draw(ctx, true); // ignoreCache! draw with new visiblity (still: cache in HexMap)
   }
+  get clazCount() {
+    return this.hex.neighbors.filter(hex => (hex.tile instanceof this.claz) && (hex.tile?.player == this.player)).length
+  }
+}
 
-  override get vp() {
-    return this.hex.neighbors.filter(hex => (hex.tile instanceof Resi) && (hex.tile?.player == this.player)).length
+export class Bank extends AdjBonusTile {
+  constructor(player?: Player, Aname?: string, inf = 0, vp = 0, cost = 1, econ = 0) {
+    super('Bank', Busi, player, Aname, inf, vp, cost, econ);
   }
+  override get econ() { return super.econ + this.clazCount }
+}
+
+export class Lake extends AdjBonusTile {
+  constructor(player?: Player, Aname?: string, inf = 0, vp = 0, cost = 1, econ = 0) {
+    super('Lake', Resi, player, Aname, inf, vp, cost, econ);
+  }
+  override get vp() { return super.vp + this.clazCount; }
 }

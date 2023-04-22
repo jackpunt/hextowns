@@ -107,9 +107,8 @@ export class GamePlay0 {
   }
 
   /** from auctionTiles to reservedTiles */
-  reserve(aIndex: number, rIndex: number) {
-    let tile = this.auctionTiles[aIndex], pIndex = this.curPlayerNdx;
-    this.auctionTiles[aIndex] = undefined;
+  reserve(tile: AuctionTile, rIndex: number) {
+    let pIndex = this.curPlayerNdx;
     this.reservedTiles[pIndex][rIndex]?.recycle();   // if another Tile in reserve slot, recycle it.
     this.reservedTiles[pIndex][rIndex] = tile;
     tile.player = Player.allPlayers[pIndex];
@@ -197,6 +196,7 @@ export class GamePlay extends GamePlay0 {
     if (dice[0] == 1 && dice[1] == 1) { this.addBonus('actn'); }
     if (dice[0] == 2 && dice[1] == 2) { this.addBonus('star'); }
     if (dice[0] == 3 && dice[1] == 3) { this.addBonus('coin'); }
+    if (dice[0] == 4 && dice[1] == 4) { this.addBonus('econ'); }
     this.curPlayer.actionCounter.updateValue(this.curPlayer.actions = 1)
     this.hexMap.update()
   }
@@ -217,6 +217,7 @@ export class GamePlay extends GamePlay0 {
     KeyBinder.keyBinder.setKey('M-a', { thisArg: this, func: () => this.addBonus('actn') })
     KeyBinder.keyBinder.setKey('M-b', { thisArg: this, func: () => this.addBonus('star') })
     KeyBinder.keyBinder.setKey('M-c', { thisArg: this, func: () => this.addBonus('coin') })
+    KeyBinder.keyBinder.setKey('M-d', { thisArg: this, func: () => this.addBonus('econ') })
     // KeyBinder.keyBinder.setKey('p', { thisArg: this, func: roboPause })
     // KeyBinder.keyBinder.setKey('r', { thisArg: this, func: roboResume })
     // KeyBinder.keyBinder.setKey('s', { thisArg: this, func: roboStep })
@@ -247,10 +248,10 @@ export class GamePlay extends GamePlay0 {
     KeyBinder.keyBinder.setKey('t', { thisArg: this, func: () => {this.table.toggleText(); }})
     //KeyBinder.keyBinder.setKey('z', { thisArg: this, func: () => {this.gStats.updateStats(); }})
 
-    KeyBinder.keyBinder.setKey('M-r', { thisArg: this, func: () => { this.gameSetup.netState = "ref" } })
-    KeyBinder.keyBinder.setKey('M-J', { thisArg: this, func: () => { this.gameSetup.netState = "new" } })
-    KeyBinder.keyBinder.setKey('M-j', { thisArg: this, func: () => { this.gameSetup.netState = "join" } })
-    KeyBinder.keyBinder.setKey('M-d', { thisArg: this, func: () => { this.gameSetup.netState = "no" } })
+    // KeyBinder.keyBinder.setKey('M-r', { thisArg: this, func: () => { this.gameSetup.netState = "ref" } })
+    // KeyBinder.keyBinder.setKey('M-J', { thisArg: this, func: () => { this.gameSetup.netState = "new" } })
+    // KeyBinder.keyBinder.setKey('M-j', { thisArg: this, func: () => { this.gameSetup.netState = "join" } })
+    //KeyBinder.keyBinder.setKey('M-d', { thisArg: this, func: () => { this.gameSetup.netState = "no" } })
     table.undoShape.on(S.click, () => this.undoMove(), this)
     table.redoShape.on(S.click, () => this.redoMove(), this)
     table.skipShape.on(S.click, () => this.skipMove(), this)
