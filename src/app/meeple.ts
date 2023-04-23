@@ -29,8 +29,6 @@ export class Meeple extends Tile {
   readonly colorValues = C.nameToRgba("blue"); // with alpha component
   get y0() { return (this.childShape as MeepleShape).y0; }
 
-  newTurn() { }
-
   /**
    * Meeple - Leader, Police, Criminal
    * @param Aname
@@ -119,15 +117,10 @@ export class Meeple extends Tile {
     hex.map.update()    // TODO: invoke in correct place...
     return true
   }
-
-  override moveTo(hex: Hex) {
-    this.hex = hex;
-    return hex
-  }
 }
 export class Leader extends Meeple {
   constructor(tile: Civic, abbrev: string) {
-    super(`${abbrev}-${tile.player.index}`, tile.player, 1, 1, 1, -6); // 6 Econ to place/maintain
+    super(`${abbrev}:${tile.player.index}`, tile.player, 1, 1, 1, -6); // 6 Econ to place/maintain
     this.civicTile = tile;
     this.addBonus('star');
     this.paint()
@@ -178,17 +171,32 @@ class UnitSource<T extends Meeple> {
   private available?: T[];
   readonly counter?: ValueCounter;
 
-  newUnit(unit: T) { this.allUnits.push(unit); }
+  availUnit(unit: T) {
+    if (!this.available.includes(unit)) {
+      this.available.push(unit);
+      unit.hex = undefined;
+      unit.visible = false;
+    }
+    this.updateCounter()
+  }
 
-  nextUnit(spawn = true) {
-    let source = this
-    if (!spawn) source.available = source.allUnits.slice();
-    let unit = source.available.shift()
-    unit?.moveTo(source.hex);
-    source.counter?.setValue(source.available.length);
-    source.hex.cont.updateCache(); // updateCache of counter on hex
-    source.hex.map.update();       // updateCache of hexMap with hex & counter
+  newUnit(unit: T) { this.allUnits.push(unit); this.availUnit(unit); }
+
+  /** move next unit to source.hex, make visible */
+  nextUnit() {
+    let unit = this.available[0];
+    if (!unit) return unit;
+    unit.visible = true;
+    unit.moveTo(this.hex);     // try push to available
+    this.available.shift();    // remove from available
+    this.updateCounter();
     return unit;
+  }
+
+  updateCounter() {
+    this.counter?.setValue(this.available.length);
+    this.hex.cont.updateCache(); // updateCache of counter on hex
+    this.hex.map.update();       // updateCache of hexMap with hex & counter
   }
 
   constructor(type: new (...args: any) => T, public readonly player: Player, public readonly hex: Hex2) {
@@ -204,8 +212,8 @@ export class Police extends Meeple {
 
   static makeSource(player: Player, hex: Hex2, n = 0) {
     let source = Police.source[player.index] = new UnitSource(Police, player, hex)
-    for (let i = 0; i < n; i++) new Police(player, i + 1)
-    source.nextUnit(false) // unit.moveTo(source.hex)
+    for (let i = 0; i < n; i++) new Police(player, i + 1).homeHex = hex // dubious: (i+1) -- use serial?
+    source.nextUnit();  // unit.moveTo(source.hex)
   }
 
   // Police
@@ -218,8 +226,12 @@ export class Police extends Meeple {
     let source = Police.source[this.player.index]
     let fromSrc = (this.hex == source.hex), toSrc = (hex == source.hex);
     super.moveTo(hex);
-    if (fromSrc && !toSrc) {
-      Police.source[this.player.index].nextUnit()   // shift; moveTo(source.hex); update source counter
+    if (toSrc && fromSrc) {
+      // nothing
+    } else if (toSrc) {
+      // nothing
+    } else if (fromSrc) {
+      source.nextUnit()   // shift; moveTo(source.hex); update source counter
     }
     return hex;
   }
@@ -229,6 +241,13 @@ export class Police extends Meeple {
     let sourceHex = Police.source[this.player.index].hex;
     if (this.hex == sourceHex && !(hex.tile instanceof PS)) return false;
     return true;
+  }
+
+  override recycle(): void {
+    this.isCapture();
+    let source = Police.source[GamePlay.gamePlay.curPlayer.index]
+    source.availUnit(this);
+    if (!source.hex.meep) source.nextUnit();
   }
 }
 
@@ -241,17 +260,17 @@ export class Police extends Meeple {
  * Not owned by any Player, are played against the opposition.
  */
 export class Criminal extends Meeple {
-  static index = 0;
+  static index = 0; // vs static override serial
   static source: UnitSource<Criminal>;
 
   static makeSource(hex: Hex2, n = 0) {
     let source = Criminal.source = new UnitSource(Criminal, undefined, hex)
-    for (let i = 0; i < n; i++) new Criminal(i + 1);
-    source.nextUnit(false); // moveTo(source.hex)
+    for (let i = 0; i < n; i++) new Criminal(i + 1).homeHex = hex;
+    source.nextUnit(); // moveTo(source.hex)
   }
 
-  constructor(index = ++Criminal.index) {
-    super(`Barb-${index}`, undefined, -1, 0, 0, -3) // 3 econ to place; not to maintain.
+  constructor(serial = ++Criminal.index) {
+    super(`Barb-${serial}`, undefined, -1, 0, 0, -3) // 3 econ to place; not to maintain.
     Criminal.source.newUnit(this);
   }
 
@@ -267,16 +286,21 @@ export class Criminal extends Meeple {
     let source = Criminal.source
     let fromSrc = (this.hex == source.hex), toSrc = (hex == source.hex);
     super.moveTo(hex);
-    if (fromSrc && !toSrc) {
-      if (!this.player) {
-        this.player = GamePlay.gamePlay.curPlayer; // no hex for recycle...
-        this.paint()
-        this.updateCache()
-      }
-      Criminal.source.nextUnit()   // shift; moveTo(source.hex); update source counter
+    if (toSrc && fromSrc) {
+      // nothing
+    } else if (toSrc) {
+      this.player = undefined;
+      this.paint()
+      this.updateCache()
+    } else if (fromSrc) {
+      this.player = GamePlay.gamePlay.curPlayer; // no hex for recycle...
+      this.paint()
+      this.updateCache()
+      source.nextUnit()   // shift; moveTo(source.hex); update source counter
     }
     return hex;
   }
+
   super_isLegalTarget(hex: Hex) {
     if (!hex) return false;
     if (hex.meep) return false;    // no move onto meeple
@@ -284,6 +308,7 @@ export class Criminal extends Meeple {
     // if (hex.tile?.player && hex.tile.player !== this.player) return false;
     return hex.isOnMap;
   }
+
   override isLegalTarget(hex: Hex): boolean {
     if (!this.super_isLegalTarget(hex)) return false;
     let curPlayer = GamePlay.gamePlay.curPlayer
@@ -296,5 +321,12 @@ export class Criminal extends Meeple {
     if (hex.tile?.player && hex.tile.player !== curPlayer) return true;
     if (hex.neighbors.find(hex => hex.tile?.player && hex.tile.player !== curPlayer)) return true;
     return false;
+  }
+
+  override recycle(): void {
+    this.isCapture();
+    let source = Criminal.source
+    source.availUnit(this);
+    if (!source.hex.meep) source.nextUnit();
   }
 }

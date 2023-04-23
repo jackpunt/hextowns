@@ -28,8 +28,6 @@ export class Player {
   readonly color: PlayerColor = playerColors[this.index];
   readonly gamePlay: GamePlay;
 
-  private _capture: (Meeple | Tile)[] = [];    // captured Criminals; Tiles captured by Criminals moved by Player
-
   readonly civicTiles: Civic[] = [];            // Player's S, H, C, U Tiles
   // Player's B, M, P, D, Police & Criminals-claimed
   get meeples() {return Meeple.allMeeples.filter(meep => meep.player == this)};
@@ -39,6 +37,14 @@ export class Player {
   get allPolice() { return this.meeples.filter(m => m instanceof Police && m.player == this) as Police[] }
 
   jailHex: Hex2 // QQQ: a place for captures? (just drag to recycle and sort them out...), maybe rt-click to see them?
+
+  bribCounter: ValueCounter;
+  _bribs = 0;
+  get bribs() { return this._coins; }
+  set bribs(v: number) {
+    this._bribs = v
+    this.bribCounter?.updateValue(v)
+  }
 
   coinCounter: ValueCounter;
   _coins = 0;
@@ -56,10 +62,13 @@ export class Player {
     this.actionCounter?.updateValue(v)
   }
 
-  get capture() { return this._capture; }
   captureCounter: ValueCounter;
-  get captures() { return this._capture.length; }
-  capture_push(tile: Tile) { this._capture.push(tile); this.captureCounter.updateValue(this.captures) }
+  _captures = 0;    // captured Criminals; Tiles captured by Criminals moved by Player
+  get captures() { return this._captures; }
+  set captures(v: number) {
+    this._captures = v;
+    this.captureCounter.updateValue(this.captures)
+  }
 
   econCounter: ValueCounter;
   get econs() {
@@ -145,7 +154,8 @@ export class Player {
     this.planner = newPlanner(gamePlay.hexMap, this.index)
   }
   newTurn() {
-    this.meeples.forEach(ship => ship.newTurn())
+    this.coins += (this.econs + this.expenses)
+    if (this.coins >= 0) this.actions += 1;
   }
   stopMove() {
     this.planner?.roboMove(false)

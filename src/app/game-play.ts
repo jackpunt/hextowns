@@ -9,7 +9,7 @@ import { GameStats, TableStats } from "./stats";
 import { LogWriter } from "./stream-writer";
 import { Table } from "./table";
 import { PlayerColor, TP, otherColor, playerColors } from "./table-params";
-import { AuctionTile, Bonus, TownRules } from "./tile";
+import { AuctionBonus, AuctionTile, Bonus, TownRules } from "./tile";
 
 class HexEvent {}
 class Move{
@@ -47,7 +47,7 @@ export class GamePlay0 {
   readonly gStats: GameStats             // 'readonly' (set once by clone constructor)
   readonly redoMoves = []
   readonly auctionTiles: AuctionTile[] = []     // per game
-  readonly reservedTiles: AuctionTile[][];      // per player; 2-players, 2-Tiles
+  readonly reservedTiles: AuctionTile[][] = [[],[]];      // per player; 2-players, 2-Tiles
 
   logWriterLine0() {
     let time = stime('').substring(6,15)
@@ -72,7 +72,7 @@ export class GamePlay0 {
     Player.allPlayers.length = 0;
     playerColors.forEach((color, ndx) => new Player(ndx, color, this))
     this.auctionTiles = new Array<AuctionTile>(Player.allPlayers.length + 1);   // expect to have 1 Tile child (or none)
-    this.reservedTiles = new Array<AuctionTile[]>(2).fill(new Array<AuctionTile>(2), 0, 2);
+    this.reservedTiles = [[],[]];
   }
 
   turnNumber: number = 0    // = history.lenth + 1 [by this.setNextPlayer]
@@ -93,6 +93,7 @@ export class GamePlay0 {
     this.turnNumber += 1 // this.history.length + 1
     this.curPlayer = plyr
     this.curPlayerNdx = plyr.index
+    this.curPlayer.actions = 0;
     this.curPlayer.newTurn();
   }
 
@@ -136,7 +137,7 @@ export class GamePlay0 {
   }
 
   placePolice(hex: Hex) {
-    let meep = Police.source[this.curPlayerNdx].nextUnit(); // meep.moveTo(source.hex)
+    let meep = Police.source[this.curPlayerNdx].hex.meep; // meep.moveTo(source.hex)
     if (!meep) return false;
     if (!meep.isLegalTarget(hex)) return false;
     meep.moveTo(hex);
@@ -144,7 +145,7 @@ export class GamePlay0 {
   }
 
   placeCriminal(hex: Hex) {
-    let meep = Criminal.source.nextUnit(); // meep.moveTo(source.hex)
+    let meep = Criminal.source.hex.meep; // meep.moveTo(source.hex)
     if (!meep) return false;
     if (!meep.isLegalTarget(hex)) return false;
     meep.moveTo(hex);
@@ -192,15 +193,14 @@ export class GamePlay extends GamePlay0 {
   startTurn(dice = Dice.roll()) {
     let tile = this.table.auctionCont.shift();
     dice.sort(); // ascending
-    console.log(stime(this, `.startTurn:`), dice)
+    console.log(stime(this, `.startTurn: Dice =`), dice)
     if (dice[0] == 1 && dice[1] == 1) { this.addBonus('actn'); }
     if (dice[0] == 2 && dice[1] == 2) { this.addBonus('star'); }
-    if (dice[0] == 3 && dice[1] == 3) { this.addBonus('coin'); }
+    if (dice[0] == 3 && dice[1] == 3) { this.addBonus('brib'); }
     if (dice[0] == 4 && dice[1] == 4) { this.addBonus('econ'); }
-    this.curPlayer.actionCounter.updateValue(this.curPlayer.actions = 1)
     this.hexMap.update()
   }
-  addBonus(type?: Bonus, tile = this.auctionTiles[0]) {
+  addBonus(type?: AuctionBonus, tile = this.auctionTiles[0]) {
     tile.addBonus(type);
     if (this.auctionTiles.includes(tile)) tile.paint(this.curPlayer.color)
     this.hexMap.update()
@@ -215,8 +215,8 @@ export class GamePlay extends GamePlay0 {
       this.pauseGame(op); this.resumeGame(p);
     }
     KeyBinder.keyBinder.setKey('M-a', { thisArg: this, func: () => this.addBonus('actn') })
-    KeyBinder.keyBinder.setKey('M-b', { thisArg: this, func: () => this.addBonus('star') })
-    KeyBinder.keyBinder.setKey('M-c', { thisArg: this, func: () => this.addBonus('coin') })
+    KeyBinder.keyBinder.setKey('M-c', { thisArg: this, func: () => this.addBonus('star') })
+    KeyBinder.keyBinder.setKey('M-b', { thisArg: this, func: () => this.addBonus('brib') })
     KeyBinder.keyBinder.setKey('M-d', { thisArg: this, func: () => this.addBonus('econ') })
     // KeyBinder.keyBinder.setKey('p', { thisArg: this, func: roboPause })
     // KeyBinder.keyBinder.setKey('r', { thisArg: this, func: roboResume })
