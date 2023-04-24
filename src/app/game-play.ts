@@ -1,15 +1,16 @@
 import { json } from "@thegraid/common-lib";
 import { KeyBinder, S, Undo, stime } from "@thegraid/easeljs-lib";
 import { GameSetup } from "./game-setup";
-import { Hex, HexMap, IHex } from "./hex";
-import { Criminal, Leader, Police } from "./meeple";
+import { Hex, Hex2, HexMap, IHex } from "./hex";
+import { Criminal, Leader, Police, TileSource } from "./meeple";
 import { Planner } from "./plan-proxy";
 import { Player } from "./player";
 import { GameStats, TableStats } from "./stats";
 import { LogWriter } from "./stream-writer";
-import { Table } from "./table";
+import { CostIncCounter, Table } from "./table";
 import { PlayerColor, TP, otherColor, playerColors } from "./table-params";
-import { AuctionBonus, AuctionTile, Bonus, TownRules } from "./tile";
+import { AuctionBonus, AuctionTile, Bonus, Busi, Resi, TownRules } from "./tile";
+import { NC } from "./choosers";
 
 class HexEvent {}
 class Move{
@@ -48,6 +49,8 @@ export class GamePlay0 {
   readonly redoMoves = []
   readonly auctionTiles: AuctionTile[] = []     // per game
   readonly reservedTiles: AuctionTile[][] = [[],[]];      // per player; 2-players, 2-Tiles
+  readonly marketSource: { Busi?: TileSource<Busi>, Resi?: TileSource<Resi>} = {};  // per Busi/Resi type
+  getMarketSource(type: 'Busi' | 'Resi' ) { return this.marketSource[type] as TileSource<AuctionTile>; }
 
   logWriterLine0() {
     let time = stime('').substring(6,15)
@@ -71,7 +74,7 @@ export class GamePlay0 {
     // Create and Inject all the Players: (picking a townStart?)
     Player.allPlayers.length = 0;
     playerColors.forEach((color, ndx) => new Player(ndx, color, this))
-    this.auctionTiles = new Array<AuctionTile>(Player.allPlayers.length + 1);   // expect to have 1 Tile child (or none)
+    this.auctionTiles = new Array<AuctionTile>(TP.auctionSlots);   // expect to have 1 Tile child (or none)
     this.reservedTiles = [[],[]];
   }
 
@@ -370,11 +373,23 @@ export class GamePlay extends GamePlay0 {
     this.table.buttonsForPlayer[this.curPlayerNdx].visible = false;
     super.setNextPlayer(plyr)
     this.table.buttonsForPlayer[this.curPlayerNdx].visible = true;
-    this.table.auctionCont.tiles.forEach(tile => tile?.paint(this.curPlayer.color))
+    this.setAuctionPrices(plyr)
     this.table.showNextPlayer() // get to nextPlayer, waitPaused when Player tries to make a move.?
     this.hexMap.update()
     this.startTurn()
     this.makeMove()
+  }
+
+  readonly costIncHexCounters: [Hex2, CostIncCounter, number][] = [];
+  setAuctionPrices(plyr: Player = this.curPlayer) {
+    let pColor = plyr.color;
+    let nCivs = plyr.civicTiles.filter(tile => tile.hex.isOnMap).length
+    let auction = this.table.auctionCont
+    this.costIncHexCounters.forEach(([hex, counter, ndx]) => {
+      hex.tile?.paint(pColor);
+      hex.meep?.paint(pColor);
+      counter?.setValue(auction.costInc[nCivs][ndx]);
+    })
   }
 
   /** dropFunc | eval_sendMove -- indicating new Move attempt */

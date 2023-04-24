@@ -1,9 +1,8 @@
 import { C, F, className, stime } from "@thegraid/common-lib";
-import { DragInfo } from "@thegraid/easeljs-lib";
 import { Bitmap, Container, DisplayObject, Graphics, MouseEvent, Shape, Text } from "@thegraid/easeljs-module";
 import { GamePlay } from "./game-play";
 import { Hex, Hex2, HexShape } from "./hex";
-import { EwDir, H } from "./hex-intfs";
+import { H } from "./hex-intfs";
 import { ImageLoader } from "./image-loader";
 import { Player } from "./player";
 import { PlayerColor, TP } from "./table-params";
@@ -27,6 +26,34 @@ class TileShape extends HexShape implements PaintableShape {
     let r2 = this.radius * H.sqrt3 * .5 * (55 / 60);
     super.paint(colorn).f(C1.lightergrey).dc(0, 0, r2)
     return this.graphics
+  }
+}
+
+export class InfMark extends Container {
+  constructor(inf = 1, y0 = .7, xw = 3) {
+    super()
+    let color = (inf > 0) ? C.WHITE : C.BLACK, rad = TP.hexRad;
+    let xs = [[0], [-.1, +.1], [-.1, 0, +.1]][Math.abs(inf) - 1];
+    H.ewDirs.forEach(dir => {
+      let sl = new Shape(), gl = sl.graphics
+      gl.ss(xw).s(color)
+      xs.forEach(x => gl.mt(rad * x, rad * y0).lt(rad * x, rad * .9))
+      sl.rotation = H.dirRot[dir]
+      this.addChild(sl)
+    })
+    this.cache(-rad, -rad, 2 * rad, 2 * rad)
+  }
+}
+
+export class InfShape extends Container {
+  /** hexagon scaled by TP.hexRad/4 */
+  constructor(bgColor = 'grey') {
+    super()
+    let s = new Shape(), c = this;
+    s.graphics.f(bgColor).dp(0, 0, TP.hexRad, 6, 0, 30)
+    c.addChild(s)
+    c.addChild(new InfMark(1, .3, 10))
+    c.scaleX = c.scaleY = 1 / 4;
   }
 }
 
@@ -76,11 +103,7 @@ class BonusMark extends Container {
       }
     },
     {
-      type: 'brib', dtype: Container, x: 1.3, y: -1.3, size: TP.hexRad/4, paint: (c: Container, info) => {
-        let s = new Shape()
-        s.graphics.f('grey').dp(0, 0, TP.hexRad, 6, 0, 30)
-        c.addChild(s)
-        c.addChild(new InfMark(1, .3, 10))
+      type: 'brib', dtype: InfShape, x: 1.3, y: -1.3, size: TP.hexRad/4, paint: (c: Container, info) => {
         c.scaleX = c.scaleY = 1/4;
         c.x = info.x * info.size;
         c.y = info.y * info.size;
@@ -110,22 +133,6 @@ class BonusMark extends Container {
   }
 }
 
-export class InfMark extends Container {
-  constructor(inf = 1, y0 = .7, xw = 3) {
-    super()
-    let color = (inf > 0) ? C.WHITE : C.BLACK, rad = TP.hexRad;
-    let xs = [[0], [-.1, +.1], [-.1, 0, +.1]][Math.abs(inf) - 1];
-    H.ewDirs.forEach(dir => {
-      let sl = new Shape(), gl = sl.graphics
-      gl.ss(xw).s(color)
-      xs.forEach(x => gl.mt(rad * x, rad * y0).lt(rad * x, rad * .9))
-      sl.rotation = H.dirRot[dir]
-      this.addChild(sl)
-    })
-    this.cache(-rad, -rad, 2 * rad, 2 * rad)
-  }
-}
-
 /** Someday refactor: all the cardboard bits (Tiles, Meeples & Coins) */
 export class Tile0 extends Container {
 
@@ -133,13 +140,24 @@ export class Tile0 extends Container {
   static imageMap = new Map<string, HTMLImageElement>()
   static imageArgs = {
     root: 'assets/images/',
-    fnames: ['Resi', 'Busi', 'Pstation', 'Bank', 'Lake', 'TownStart', 'TownHall', 'Temple', ...Tile0.Uname],
+    fnames: ['Resi', 'Busi', 'Pstation', 'Bank', 'Lake', 'Recycle', 'TownStart', 'TownHall', 'Temple', ...Tile0.Uname],
     ext: 'png',
   };
 
   /** use ImageLoader to load images, THEN invoke callback. */
   static loadImages(cb: () => void) {
     new ImageLoader(Tile0.imageArgs, Tile0.imageMap, (imap) => cb())
+  }
+
+  /** name in set of filenames loaded in GameSetup */
+  addImageBitmap(name: string) {
+    let img = Tile.imageMap.get(name), bm = new Bitmap(img);
+    let width = TP.hexRad
+    bm.scaleX = bm.scaleY = width / Math.max(img.height, img.width);
+    bm.x = bm.y = -width / 2;
+    bm.y -= Tile.textSize / 2;
+    this.addChildAt(bm, 1)
+    return bm;
   }
 
   readonly childShape: PaintableShape = this.makeShape();
@@ -240,14 +258,10 @@ export class Tile extends Tile0 {
   }
 
   /** name in set of filenames loaded in GameSetup */
-  addImageBitmap(name: string) {
-    let img = Tile.imageMap.get(name), bm = new Bitmap(img);
-    let width = TP.hexRad
-    bm.scaleX = bm.scaleY = width / Math.max(img.height, img.width);
-    bm.x = bm.y = -width / 2;
-    bm.y -= Tile.textSize / 2;
-    this.addChildAt(bm, 1)
+  override addImageBitmap(name: string) {
+    let bm = super.addImageBitmap(name)
     this.updateCache()
+    return bm;
   }
 
   setInfMark(inf = 1, rad = this.radius) {
@@ -293,13 +307,20 @@ export class Tile extends Tile0 {
 
   isCapture() {
     let cp = GamePlay.gamePlay.curPlayer
-    if (this.hex.isOnMap && this.player !== cp) {
-      cp.captures++;
-      console.log(stime(this, `.recycle: captured`), this.Aname, cp.colorn, this.hex.Aname, cp.captures)
-      return true;
+    if (this.hex?.isOnMap) {
+      if (this.player !== cp) {
+        cp.captures++;
+        console.log(stime(this, `.isCapture: captured`), this.Aname, cp.colorn, this.hex?.Aname, cp.captures)
+        return true;
+      } else {
+        let verb = (this instanceof Meeple) ? 'dismiss' : 'demolish'
+        cp.coins -= this.econ;  // dismiss Meeple, claw-back salary.
+        console.log(stime(this, `.isCapture: ${verb}:`), this.Aname, cp.colorn, this.hex?.Aname)
+        return false
+      }
     } else {
       let verb = (this instanceof Meeple) ? 'dismiss' : 'demolish'
-      console.log(stime(this, `.recycle: ${verb}:`), this.Aname, cp.colorn, this.hex.Aname)
+      console.log(stime(this, `.isCapture: ${verb}:`), this.Aname, cp.colorn, this.hex?.Aname)
       return false
     }
   }
@@ -317,7 +338,6 @@ export class Tile extends Tile0 {
 
   dropFunc0(hex: Hex2, ctx: DragContext) {
     this.dropFunc(ctx.targetHex, ctx)
-    ctx.lastShift = undefined;
   }
 
   /** override as necessary. */
@@ -361,8 +381,8 @@ export class Civic extends Tile {
   }
 
   override isLegalTarget(hex: Hex) {
-    if (!hex) return false;
-    if (hex.tile) return false;
+    if (!super.isLegalTarget(hex)) return false;
+    if (!hex.isOnMap) return false;
     // if insufficient influence(hex) return false;
     return true;
   }
@@ -370,6 +390,10 @@ export class Civic extends Tile {
   override recycle() {   // Civic - put under Leader
     super.recycle();
     this.table.hexMap.mapCont.tileCont.addChildAt(this, 1); // under meeple
+  }
+  override dropFunc(targetHex: Hex2, ctx: DragContext): void {
+      super.dropFunc(targetHex, ctx);
+      (GamePlay.gamePlay as GamePlay).setAuctionPrices();
   }
 }
 
@@ -425,6 +449,15 @@ export class Church extends Civic {
 
 export class AuctionTile extends Tile {
 
+  /** take specific tile from tileBag */
+  static takeTile(tile: AuctionTile, tiles = AuctionTile.tileBag) {
+    let index = tiles.indexOf(tile)
+    if (index < 0) return undefined;
+    tiles.splice(index, 1)
+    return tile;
+  }
+
+  /** select random tile from tileBag */
   static selectOne(tiles = AuctionTile.tileBag, remove = true) {
     let index = Math.floor(Math.random() * tiles.length)
     let tile = tiles.splice(index, 1)[0];
@@ -440,11 +473,11 @@ export class AuctionTile extends Tile {
       }
     }
     AuctionTile.tileBag.length = 0;
-    addTiles(20, Resi)
-    addTiles(20, Busi)
-    addTiles(5, PS)
-    addTiles(5, Bank)
-    addTiles(5, Lake)
+    addTiles(TP.resiPerPlayer * 2, Resi)
+    addTiles(TP.busiPerPlayer * 2, Busi)
+    addTiles(TP.psPerPlayer * 2, PS)
+    addTiles(TP.bankPerPlayer * 2, Bank)
+    addTiles(TP.lakePerPlayer *2, Lake)
   }
 
   /** AuctionTile */
@@ -481,26 +514,51 @@ export class AuctionTile extends Tile {
 
   // AuctionTile
   override dropFunc(targetHex: Hex2, ctx: DragContext) {
+    if ((targetHex == ctx.originHex)) return super.dropFunc(targetHex, ctx);
+
     let player = GamePlay.gamePlay.curPlayer, pIndex = player.index;
     let info = [ctx.targetHex.Aname, this.Aname, this.bonus, this];
-    if (targetHex !== ctx.originHex) {
-      let tiles = this.table.auctionCont.tiles;
-      // remove from Auction:
-      let auctionNdx = tiles.indexOf(this); // if from auctionTiles
-      if (auctionNdx >= 0) {
-        tiles[auctionNdx] = undefined
-        this.player = player;
-      }
-      let rIndex = this.table.reserveHexes[pIndex].indexOf(ctx.targetHex)
-      if (rIndex >= 0) {
-        console.log(stime(this, `.dropFunc: Reserve`), rIndex, ...info);
-        player.gamePlay.reserve(this, rIndex)
-      }
+    let auctionTiles = this.table.auctionCont.tiles;
+    let reserveTiles = GamePlay.gamePlay.reservedTiles[pIndex];
+    let auctionHexes = this.table.auctionCont.hexes;
+    let reserveHexes = this.table.reserveHexes[pIndex];
+
+    // remove from reserveTiles:
+    let rIndex = reserveTiles.indexOf(this)
+    if (rIndex >= 0) {
+      reserveTiles[rIndex] = undefined;
     }
-    super.dropFunc(targetHex, ctx)
-    if (ctx.targetHex.isOnMap) {
+    // add to reserveTiles:
+    let rIndex2 = reserveHexes.indexOf(targetHex)
+    if (rIndex2 >= 0) {
+      console.log(stime(this, `.dropFunc: Reserve[${rIndex2}]`), ...info);
+      player.gamePlay.reserve(this, rIndex2)
+    }
+    // remove from auctionTiles:
+    let auctionNdx = auctionTiles.indexOf(this); // if from auctionTiles
+    if (auctionNdx >= 0) {
+      auctionTiles[auctionNdx] = undefined
+      this.player = player;
+    }
+    // add TO auctionTiles (from reserveHexes; see isLegalHex) FOR TEST & DEV
+    let auctionNdx2 = auctionHexes.indexOf(targetHex);
+    if (auctionNdx2 >= 0) {
+      auctionTiles[auctionNdx2]?.moveTo(ctx.originHex)
+      auctionTiles[auctionNdx2] = this;
+      this.player = undefined;
+      this.paint(player.color); this.updateCache()
+    }
+    super.dropFunc(targetHex, ctx); // set this.hex = targetHex, ctx.originHex.tile = undefined;
+    let type = className(this) as 'Busi' | 'Resi';
+    // from market source:
+    if (ctx.originHex.distText.text == type) {
+      this.player = player;  // set player (already painted)
+      let tile = GamePlay.gamePlay.getMarketSource(type)?.nextUnit()
+      tile?.paint(player.color)
+    }
+    if (targetHex.isOnMap) {
       console.log(stime(this, `.dropFunc: Build`), ...info);
-      // deposit Coins with Player; ASSERT was from auctionTiles...
+      // deposit Bribs with Player; ASSERT was from auctionTiles or reserveTiles
       if (this.bonus.brib) {
         this.removeBonus('brib');
         player.bribs += 1;        // triggers coinCounter.updateValue

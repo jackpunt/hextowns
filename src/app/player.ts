@@ -36,11 +36,9 @@ export class Player {
   get allLeaders() { return this.meeples.filter(m => m instanceof Leader && m.player == this) as Leader[] }
   get allPolice() { return this.meeples.filter(m => m instanceof Police && m.player == this) as Police[] }
 
-  jailHex: Hex2 // QQQ: a place for captures? (just drag to recycle and sort them out...), maybe rt-click to see them?
-
   bribCounter: ValueCounter;
   _bribs = 0;
-  get bribs() { return this._coins; }
+  get bribs() { return this._bribs; }
   set bribs(v: number) {
     this._bribs = v
     this.bribCounter?.updateValue(v)

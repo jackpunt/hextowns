@@ -13,6 +13,17 @@ export function buildURL(scheme = 'wss', host = TP.ghost, domain = TP.gdomain, p
   return `${scheme}://${host}.${domain}:${port}${path}`
 }
 export class TP {
+  static preShiftCount = 2;  // plus 1 at start of turn
+  static auctionSlots = 4;   // QQQ: should we have a 'stable' market also?
+  static resiPerPlayer = 10
+  static busiPerPlayer = 10;
+  static lakePerPlayer = 3;
+  static bankPerPlayer = 3;
+  static criminalPrePlayer = 3;
+  static policePerPlayer = 3;
+  static psPerPlayer = 3;
+  // 35 in Bag + 4 Civic Tiles per player.
+
   static allowSacrifice = true;
   static yield = true
   static yieldMM = 1

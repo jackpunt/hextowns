@@ -83,7 +83,7 @@ export class Meeple extends Tile {
     this.cache(radxy, radxy, radwh, radwh)
   }
 
-  override isLegalTarget(hex: Hex) {
+  override isLegalTarget(hex: Hex) {  // Meeple
     if (!hex) return false;
     if (hex.meep) return false;    // no move onto meeple
     // no move onto other player's Tile:
@@ -134,9 +134,9 @@ export class Leader extends Meeple {
   }
   civicTile: Civic;     // the special tile for this Meeple/Leader
 
-  override isLegalTarget(hex: Hex) {
+  override isLegalTarget(hex: Hex) { // Leader
     if (!super.isLegalTarget(hex)) return false;
-    if (this.civicTile && (this.civicTile !== hex.tile) && !(this instanceof Builder)) return false;
+    if (!this.hex.isOnMap && (hex !== this.civicTile.hex)) return false; // deploy ONLY to civicTile
     return true
   }
 
@@ -165,7 +165,8 @@ export class Priest extends Leader {
   }
 }
 
-class UnitSource<T extends Meeple> {
+/** a Dispenser of a set of Tiles. */
+export class TileSource<T extends Tile> {
   readonly Aname: string
   private readonly allUnits: T[] = new Array<T>();
   private available?: T[];
@@ -189,11 +190,13 @@ class UnitSource<T extends Meeple> {
     unit.visible = true;
     unit.moveTo(this.hex);     // try push to available
     this.available.shift();    // remove from available
+    if (!unit.player) unit.paint(GamePlay.gamePlay.curPlayer?.color)
     this.updateCounter();
     return unit;
   }
 
   updateCounter() {
+    this.counter.parent.setChildIndex(this.counter, this.counter.parent.numChildren - 1);
     this.counter?.setValue(this.available.length);
     this.hex.cont.updateCache(); // updateCache of counter on hex
     this.hex.map.update();       // updateCache of hexMap with hex & counter
@@ -203,8 +206,13 @@ class UnitSource<T extends Meeple> {
     this.Aname = `${type.name}-Source`
     this.available = this.allUnits.slice();
     this.counter = new ValueCounter(`${type.name}:${player?.index || 'any'}`, this.available.length, `lightblue`, TP.hexRad / 2);
-    this.counter.attachToContainer(hex.cont, { x: 0, y: -TP.hexRad / 2 })
+    let cont = GamePlay.gamePlay.hexMap.mapCont.counterCont;
+    let xy = hex.cont.localToLocal(0, -TP.hexRad/H.sqrt3, cont)
+    this.counter.attachToContainer(cont, xy)
   }
+}
+class UnitSource<T extends Meeple> extends TileSource<Meeple> {
+
 }
 
 export class Police extends Meeple {
@@ -231,12 +239,12 @@ export class Police extends Meeple {
     } else if (toSrc) {
       // nothing
     } else if (fromSrc) {
-      source.nextUnit()   // shift; moveTo(source.hex); update source counter
+      source.nextUnit()   // Police: shift; moveTo(source.hex); update source counter
     }
     return hex;
   }
 
-  override isLegalTarget(hex: Hex): boolean {
+  override isLegalTarget(hex: Hex) { // Police
     if (!super.isLegalTarget(hex)) return false;
     let sourceHex = Police.source[this.player.index].hex;
     if (this.hex == sourceHex && !(hex.tile instanceof PS)) return false;
@@ -296,7 +304,7 @@ export class Criminal extends Meeple {
       this.player = GamePlay.gamePlay.curPlayer; // no hex for recycle...
       this.paint()
       this.updateCache()
-      source.nextUnit()   // shift; moveTo(source.hex); update source counter
+      source.nextUnit()   // Criminal: shift; moveTo(source.hex); update source counter
     }
     return hex;
   }
@@ -309,7 +317,7 @@ export class Criminal extends Meeple {
     return hex.isOnMap;
   }
 
-  override isLegalTarget(hex: Hex): boolean {
+  override isLegalTarget(hex: Hex): boolean { // Criminal
     if (!this.super_isLegalTarget(hex)) return false;
     let curPlayer = GamePlay.gamePlay.curPlayer
     if (this.player && this.player !== curPlayer) return false;  // may not move Criminals placed by opponent.

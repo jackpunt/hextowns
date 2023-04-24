@@ -70,7 +70,7 @@ export class Hex {
    * @param nsAxis [true] suitable for nsTopo (long axis of hex is N/S)
    * @param row [this.row]
    * @param col [this.col]
-   * @returns { x, y, w, h } of cell at [row, col]
+   * @returns \{ x, y, w, h } of cell at [row, col]
    */
   xywh(radius = TP.hexRad, nsAxis = true, row = this.row, col = this.col) {
     if (nsAxis) { // tiltDir = 'NE'; tilt = 30-degrees; nsTOPO
@@ -158,6 +158,8 @@ export class Hex {
 export class Hex2 extends Hex {
   // cont holds hexShape(color), rcText, distText, capMark
   cont: HexCont = new HexCont(this) // Hex IS-A Hex0, HAS-A Container
+  get mapCont() { return (this.cont.parent.parent as MapCont) }
+  get hexMap() { return this.mapCont?.hexMap; }
 
   get x() { return this.cont.x}
   set x(v: number) { this.cont.x = v}
@@ -306,16 +308,14 @@ export class HexShape extends Shape {
   }
 }
 export class MapCont extends Container {
-  constructor() {
+  constructor(public hexMap: HexMap) {
     super()
   }
-  static cNames = ['hexCont', 'tileCont', 'markCont', 'pathCont0', 'pathCont1'];
+  static cNames = ['hexCont', 'tileCont', 'markCont', 'counterCont'];
   hexCont: Container     // hex shapes on bottom stats: addChild(dsText), parent.rotation
   tileCont: Container    // Tiles & Meeples on Hex2/HexMap.
   markCont: Container    // showMark over Stones new CapMark [localToLocal]
-  pathCont0: Container   // ship paths on top
-  pathCont1: Container   // ship paths on top
-  pathConts: Container[]  // [pathCont0, pathCont1]
+  counterCont: Container // counters for AuctionCont
 }
 
 export interface HexM {
@@ -350,7 +350,7 @@ export class HexMap extends Array<Array<Hex>> implements HexM {
   /** Each occupied Hex, with the occupying PlayerColor  */
   readonly allStones: HSC[] = []                    // aka hexStones in Board (readonly when we stop remove/filter)
   readonly district: Array<Hex[]> = []
-  readonly mapCont: MapCont = new MapCont()   // if using Hex2
+  readonly mapCont: MapCont = new MapCont(this)   // if using Hex2
   readonly skipHex: Hex;
   readonly resignHex: Hex;
   rcLinear(row: number, col: number): number { return col + row * (1 + (this.maxCol || 0) - (this.minCol||0)) }
@@ -449,7 +449,6 @@ export class HexMap extends Array<Array<Hex>> implements HexM {
       cont[S.Aname] = cont.name = cname;
       mapCont.addChild(cont)
     })
-    mapCont.pathConts = [mapCont.pathCont0, mapCont.pathCont1]
     return this
   }
 
