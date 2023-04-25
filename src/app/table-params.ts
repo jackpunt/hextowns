@@ -24,6 +24,7 @@ export class TP {
   static psPerPlayer = 3;
   // 35 in Bag + 4 Civic Tiles per player.
 
+  static parallelAttack = true;  // true --> N intersects S
   static allowSacrifice = true;
   static yield = true
   static yieldMM = 1

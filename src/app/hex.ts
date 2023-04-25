@@ -1,9 +1,9 @@
-import { C, F, RC, S, stime } from "@thegraid/easeljs-lib";
-import { Container, DisplayObject, MouseEvent, Point, Shape, Text } from "@thegraid/easeljs-module";
-import { EwDir, H, HexDir, InfDir, NsDir } from "./hex-intfs";
-import { PaintableShape, Tile } from "./tile";
+import { C, F, RC, S } from "@thegraid/easeljs-lib";
+import { Container, DisplayObject, Point, Shape, Text } from "@thegraid/easeljs-module";
+import { EwDir, H, HexAxis, HexDir, InfDir, NsDir } from "./hex-intfs";
 import { Meeple } from "./meeple";
-import { PlayerColor, TP } from "./table-params";
+import { PlayerColor, TP, playerColorRecord, playerColors } from "./table-params";
+import { Tile } from "./tile";
 
 export const S_Resign = 'Hex@Resign'
 export const S_Skip = 'Hex@skip '
@@ -86,7 +86,6 @@ export class Hex {
     }
   }
 
-  readonly Aname: string
   _tile: Tile; // Tile?
   get tile() { return this._tile; }
   set tile(tile: Tile) { this._tile = tile; }
@@ -97,6 +96,9 @@ export class Hex {
 
   get occupied() { return this.meep || this.tile }
 
+  readonly Aname: string
+  /** color of current Stone on this Hex (or undefined) */
+  playerColor: PlayerColor = undefined;
   /** reduce to serializable IHex (removes map, inf, links, etc) */
   get iHex(): IHex { return { Aname: this.Aname, row: this.row, col: this.col } }
   /** [row,col] OR S_Resign OR S_Skip */
@@ -120,6 +122,7 @@ export class Hex {
   readonly map: HexMap;  // Note: this.parent == this.map.hexCont [cached]
   readonly row: number
   readonly col: number
+  readonly inf = playerColorRecord<INF>({},{})
   /** Link to neighbor in each H.dirs direction [NE, E, SE, SW, W, NW] */
   readonly links: LINKS = {}
 
@@ -131,6 +134,67 @@ export class Hex {
   rcspString(sc = this.meep?.player.color) {
     return `${TP.colorScheme[sc]}@${this.rcsp}`
   }
+
+  /**
+   * Is this Hex [already] influenced by color/dn? [for skipAndSet()]
+   * @param color PlayerColor
+   * @param dn dir of Influence: ds | revDir[ds]
+   * @returns true if Hex is PlayerColor or has InfMark(color, dn)
+   */
+  isInf(color: PlayerColor, dn: InfDir) { return this.inf[color][dn] > 0}
+  getInf(color: PlayerColor, dn: InfDir) { return this.inf[color][dn] || 0 }
+  setInf(color: PlayerColor, dn: InfDir, inf: number) { return this.inf[color][dn] = inf }
+
+  /**
+   * @param inc is influence *passed-in* to Hex; hex get [inc or inc+1]; *next* gets [inc or inc-1]
+   */
+  propagateIncr(color: PlayerColor, dn: InfDir, inc: number, test?: (hex: Hex) => void) {
+    let inf = this.playerColor === color ? inc + 1 : inc // inc >= 0, inf > 0
+    this.setInf(color, dn, inf)
+    let nxt = this.playerColor === color ? inf : inf - 1
+    if (nxt > 0) this.links[dn]?.propagateIncr(color, dn, nxt, test)
+    test && test(this)
+  }
+  /**
+   * Pass on based on *orig/current* inf, not the new/decremented inf.
+   * @param inc is influence *passed-in* from prev Hex; *this* gets inc; pass-on [inc or inc-1]
+   */
+  propagateDecr(color: PlayerColor, dn: InfDir, inc: number, test?: (hex: Hex) => void) {
+    let inf = this.getInf(color, dn)
+    let infn = this.playerColor === color ? inc + 1 : inc
+    this.setInf(color, dn, infn)
+    let nxt = this.playerColor === color ? infn : Math.max(0, infn - 1)
+    if (inf > 0) this.links[dn]?.propagateDecr(color, dn, nxt, test) // pass-on a smaller number
+    test && test(this)
+  }
+
+  /** create empty INF for each color */
+  clearInf() { playerColors.forEach(c => this.inf[c] = {}) }
+
+  /** true if hex influence by 1 or more Axies of color */
+  isThreat(color: PlayerColor) {
+    return !!Object.values(this.inf[color]).find(inf => (inf > 0))
+  }
+  isAttack2(color: PlayerColor) {
+    let attacks = 0, infs = this.inf[color], adds = {}
+    H.axis.forEach(ds => adds[ds] = 0)
+    return !!Object.entries(infs).find(([dn, inf]) =>
+      (inf > 0) && (++adds[H.dnToAxis[dn]] == 1) && (++attacks >= 2)
+    )
+  }
+  /** @return true if Hex is influenced on 2 or more Axies of color */
+  isAttack(color: PlayerColor): boolean {
+    let attacks = new Set<HexAxis>(), infs = this.inf[color]
+    let dirMap = TP.parallelAttack ? H.dnToAxis2 : H.dnToAxis;
+    return !!Object.entries(infs).find(([dn, inf]) =>
+      (inf > 0) && (attacks.add(dirMap[dn]).size >= 2)
+    )
+  }
+  /** @return true if Hex has a Stone (of other color), and is attacked */
+  isCapture(color: PlayerColor): boolean {
+    return (this.playerColor !== undefined) && (this.playerColor !== color) && this.isAttack(color)
+  }
+
   get neighbors() {
     return Object.keys(this.links).map(k => this.links[k] as Hex)
   }
