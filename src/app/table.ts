@@ -124,6 +124,15 @@ export class Table extends EventDispatcher  {
     qShape.on(S.click, () => this.toggleText(), this) // toggle visible
     this.toggleText(false)         // set initial visibility
   }
+
+  set showInf(val) { (this.hexMap.mapCont.infCont.visible = val) ? this.markAllSacrifice() : this.unmarkAllSacrifice() }
+  get showInf() { return this.hexMap.mapCont.infCont.visible }
+  _showSac = true
+  get showSac() { return this._showSac }
+  set showSac(val: boolean) { (this._showSac = val) ? this.markAllSacrifice() : this.unmarkAllSacrifice() }
+  markAllSacrifice() {}
+  unmarkAllSacrifice() {}
+
   downClick = false;
   isVisible = false;
   /** method invokes closure defined in enableHexInspector. */

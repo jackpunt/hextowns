@@ -111,9 +111,37 @@ export class GamePlay0 {
     this.undoRecs.addUndoRec(obj, name, value);
   }
 
+  /** after add Tile to hex: propagate its influence in each direction; maybe capture. */
+  incrInfluence(hex: Hex, color: PlayerColor) {
+    //let infP = hex.getInfP(color);
+    H.infDirs.forEach(dn => {
+      let inf = hex.getInf(color, dn);
+      hex.propagateIncr(color, dn, inf); // use test to identify captured Criminals?
+    })
+  }
+
+  /** after remove Tile [w/tileInf] from hex: propagate influence in each direction. */
+  decrInfluence(hex: Hex, tileInf: number, color: PlayerColor) {
+    H.infDirs.forEach(dn => {
+      let inf = hex.getInf(color, dn)
+      //let inc = hex.links[H.dirRev[dn]]?.getInf(color, dn) || 0
+      hex.propagateDecr(color, dn, inf, tileInf)       // because no-stone, hex gets (inf - 1)
+    })
+  }
+
   /** Place tile on Map (or other topRow Hex? or Recycle?) */
   placeTile(tile: Tile, hex: Hex) {
+    console.log(stime(this, `.placeTile:`), tile.Aname, hex.Aname, hex);
+    let fromHex = tile.hex, tileInf = tile.inf;
+    let pColor = tile.player?.color || 'c';     // TODO: new Criminal().player=CrimePlayer('c')
+    if (fromHex.isOnMap) {
+      tile.moveTo(undefined);  // remove tile and its infP
+      this.decrInfluence(fromHex, tileInf, pColor);
+    }
     tile.moveTo(hex);  // placeTile(tile, hex) --> moveTo(hex)
+    if (hex.isOnMap) {
+      this.incrInfluence(tile.hex, pColor);
+    }
   }
 
   /** Place tile on Map (or other topRow Hex? or Recycle?) */
@@ -255,6 +283,7 @@ export class GamePlay extends GamePlay0 {
     KeyBinder.keyBinder.setKey('v', { thisArg: this, func: this.autoPlay, argVal: 1})
     KeyBinder.keyBinder.setKey('y', { thisArg: this, func: () => TP.yield = true })
     KeyBinder.keyBinder.setKey('u', { thisArg: this, func: () => TP.yield = false })
+    KeyBinder.keyBinder.setKey('i', { thisArg: this, func: () => {table.showInf = !table.showInf; this.hexMap.update() } })
 
     // diagnostics:
     //KeyBinder.keyBinder.setKey('x', { thisArg: this, func: () => {this.table.enableHexInspector(); }})
@@ -415,29 +444,6 @@ export class GamePlay extends GamePlay0 {
   /** local Player has moved (S.add); network ? (sendMove.then(removeMoveEvent)) : localMoveEvent() */
   playerMoveEvent(hev: HexEvent): void {
     this.localMoveEvent(hev)
-  }
-
-  /** after add Tile to hex: propagate its influence in each direction; maybe capture. */
-  incrInfluence(hex: Hex, color: PlayerColor) {
-    H.infDirs.forEach(dn => {
-      let inc = hex.getInf(color, dn)         // because hex.stone: hex gets +1, and passes that on
-      hex.propagateIncr(color, dn, inc, (hexi) => {
-        if (hexi != hex && hexi.isCapture(color)) {  // pick up sacrifice later... (hexi != hex <== curHex)
-
-          //this.captureStone(hexi)               // capture Stone of *other* color
-
-        }
-      })
-    })
-  }
-
-  /** after remove Stone from hex: propagate influence in each direction. */
-  decrInfluence(hex: Hex, color: PlayerColor) {
-    H.infDirs.forEach(dn => {
-      //let inc = hex.links[H.dirRev[dn]]?.getInf(color, dn) || 0
-      let inf = hex.getInf(color, dn) - 1     // reduce because stone is gone
-      hex.propagateDecr(color, dn, inf)       // because no-stone, hex gets (inf - 1)
-    })
   }
 
 }

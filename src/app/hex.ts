@@ -1,8 +1,8 @@
 import { C, F, RC, S } from "@thegraid/easeljs-lib";
-import { Container, DisplayObject, Point, Shape, Text } from "@thegraid/easeljs-module";
+import { Container, DisplayObject, Graphics, Point, Shape, Text } from "@thegraid/easeljs-module";
 import { EwDir, H, HexAxis, HexDir, InfDir, NsDir } from "./hex-intfs";
 import { Meeple } from "./meeple";
-import { PlayerColor, TP, playerColorRecord, playerColors } from "./table-params";
+import { PlayerColor, PlayerColorRecord, TP, playerColor0, playerColorRecord, playerColorRecordF, playerColors, playerColorsC } from "./table-params";
 import { Tile } from "./tile";
 
 export const S_Resign = 'Hex@Resign'
@@ -13,6 +13,7 @@ export type IHex = { Aname: string, row: number, col: number }
 
 type LINKS = { [key in InfDir]?: Hex }
 type INF   = { [key in InfDir]?: number }
+type INFM   = { [key in HexAxis]?: InfMark }
 type DCR    = { [key in "dc" | "dr"]: number }  // Delta for Col & Row
 type TopoEW = { [key in EwDir]: DCR }
 type TopoNS = { [key in NsDir]: DCR }
@@ -20,6 +21,38 @@ type Topo = TopoEW | TopoNS
 
 export type HSC = { hex: Hex, sc: PlayerColor, Aname: string }
 export function newHSC(hex: Hex, sc: PlayerColor, Aname = hex.Aname) { return { Aname, hex, sc } }
+
+class InfMark extends Shape {
+  /** Note: requires a Canvas for nameToRgbaString() */
+  static gColor(sc: PlayerColor, g: Graphics = new Graphics()) {
+    let alpha = '.85'
+    let lightgreyA = C.nameToRgbaString('lightgrey', '.5')
+    let r = TP.hexRad * H.sqrt3 / 2 - 1, w = 5, wo = w / 2, wos = sc === playerColor0 ? wo : -wo
+    let c: string = TP.colorScheme[sc]; c = C.nameToRgbaString(c, alpha)
+
+    let gStroke = (g: Graphics, color: string, w: number, wo: number, r: number) => {
+      return g.ss(w).s(color).mt(wo, r).lt(wo, -r)
+    }
+    g.clear()
+    if (C.dist(c, "white") < 10) gStroke(g, lightgreyA, w + 2, wos, r) // makes 'white' more visible
+    if (C.dist(c, "black") < 10) w -= 1 // makes 'black' less bold
+    gStroke(g, c, w, wos, r)
+    return g
+  }
+  /** 2 Graphics, one is used by each InfMark */
+  static infG = playerColorRecord(undefined as unknown as Graphics, undefined as unknown as Graphics)
+  static setInfGraphics(): PlayerColorRecord<Graphics> {
+    return InfMark.infG = playerColorRecordF<Graphics>(sc => InfMark.gColor(sc, InfMark.infG[sc]))
+  }
+  /** @param ds show Influence on Axis */
+  constructor(sc: PlayerColor, ds: HexAxis, x: number, y: number) {
+    super(InfMark.infG[sc] || InfMark.setInfGraphics()[sc])
+    this.mouseEnabled = false
+    this.rotation = H.dirRot[ds]
+    this.x = x; this.y = y
+    this[S.Aname] = `Inf[${TP.colorScheme[sc]},${ds},${this.id}]`  // for debug, not production
+  }
+}
 
 /** to recognize this class in hexUnderPoint and obtain the contained Hex. */
 class HexCont extends Container {
@@ -159,12 +192,12 @@ export class Hex {
   }
   /** Total inf on this Hex. */
   getInfT(color: PlayerColor) {
-    return this.getInfP(color) + this.getInfX(color);
+    let infP = this.getInfP(color)
+    return infP > 0 ? infP : this.getInfX(color);
   }
 
   get infStr() {
-    //return `${this.getInf('b', 'E')}`
-    let infc = ['w', 'b', 'c'];
+    let infc = playerColorsC; // red, blue, criminal
     let rv = infc.reduce((pv, cv, ci) => `${pv}${ci > 0 ? ':' : ''}${this.getInfT(cv as PlayerColor)}`, '');
     return rv;
   }
@@ -176,28 +209,30 @@ export class Hex {
   get tileInf() { return this.tile?.inf ?? 0; }
   get meepInf() { return this.meep?.inf ?? 0; }
   /**
-   * @param inc is influence *passed-in* to Hex; hex get [inc or inc+1]; *next* gets [inc or inc-1]
+   * @param inf is influence *passed-in* to Hex; *next* gets [inf+infP or inc-1]
    * @param test after hex.setInf(inf) and hex.propagateIncr(nxt), apply test(hex); [a visitor]
    */
-  propagateIncr(color: PlayerColor, dn: InfDir, inc: number, test?: (hex: Hex) => void) {
-    let inf = this.playerColor === color ? inc + 1 : inc // inc >= 0, inf > 0
+  propagateIncr(color: PlayerColor, dn: InfDir, inf: number, test?: (hex: Hex) => void) {
+    let infP = this.getInfP(color), inf0 = this.getInf(color, dn);
     this.setInf(color, dn, inf)
-    let nxt = this.playerColor === color ? inf : inf - 1
+    let nxt = infP > 0 ? inf + infP : inf - 1;
     if (nxt > 0) this.links[dn]?.propagateIncr(color, dn, nxt, test)
     if (test) test(this);
   }
 
   /**
+   * Afer removing tileInf, set inf of this hex AND set inf of next in line to reduced value.
    * Pass on based on *orig/current* inf, not the new/decremented inf.
-   * @param inc is influence *passed-in* from prev Hex; *this* gets inc; pass-on [inc or inc-1]
+   * @param inf for hex, without infP
    * @param test after hex.setInf(infn) and hex.propagateDecr(nxt), apply test(hex)
    */
-  propagateDecr(color: PlayerColor, dn: InfDir, inc: number, test?: (hex: Hex) => void) {
-    let inf0 = this.getInf(color, dn)
-    let inf = this.playerColor === color ? inc + 1 : inc
-    this.setInf(color, dn, inf)
-    let nxt = this.playerColor === color ? inf : Math.max(0, inf - 1)
-    if (inf0 > 0) this.links[dn]?.propagateDecr(color, dn, nxt, test) // pass-on a smaller number
+  propagateDecr(color: PlayerColor, dn: InfDir, inf: number, tileInf: number, test?: (hex: Hex) => void) {
+    // if *this* has inf, then next may also have propagated inf.
+    let infP = this.getInfP(color)
+    let inf0 = this.getInf(color, dn) + infP + tileInf; // original, largest inf
+    this.setInf(color, dn, inf);
+    let nxt = infP > 0 ? inf + infP : Math.max(0, inf - 1);
+    if (inf0 > 0) this.links[dn]?.propagateDecr(color, dn, nxt, 0, test) // pass-on a smaller number
     if (test) test(this);
   }
 
@@ -277,6 +312,7 @@ export class Hex2 extends Hex {
   distText: Text    // shown on this.cont
   rcText: Text      // shown on this.cont
   stoneIdText: Text     // shown on this.map.markCont
+  infm: Record<PlayerColor, INFM> = playerColorRecord({}, {}, {})
 
   override get tile() { return super.tile; }
   override set tile(tile: Tile) {
@@ -347,6 +383,34 @@ export class Hex2 extends Hex {
     this.cont.updateCache()
   }
 
+  override setInf(color: PlayerColor, dn: InfDir, inf: number): number {
+    super.setInf(color, dn, inf)
+    this.showInf(color, dn, (this.playerColor !== color && (inf > 0 || this.isInf(color, H.dirRevEW[dn]))))
+    return inf
+  }
+  static infVis = true   // set by ParamGui('showInf')
+  showInf(color: PlayerColor, dn: InfDir, show = true) {
+    let ds: HexAxis = H.dnToAxis[dn], infMark = this.infm[color][ds]  // infm only on [ds]
+    if (show) {
+      if (!infMark) {
+        infMark = this.infm[color][ds] = new InfMark(color, ds, this.x, this.y)
+        this.map.mapCont.infCont.addChild(infMark)
+      }
+      infMark.visible = Hex2.infVis
+    } else {
+      //infMark?.parent?.removeChild(infMark)
+      if (infMark) { infMark.visible = false; }
+    }
+  }
+  override clearInf(): void {
+    playerColors.forEach(color => {
+      for (let mark of Object.values(this.infm[color]))
+        //mark?.parent?.removeChild(mark)
+        mark && (mark.visible = false)
+    })
+    super.clearInf()
+  }
+
   /** set hexShape using color: draw border and fill
    * @param color
    * @param district if supplied, set this.district
@@ -409,11 +473,12 @@ export class MapCont extends Container {
   constructor(public hexMap: HexMap) {
     super()
   }
-  static cNames = ['hexCont', 'tileCont', 'markCont', 'counterCont'];
+  static cNames = ['hexCont', 'tileCont', 'markCont', 'counterCont', 'infCont'];
   hexCont: Container     // hex shapes on bottom stats: addChild(dsText), parent.rotation
   tileCont: Container    // Tiles & Meeples on Hex2/HexMap.
   markCont: Container    // showMark over Stones new CapMark [localToLocal]
   counterCont: Container // counters for AuctionCont
+  infCont: Container     // infMark on the top   Hex2.showInf
 }
 
 export interface HexM {

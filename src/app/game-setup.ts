@@ -82,7 +82,7 @@ export class GameSetup {
       table.statsPanel = statsPanel
       let guiy = statsPanel.y + statsPanel.ymax + statsPanel.lead * 2
       console.groupCollapsed('initParamGUI')
-      this.paramGUIs = this.makeParamGUI(table.scaleCont, statsx, guiy) // modify TP.params...
+      this.paramGUIs = this.makeParamGUI(table, table.scaleCont, statsx, guiy) // modify TP.params...
       let [gui, gui2] = this.paramGUIs
       // table.miniMap.mapCont.y = Math.max(gui.ymax, gui2.ymax) + gui.y + table.miniMap.wh.height / 2
       console.groupEnd()
@@ -114,8 +114,8 @@ export class GameSetup {
    * ParamGUI2  --> AI Player     [left of ParamGUI]
    * NetworkGUI --> network       [below ParamGUI2]
    */
-  makeParamGUI(parent: Container, x: number, y: number) {
-    let restart = false, infName = "inf:sac"
+  makeParamGUI(table: Table, parent: Container, x: number, y: number) {
+    let restart = false
     const gui = new ParamGUI(TP, { textAlign: 'right'})
     const schemeAry = TP.schemeNames.map(n => { return { text: n, value: TP[n] } })
     let setSize = (dpb: number, dop: number) => { restart && this.restart.call(this, dpb, dop) }
@@ -130,6 +130,15 @@ export class GameSetup {
     gui.spec("offP").onChange = (item: ParamItem) => { gui.setValue(item); setSize(TP.dbp, TP.dop) }
     gui.spec('load').onChange = (item: ParamItem) => {
       gui.setValue(item)
+    }
+    let infName = "inf:sac"
+    gui.makeParamSpec(infName, ['1:1', '1:0', '0:1', '0:0'], { name: infName, target: table, fontColor: 'green' })
+    let infSpec = gui.spec(infName);
+    table[infSpec.fieldName] = infSpec.choices[0].text
+    infSpec.onChange = (item: ParamItem) => {
+      let v = item.value as string
+      table.showInf = v.startsWith('1')
+      table.showSac = v.endsWith('1')
     }
     gui.spec("colorScheme").onChange = (item: ParamItem) => {
       gui.setValue(item)

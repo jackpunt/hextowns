@@ -381,27 +381,10 @@ export class Tile extends Tile0 {
    * @param ctx DragContext
    */
   dropFunc(targetHex: Hex2, ctx: DragContext) {
-    // if (targetHex == this.table.recycleHex) this.recycle(); // drop on recycleHex, Dev/Test
-    // else if (targetHex.isOnMap) this.table.gamePlay.placeTile(this, targetHex);
-    // else this.moveTo(targetHex);
     let gamePlay = this.table.gamePlay;
-    if (this.hex.isOnMap) {
-      if (targetHex.isOnMap) {
-        // Dev/Test: re-position Tile during BuildAction
-        this.moveTo(targetHex) // Meeple move for BuildAction or PoliceAction
-      } else {
-        // Dev/Text: recycle/capure Tile | Meeple,
-        // maybe want to allow to put back on Reserve?
-        if (targetHex == this.table.recycleHex) this.recycle(); // drop on recycleHex, Dev/Test
-        else this.moveTo(targetHex);
-      }
-    } else /* from offMap: */ {
-      if (targetHex.isOnMap) {
-        gamePlay.placeTile(this, targetHex) // BuildAction or HireAction
-      } else {
-        // reposition from Reserve, to Reserve or Auction (see isLegal...)
-        this.moveTo(targetHex);
-      }
+    gamePlay.placeTile(this, targetHex);
+    if (targetHex == this.table.recycleHex) {
+      this.recycle(); // drop on recycleHex, Dev/Test
     }
     Player.updateCounters();      // drop an AuctionTile or Meeple
   }

@@ -1,8 +1,9 @@
-export const playerColors = ['w', 'b'] as const // Player Colors!
+export const playerColors = ['b', 'w'] as const // Player Colors!
+export const playerColorsC = ['b', 'w', 'c'] as const // Player Colors + Criminal!
 export const playerColor0 = playerColors[0]
 export const playerColor1 = playerColors[1]
 //type playerColorTuple = typeof playerColors
-export type PlayerColor = typeof playerColors[number] | 'c';
+export type PlayerColor = typeof playerColorsC[number];
 export function otherColor(color: PlayerColor): PlayerColor { return color === playerColor0 ? playerColor1 : playerColor0 }
 
 /** PlayerColerRecord<T> maps from PlayerColor -> T */
@@ -43,8 +44,8 @@ export class TP {
   static Black_White = playerColorRecord<'BLACK' | 'WHITE'>('BLACK', 'WHITE')
   static Blue_Red = playerColorRecord<'BLUE' | 'RED'>('BLUE', 'RED')
   static Red_Blue = playerColorRecord<'RED' | 'BLUE'>('RED', 'BLUE')
-  static schemeNames = ['Red_Blue']
-  static colorScheme = TP.Blue_Red
+  static schemeNames = ['Red_Blue', 'Blue_Red'];
+  static colorScheme = TP.Blue_Red;
   static numPlayers = 2;
   static load = 5;  // initial Ship load for manual testing
   /** offset planets  */
