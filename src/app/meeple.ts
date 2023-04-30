@@ -1,6 +1,6 @@
 import { C, className } from "@thegraid/common-lib";
 import { DragInfo, ValueCounter } from "@thegraid/easeljs-lib";
-import { Hex, Hex2, HexShape } from "./hex";
+import { Hex, Hex2, HexMap, HexShape } from "./hex";
 import { EwDir, H } from "./hex-intfs";
 import { Player } from "./player";
 import { C1, Church, Civic, InfMark, PS, PaintableShape, Tile, TownHall, TownStart, University } from "./tile";
@@ -11,7 +11,7 @@ import { DragContext } from "./table";
 import { GamePlay } from "./game-play";
 
 class MeepleShape extends Shape implements PaintableShape {
-  constructor(public player: Player, public radius = TP.hexRad * .4, public y0 = radius - 4) {
+  constructor(public player: Player, public radius = TP.hexRad * .4, public y0 = radius * 5 / 6) {
     super()
   }
   paint(colorn = this.player?.colorn || C1.grey) {
@@ -23,6 +23,8 @@ class MeepleShape extends Shape implements PaintableShape {
     return g
   }
 }
+
+type MeepleInf = -1 | 0 | 1;
 export class Meeple extends Tile {
   static allMeeples = [];
 
@@ -38,7 +40,7 @@ export class Meeple extends Tile {
   constructor(
     Aname: string,
     player?: Player,
-    inf = 1,   // -1 for Criminal
+    inf: MeepleInf = 1,   // -1 for Criminal
     vp = 0,    // 1 for Leader
     cost = 1,  // Inf required to place (1 for Leader/Police, but placing in Civic/PS with Inf)
     econ = -6, // Econ required: -2 for Police, -3 for Criminal [place, not maintain]
@@ -69,18 +71,24 @@ export class Meeple extends Tile {
   override makeShape(): PaintableShape { return new MeepleShape(this.player); }
 
 
-  // Meeple
-  override setInfMark(inf?: number): void {
-    // do nothing; use setMeepInf(inf)
-  }
-
-  setMeepInf(inf: number) {
+   // Meeple
+  /** decorate with influence rays (white or black)
+   * @param inf +1 | -1
+   */
+  override setInfMark(inf: number): void {
     this.removeChildType(InfMark)
     if (inf !== 0) {
       this.addChildAt(new InfMark(inf), this.children.length - 1)
     }
     let radxy = -TP.hexRad, radwh = 2 * TP.hexRad
     this.cache(radxy, radxy, radwh, radwh)
+  }
+
+  /** override for Meeple's y0 offset. */
+  override hexUnderObj(hexMap: HexMap) {
+    let dragObj = this;
+    let pt = dragObj.parent.localToLocal(dragObj.x, dragObj.y + this.y0, hexMap.mapCont.hexCont)
+    return hexMap.hexUnderPoint(pt.x, pt.y)
   }
 
   override isLegalTarget(hex: Hex) {  // Meeple
@@ -92,32 +100,24 @@ export class Meeple extends Tile {
   }
 
   override dragStart(hex: Hex2): void {
-    this.hex.tile?.setInfMark(this.hex.tile.inf)
-    this.setMeepInf(this.inf);
+    this.hex.tile?.setInfMark(this.hex.tile.inf); // removing meeple influence
+    this.setInfMark(this.inf);  // show influence rays on this meeple
   }
 
   // Meeple
   override dropFunc(targetHex: Hex2, ctx: DragContext): void {
-    this.dropInf(ctx);   // setInfMark
+    this.dropInf(targetHex);   // setInfMark
     super.dropFunc(targetHex, ctx);
   }
 
-  dropInf(ctx: DragContext): void {
-    let targetTile = ctx.targetHex.tile
-    let totalInf = this.inf + (targetTile?.inf || 0);
+  dropInf(targetHex: Hex2): void {
+    let targetTile = targetHex.tile
+    let totalInf = this.inf + (targetTile?.inf ?? 0);
     targetTile?.setInfMark(totalInf);
-    this.setMeepInf(totalInf);
-  }
-  /** move in direction.
-   * @return false if move not possible (no Hex, occupied)
-   */
-  moveDir(dir: EwDir, hex = this.hex.nextHex(dir)) {
-    if (hex.meep) return false;
-    this.moveTo(hex);
-    hex.map.update()    // TODO: invoke in correct place...
-    return true
+    this.setInfMark(totalInf);
   }
 }
+
 export class Leader extends Meeple {
   constructor(tile: Civic, abbrev: string) {
     super(`${abbrev}:${tile.player.index}`, tile.player, 1, 1, 1, -6); // 6 Econ to place/maintain
@@ -188,7 +188,7 @@ export class TileSource<T extends Tile> {
     let unit = this.available[0];
     if (!unit) return unit;
     unit.visible = true;
-    unit.moveTo(this.hex);     // try push to available
+    unit.moveTo(this.hex);     // and try push to available
     this.available.shift();    // remove from available
     if (!unit.player) unit.paint(GamePlay.gamePlay.curPlayer?.color)
     this.updateCounter();
@@ -251,8 +251,7 @@ export class Police extends Meeple {
     return true;
   }
 
-  override recycle(): void {
-    this.isCapture();
+  override sendHome(): void {
     let source = Police.source[GamePlay.gamePlay.curPlayer.index]
     source.availUnit(this);
     if (!source.hex.meep) source.nextUnit();
@@ -331,8 +330,7 @@ export class Criminal extends Meeple {
     return false;
   }
 
-  override recycle(): void {
-    this.isCapture();
+  override sendHome() {
     let source = Criminal.source
     source.availUnit(this);
     if (!source.hex.meep) source.nextUnit();

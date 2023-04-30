@@ -97,8 +97,6 @@ export class Hex {
   get occupied() { return this.meep || this.tile }
 
   readonly Aname: string
-  /** color of current Stone on this Hex (or undefined) */
-  playerColor: PlayerColor = undefined;
   /** reduce to serializable IHex (removes map, inf, links, etc) */
   get iHex(): IHex { return { Aname: this.Aname, row: this.row, col: this.col } }
   /** [row,col] OR S_Resign OR S_Skip */
@@ -122,7 +120,7 @@ export class Hex {
   readonly map: HexMap;  // Note: this.parent == this.map.hexCont [cached]
   readonly row: number
   readonly col: number
-  readonly inf = playerColorRecord<INF>({},{})
+  readonly inf = playerColorRecord<INF>({},{},{})
   /** Link to neighbor in each H.dirs direction [NE, E, SE, SW, W, NW] */
   readonly links: LINKS = {}
 
@@ -142,30 +140,65 @@ export class Hex {
    * @returns true if Hex is PlayerColor or has InfMark(color, dn)
    */
   isInf(color: PlayerColor, dn: InfDir) { return this.inf[color][dn] > 0}
-  getInf(color: PlayerColor, dn: InfDir) { return this.inf[color][dn] || 0 }
+  getInf(color: PlayerColor, dn: InfDir) { return this.inf[color] ? (this.inf[color][dn] || 0) : 0 }
   setInf(color: PlayerColor, dn: InfDir, inf: number) { return this.inf[color][dn] = inf }
+  // presence of Tile and/or Meeple provides influence to adjacent cells
+  // that propagates along the axies, decrementing on empty un-occupied cells,
+  // boosting on occupied cells.
+  /** influence from presence of Tile/Meeple. */
+  getInfP(color: PlayerColor) {
+    const tileInf = this.tile?.player?.color == color ? this.tileInf : 0;
+    const meepInf =  this.meep?.player?.color == color ? this.meepInf : 0;
+    return tileInf + meepInf;
+  }
+  /** Total external inf on this Hex. */
+  getInfX(color: PlayerColor) {
+    let tinf = 0;
+    H.infDirs.forEach(dn => tinf += this.getInf(color, dn))
+    return tinf;
+  }
+  /** Total inf on this Hex. */
+  getInfT(color: PlayerColor) {
+    return this.getInfP(color) + this.getInfX(color);
+  }
 
+  get infStr() {
+    //return `${this.getInf('b', 'E')}`
+    let infc = ['w', 'b', 'c'];
+    let rv = infc.reduce((pv, cv, ci) => `${pv}${ci > 0 ? ':' : ''}${this.getInfT(cv as PlayerColor)}`, '');
+    return rv;
+  }
+  /** color of current Stone on this Hex (or undefined) */
+  get playerColor() {
+    return this.tile?.player.color; // Tiles (& Meeps) onMap always have a player & color.
+    //return this.tile ? this.tile.player.color : this.meep?.player.color;
+  }
+  get tileInf() { return this.tile?.inf ?? 0; }
+  get meepInf() { return this.meep?.inf ?? 0; }
   /**
    * @param inc is influence *passed-in* to Hex; hex get [inc or inc+1]; *next* gets [inc or inc-1]
+   * @param test after hex.setInf(inf) and hex.propagateIncr(nxt), apply test(hex); [a visitor]
    */
   propagateIncr(color: PlayerColor, dn: InfDir, inc: number, test?: (hex: Hex) => void) {
     let inf = this.playerColor === color ? inc + 1 : inc // inc >= 0, inf > 0
     this.setInf(color, dn, inf)
     let nxt = this.playerColor === color ? inf : inf - 1
     if (nxt > 0) this.links[dn]?.propagateIncr(color, dn, nxt, test)
-    test && test(this)
+    if (test) test(this);
   }
+
   /**
    * Pass on based on *orig/current* inf, not the new/decremented inf.
    * @param inc is influence *passed-in* from prev Hex; *this* gets inc; pass-on [inc or inc-1]
+   * @param test after hex.setInf(infn) and hex.propagateDecr(nxt), apply test(hex)
    */
   propagateDecr(color: PlayerColor, dn: InfDir, inc: number, test?: (hex: Hex) => void) {
-    let inf = this.getInf(color, dn)
-    let infn = this.playerColor === color ? inc + 1 : inc
-    this.setInf(color, dn, infn)
-    let nxt = this.playerColor === color ? infn : Math.max(0, infn - 1)
-    if (inf > 0) this.links[dn]?.propagateDecr(color, dn, nxt, test) // pass-on a smaller number
-    test && test(this)
+    let inf0 = this.getInf(color, dn)
+    let inf = this.playerColor === color ? inc + 1 : inc
+    this.setInf(color, dn, inf)
+    let nxt = this.playerColor === color ? inf : Math.max(0, inf - 1)
+    if (inf0 > 0) this.links[dn]?.propagateDecr(color, dn, nxt, test) // pass-on a smaller number
+    if (test) test(this);
   }
 
   /** create empty INF for each color */
@@ -309,6 +342,7 @@ export class Hex2 extends Hex {
 
   /** set visibility of rcText & distText */
   showText(vis = !this.rcText.visible) {
+    if(this.isOnMap) this.distText.text = this.infStr;
     this.rcText.visible = this.distText.visible = vis
     this.cont.updateCache()
   }

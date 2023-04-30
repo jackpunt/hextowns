@@ -131,7 +131,7 @@ export class Player {
     let hex = this.gamePlay.hexMap.centerHex as Hex;
     let path: HexDir[] = [['NW', 'W', 'W'] as HexDir[], ['SE', 'E', 'E'] as HexDir[]][this.index];
     path.forEach(dir => hex = hex.nextHex(dir));
-    town.moveTo(hex)
+    this.gamePlay.placeTile(town, hex);  // place and assert influence.
   }
 
   endGame(): void {

@@ -206,19 +206,21 @@ export class Table extends EventDispatcher  {
     let x1 = this.hexMap.getCornerHex(H.E).xywh().x
     this.homeRowHexes = [[], [], []]; // pIndex = 2 for non-player Hexes (auctionHexes, crimeHex)
     this.reserveHexes = [[], []];
-    let hexMapHex2 = (row = 0, col = 0, name: string) => {
+    const makeHex2 = (row = 0, col = 0, name: string) => {
       let hex = new Hex2(this.gamePlay.hexMap, row, col, name)
       hex.distText.text = name;
       return hex
-    }, topRowHex = (pIndex: number, name: string, ndx: number, row = -1, dy = -.7 * rowh) => {
+    }
+    const topRowHex = (pIndex: number, name: string, ndx: number, row = -1, dy = -.7 * rowh) => {
       // [[left->right], [right->left], [center->right]]
       let [dx, col] = [[x0, ndx], [x1, -ndx], [0, ndx]][pIndex];
-      let hex = hexMapHex2(row, col, name)
+      let hex = makeHex2(row, col, name)
       this.homeRowHexes[pIndex].push(hex);
       hex.x += dx
       hex.y += dy
       return hex
-    }, secondRowHex = (pIndex: number, name: string, ndx: number, row = 0, y = -.4 * rowh) => {
+    }
+    const secondRowHex = (pIndex: number, name: string, ndx: number, row = 0, y = -.4 * rowh) => {
       return topRowHex(pIndex, name, ndx, row, y)
     }
 
@@ -255,7 +257,7 @@ export class Table extends EventDispatcher  {
       let academyHex = topRowHex(pIndex, `Academy:${pIndex}`, leaderHexes.length)
       this.reserveHexes[pIndex].push(...[1, 2].map(i => secondRowHex(pIndex, `Reserve:${pIndex}-${i}`, i)))
 
-      // place [civic/leader, academy/police] meepleHex on Table
+      // place [civic/leader, academy/police] meepleHex on Table/Hex (but not on Map)
       this.leaderHexes[pIndex] = leaderHexes;
       p.allLeaders.forEach((meep, i) => meep.homeHex = meep.civicTile.homeHex = meep.civicTile.moveTo(meep.moveTo(leaderHexes[i])))
       Police.makeSource(p, academyHex, TP.policePerPlayer);
@@ -401,6 +403,7 @@ export class Table extends EventDispatcher  {
   }
 
   hexUnderObj(dragObj: DisplayObject) {
+    if (dragObj instanceof Tile) return dragObj.hexUnderObj(this.hexMap);
     let pt = dragObj.parent.localToLocal(dragObj.x, dragObj.y, this.hexMap.mapCont.hexCont)
     return this.hexMap.hexUnderPoint(pt.x, pt.y)
   }

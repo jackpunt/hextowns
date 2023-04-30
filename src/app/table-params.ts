@@ -2,11 +2,12 @@ export const playerColors = ['w', 'b'] as const // Player Colors!
 export const playerColor0 = playerColors[0]
 export const playerColor1 = playerColors[1]
 //type playerColorTuple = typeof playerColors
-export type PlayerColor = typeof playerColors[number]
+export type PlayerColor = typeof playerColors[number] | 'c';
 export function otherColor(color: PlayerColor): PlayerColor { return color === playerColor0 ? playerColor1 : playerColor0 }
 
+/** PlayerColerRecord<T> maps from PlayerColor -> T */
 export type PlayerColorRecord<T> = Record<PlayerColor, T>
-export function playerColorRecord<T>(b: T = undefined, w: T = undefined): PlayerColorRecord<T> { return { 'b': b, 'w': w } };
+export function playerColorRecord<T>(b: T = undefined, w: T = undefined, c: T = undefined): PlayerColorRecord<T> { return { 'b': b, 'w': w, 'c': c} };
 export function playerColorRecordF<T>(f: (sc: PlayerColor) => T) { return playerColorRecord(f(playerColor0), f(playerColor1)) }
 
 export function buildURL(scheme = 'wss', host = TP.ghost, domain = TP.gdomain, port = TP.gport, path = ''): string {

@@ -1,7 +1,7 @@
 import { C, F, className, stime } from "@thegraid/common-lib";
 import { Bitmap, Container, DisplayObject, Graphics, MouseEvent, Shape, Text } from "@thegraid/easeljs-module";
 import { GamePlay } from "./game-play";
-import { Hex, Hex2, HexShape } from "./hex";
+import { Hex, Hex2, HexMap, HexShape } from "./hex";
 import { H } from "./hex-intfs";
 import { ImageLoader } from "./image-loader";
 import { Player } from "./player";
@@ -165,6 +165,14 @@ export class Tile0 extends Container {
   makeShape(): PaintableShape {
     return new TileShape();
   }
+
+  /** override for Meeple's xy offset. */
+  hexUnderObj(hexMap: HexMap) {
+    let dragObj = this;
+    let pt = dragObj.parent.localToLocal(dragObj.x, dragObj.y, hexMap.mapCont.hexCont)
+    return hexMap.hexUnderPoint(pt.x, pt.y)
+  }
+
   /** paint with PlayerColor; updateCache() */
   paint(pColor?: PlayerColor, colorn = pColor ? TP.colorScheme[pColor] : C1.grey) {
     this.childShape.paint(colorn); // recache childShape
@@ -264,6 +272,7 @@ export class Tile extends Tile0 {
     return bm;
   }
 
+  /** add influence rays to Tile. */
   setInfMark(inf = 1, rad = this.radius) {
     this.removeChildType(InfMark)
     if (inf !== 0) {
@@ -296,15 +305,21 @@ export class Tile extends Tile0 {
     return hex;
   }
 
+  /** after recycle or capture. */
+  sendHome() {
+    this.moveTo(this.homeHex) // override for AucionTile.tileBag & UnitSource<Meeple>
+  }
+
   // Tile: AuctionTile, Civic, Meeple
   // isFromMap --> capture Opp Tile/Meeple OR dismiss Own Meeple
   // isFromAuction --> to tileBag
   // isFromReserve --> to tileBag
   recycle() {
     this.isCapture();
-    this.moveTo(this.homeHex);
+    this.sendHome();
   }
 
+  // TODO: belongs to GamePlay
   isCapture() {
     let cp = GamePlay.gamePlay.curPlayer
     if (this.hex?.isOnMap) {
@@ -341,7 +356,9 @@ export class Tile extends Tile0 {
   }
 
   /** override as necessary. */
-  dragStart(hex: Hex2, ctx: DragContext) { }
+  dragStart(hex: Hex2, ctx: DragContext) {
+    // when lifting a Tile from map, remove its influence?
+  }
 
   /** state of shiftKey has changed during drag */
   dragShift(shiftKey: boolean, ctx: DragContext) { }
@@ -364,8 +381,28 @@ export class Tile extends Tile0 {
    * @param ctx DragContext
    */
   dropFunc(targetHex: Hex2, ctx: DragContext) {
-    if (targetHex == this.table.recycleHex) this.recycle(); // drop on recycleHex
-    else this.moveTo(targetHex);
+    // if (targetHex == this.table.recycleHex) this.recycle(); // drop on recycleHex, Dev/Test
+    // else if (targetHex.isOnMap) this.table.gamePlay.placeTile(this, targetHex);
+    // else this.moveTo(targetHex);
+    let gamePlay = this.table.gamePlay;
+    if (this.hex.isOnMap) {
+      if (targetHex.isOnMap) {
+        // Dev/Test: re-position Tile during BuildAction
+        this.moveTo(targetHex) // Meeple move for BuildAction or PoliceAction
+      } else {
+        // Dev/Text: recycle/capure Tile | Meeple,
+        // maybe want to allow to put back on Reserve?
+        if (targetHex == this.table.recycleHex) this.recycle(); // drop on recycleHex, Dev/Test
+        else this.moveTo(targetHex);
+      }
+    } else /* from offMap: */ {
+      if (targetHex.isOnMap) {
+        gamePlay.placeTile(this, targetHex) // BuildAction or HireAction
+      } else {
+        // reposition from Reserve, to Reserve or Auction (see isLegal...)
+        this.moveTo(targetHex);
+      }
+    }
     Player.updateCounters();      // drop an AuctionTile or Meeple
   }
 }
@@ -532,7 +569,7 @@ export class AuctionTile extends Tile {
     let rIndex2 = reserveHexes.indexOf(targetHex)
     if (rIndex2 >= 0) {
       console.log(stime(this, `.dropFunc: Reserve[${rIndex2}]`), ...info);
-      player.gamePlay.reserve(this, rIndex2)
+      player.gamePlay.reserveAction(this, rIndex2)
     }
     // remove from auctionTiles:
     let auctionNdx = auctionTiles.indexOf(this); // if from auctionTiles

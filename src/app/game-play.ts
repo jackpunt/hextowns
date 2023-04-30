@@ -2,15 +2,16 @@ import { json } from "@thegraid/common-lib";
 import { KeyBinder, S, Undo, stime } from "@thegraid/easeljs-lib";
 import { GameSetup } from "./game-setup";
 import { Hex, Hex2, HexMap, IHex } from "./hex";
-import { Criminal, Leader, Police, TileSource } from "./meeple";
+import { Criminal, Leader, Meeple, Police, TileSource } from "./meeple";
 import { Planner } from "./plan-proxy";
 import { Player } from "./player";
 import { GameStats, TableStats } from "./stats";
 import { LogWriter } from "./stream-writer";
 import { CostIncCounter, Table } from "./table";
 import { PlayerColor, TP, otherColor, playerColors } from "./table-params";
-import { AuctionBonus, AuctionTile, Bonus, Busi, Resi, TownRules } from "./tile";
+import { AuctionBonus, AuctionTile, Bonus, Busi, Resi, Tile, TownRules } from "./tile";
 import { NC } from "./choosers";
+import { H } from "./hex-intfs";
 
 class HexEvent {}
 class Move{
@@ -110,8 +111,18 @@ export class GamePlay0 {
     this.undoRecs.addUndoRec(obj, name, value);
   }
 
+  /** Place tile on Map (or other topRow Hex? or Recycle?) */
+  placeTile(tile: Tile, hex: Hex) {
+    tile.moveTo(hex);  // placeTile(tile, hex) --> moveTo(hex)
+  }
+
+  /** Place tile on Map (or other topRow Hex? or Recycle?) */
+  placeMeep(meep: Meeple, hex: Hex) {
+    meep.moveTo(hex);  // placeTile(tile, hex) --> moveTo(hex)
+  }
+
   /** from auctionTiles to reservedTiles */
-  reserve(tile: AuctionTile, rIndex: number) {
+  reserveAction(tile: AuctionTile, rIndex: number) {
     let pIndex = this.curPlayerNdx;
     this.reservedTiles[pIndex][rIndex]?.recycle();   // if another Tile in reserve slot, recycle it.
     this.reservedTiles[pIndex][rIndex] = tile;
@@ -120,7 +131,7 @@ export class GamePlay0 {
   }
 
   /** from AuctionTiles or ReserveTiles to hexMap: */
-  build(tile: AuctionTile, hex: Hex) {
+  buildAction(tile: AuctionTile, hex: Hex) {
     if (!tile.isLegalTarget(hex)) return false
     let pIndex = this.curPlayerNdx;
     let player = Player.allPlayers[pIndex];
@@ -128,31 +139,30 @@ export class GamePlay0 {
     if (rIndex > 0) this.reservedTiles[pIndex][rIndex] = undefined;
     let aIndex = this.auctionTiles.indexOf(tile);
     if (aIndex > 0) this.auctionTiles[aIndex] = undefined;
-    tile.moveTo(hex);
+    this.placeTile(tile, hex);
     return true;
   }
 
-  recruit(leader: Leader) {
+  recruitAction(leader: Leader) {
     if (leader.hex?.isOnMap) return false;
     if (!leader.civicTile.hex?.isOnMap) return false;
     leader.hex = leader.civicTile.hex
     return true;
   }
 
-  placePolice(hex: Hex) {
-    let meep = Police.source[this.curPlayerNdx].hex.meep; // meep.moveTo(source.hex)
+  private placeMeep0(meep: Meeple, hex: Hex) {
     if (!meep) return false;
     if (!meep.isLegalTarget(hex)) return false;
-    meep.moveTo(hex);
+    this.placeMeep(meep, hex);  // As an ACTION!
     return true;
   }
 
+  placePolice(hex: Hex) {
+    return this.placeMeep0(Police.source[this.curPlayerNdx].hex.meep, hex);
+  }
+
   placeCriminal(hex: Hex) {
-    let meep = Criminal.source.hex.meep; // meep.moveTo(source.hex)
-    if (!meep) return false;
-    if (!meep.isLegalTarget(hex)) return false;
-    meep.moveTo(hex);
-    return true;
+    return this.placeMeep0(Criminal.source.hex.meep, hex);
   }
 }
 
@@ -406,6 +416,30 @@ export class GamePlay extends GamePlay0 {
   playerMoveEvent(hev: HexEvent): void {
     this.localMoveEvent(hev)
   }
+
+  /** after add Tile to hex: propagate its influence in each direction; maybe capture. */
+  incrInfluence(hex: Hex, color: PlayerColor) {
+    H.infDirs.forEach(dn => {
+      let inc = hex.getInf(color, dn)         // because hex.stone: hex gets +1, and passes that on
+      hex.propagateIncr(color, dn, inc, (hexi) => {
+        if (hexi != hex && hexi.isCapture(color)) {  // pick up sacrifice later... (hexi != hex <== curHex)
+
+          //this.captureStone(hexi)               // capture Stone of *other* color
+
+        }
+      })
+    })
+  }
+
+  /** after remove Stone from hex: propagate influence in each direction. */
+  decrInfluence(hex: Hex, color: PlayerColor) {
+    H.infDirs.forEach(dn => {
+      //let inc = hex.links[H.dirRev[dn]]?.getInf(color, dn) || 0
+      let inf = hex.getInf(color, dn) - 1     // reduce because stone is gone
+      hex.propagateDecr(color, dn, inf)       // because no-stone, hex gets (inf - 1)
+    })
+  }
+
 }
 
 class Dice {
