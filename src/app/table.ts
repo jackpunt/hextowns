@@ -187,6 +187,12 @@ export class Table extends EventDispatcher  {
   crimeHex: Hex2;
   recycleHex: Hex2;
 
+  addCostCounter(hex: Hex2, name?: string, ndx = 0, setPlayer = false) {
+    const counter = name ? new CostIncCounter(hex, `${name}`) : undefined;
+    this.gamePlay.costIncHexCounters.push([hex, counter, ndx, setPlayer]);
+    return hex;
+  }
+
   layoutTable(gamePlay: GamePlay) {
     this.gamePlay = gamePlay
     let hexMap = this.hexMap = gamePlay.hexMap
@@ -235,9 +241,8 @@ export class Table extends EventDispatcher  {
 
     this.recycleHex = this.makeRecycleHex(hexMap, 5, -.5)
 
-    this.crimeHex = topRowHex(2, `Barbs`, 6)
+    this.crimeHex = this.addCostCounter(topRowHex(2, `Barbs`, 6), undefined, 0, true);  // repaint for curPlayer
     Criminal.makeSource(this.crimeHex, TP.criminalPrePlayer * this.gamePlay.allPlayers.length);
-    gamePlay.costIncHexCounters.push([Criminal.source.hex, undefined, -1]);
 
     [Busi, Resi].forEach((type, ndx) => {
       let hex = topRowHex(2, type.name, 7 + ndx)
@@ -246,14 +251,13 @@ export class Table extends EventDispatcher  {
       gamePlay.marketSource[type.name] = source;
       tiles.forEach(tile => source.availUnit(AuctionTile.takeTile(tile)))
       source.nextUnit();
-      let counter = new CostIncCounter(hex, `${type}-counter`)
-      //counter.attachToContainer(hex, '', hexMap.mapCont.counterCont)
-      gamePlay.costIncHexCounters.push([hex, counter, 1]);
-      // add inf-counter to Hex
+      this.addCostCounter(hex, type.name, 1, true);
     })
 
     let auctionTiles = this.gamePlay.auctionTiles; auctionTiles.length = TP.auctionSlots;
     this.auctionCont = new AuctionCont(auctionTiles, this, 6, secondRowHex);
+    this.auctionCont.hexes.forEach((hex, i) => this.addCostCounter(hex, `CostInc${i}`, i, true));
+
     for (let i = 0; i < TP.preShiftCount; i++) this.auctionCont.shift() // Also shift in gamePlay.startTurn()
 
     this.hexMap.update();
@@ -264,11 +268,19 @@ export class Table extends EventDispatcher  {
       p.makePlayerBits();
       let leaderHexes = p.allLeaders.map((meep, ndx) => topRowHex(pIndex, meep.Aname, ndx))
       let academyHex = topRowHex(pIndex, `Academy:${pIndex}`, leaderHexes.length)
-      this.reserveHexes[pIndex].push(...[1, 2].map(i => secondRowHex(pIndex, `Reserve:${pIndex}-${i}`, i)))
+      this.reserveHexes[pIndex] = [];
+      for (let i = 0; i < TP.reserveSlots; i++) {
+        let rhex = secondRowHex(pIndex, `Reserve:${pIndex}-${i}`, 3 - i);
+        this.addCostCounter(rhex, `rCost-${i}`, 1);
+        this.reserveHexes[pIndex].push(rhex);
+      }
 
       // place [civic/leader, academy/police] meepleHex on Table/Hex (but not on Map)
       this.leaderHexes[pIndex] = leaderHexes;
-      p.allLeaders.forEach((meep, i) => meep.homeHex = meep.civicTile.homeHex = meep.civicTile.moveTo(meep.moveTo(leaderHexes[i])))
+      p.allLeaders.forEach((meep, i) => {
+        meep.homeHex = meep.civicTile.homeHex = meep.civicTile.moveTo(meep.moveTo(leaderHexes[i]))
+        this.addCostCounter(meep.homeHex as Hex2, `${meep.Aname}-c`, 0 );
+      })
       Police.makeSource(p, academyHex, TP.policePerPlayer);
     })
     this.hexMap.update();
@@ -625,7 +637,6 @@ export class CostIncCounter extends ValueCounterBox {
 class AuctionCont extends Container {
   readonly maxndx: number;
   readonly hexes: Hex2[] = []
-  readonly counters: ValueCounter[] = [];
   readonly costInc = this.costIncMatrix()
 
   constructor(
@@ -644,12 +655,6 @@ class AuctionCont extends Container {
       // from Table.layoutTable() sets parent=hexMap.mapCont.hexCont; hex.x, hex.y
       let hex = newHex(2, `auction${i}`, col0 + i);
       this.hexes.push(hex)
-      // use InfMark(1, .3, 10) for counter Shape?
-      let counter = new CostIncCounter(hex, `costInc${i}`, 0)
-      //counter.attachToContainer(hexMap.mapCont.counterCont, { x: hex.x, y: hex.y + TP.hexRad })
-      gamePlay.costIncHexCounters.push([hex, counter, i]);
-
-      this.counters.push(counter);   // same index as hex!
     }
     let x0 = this.hexes[0].x, y0 = this.hexes[0].y
     this.tileCounter = new ValueCounter('tileCounter', AuctionTile.tileBag.length, 'lightblue', TP.hexRad/2)

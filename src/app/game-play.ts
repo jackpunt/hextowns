@@ -130,16 +130,15 @@ export class GamePlay0 {
   }
 
   /** Place tile on Map (or other topRow Hex? or Recycle?) */
-  placeTile(tile: Tile, hex: Hex) {
-    console.log(stime(this, `.placeTile:`), tile.Aname, hex.Aname, hex);
-    let fromHex = tile.hex, tileInf = tile.inf;
-    let pColor = tile.player?.color || 'c';     // TODO: new Criminal().player=CrimePlayer('c')
+  placeTile(tile: Tile, toHex: Hex) {
+    const fromHex = tile.hex, tileInf = tile.inf;
+    const pColor = tile.player?.color || this.curPlayer.color; // is Criminal a Player?
     if (fromHex.isOnMap) {
       tile.moveTo(undefined);  // remove tile and its infP
       this.decrInfluence(fromHex, tileInf, pColor);
     }
-    tile.moveTo(hex);  // placeTile(tile, hex) --> moveTo(hex)
-    if (hex.isOnMap) {
+    tile.moveTo(toHex);  // placeTile(tile, hex) --> moveTo(hex)
+    if (toHex.isOnMap) {
       this.incrInfluence(tile.hex, pColor);
     }
   }
@@ -154,7 +153,7 @@ export class GamePlay0 {
     let pIndex = this.curPlayerNdx;
     this.reservedTiles[pIndex][rIndex]?.recycle();   // if another Tile in reserve slot, recycle it.
     this.reservedTiles[pIndex][rIndex] = tile;
-    tile.player = Player.allPlayers[pIndex];
+    tile.player = this.curPlayer;
     return true;
   }
 
@@ -336,6 +335,28 @@ export class GamePlay extends GamePlay0 {
     this.makeMove(true, undefined, 1)
   }
 
+  override placeTile(tile: Tile, toHex: Hex): void {
+    const fromHex = tile.hex as Hex2
+    const toReserve = (toHex as Hex2).distText.text.startsWith('Reserve');
+    {
+      const pColor = tile.player?.color || this.curPlayer.color;
+      const info = { tile, fromHex, toHex, hexInf: toHex.getInfT(pColor) };
+      console.log(stime(this, `.placeTile:`), info);
+    }
+    if (this.curPlayer && !fromHex.isOnMap && (toHex.isOnMap || toReserve)) {
+      let infFail = false, coinsFail = false, infReqd = 0, coinsReqd = 0;
+      if (!toReserve) {
+        infReqd = this.costFromHex(fromHex);
+        infFail = (infReqd > toHex.getInfT(this.curPlayer.color));
+      }
+      coinsReqd = this.costFromHex(fromHex);
+      coinsFail = (coinsReqd > this.curPlayer.coins);
+      if (infFail || coinsFail) toHex = fromHex;
+      else this.curPlayer.coins -= coinsReqd;
+    }
+    super.placeTile(tile, toHex);
+  }
+
   /**
    * Current Player takes action.
    *
@@ -419,15 +440,27 @@ export class GamePlay extends GamePlay0 {
     this.makeMove()
   }
 
-  readonly costIncHexCounters: [Hex2, CostIncCounter, number][] = [];
+  /** show player color and cost. */
+  readonly costIncHexCounters: [Hex2, CostIncCounter, number, boolean][] = [];
+  counterForHex(hex: Hex2) {
+    return this.costIncHexCounters.find(([h]) => h == hex);
+  }
+
+  costFromHex(hex: Hex2) {
+    const [onHex, counter] = this.counterForHex(hex) || [];
+    return counter?.getValue() as number || 0;
+  }
+
   setAuctionPrices(plyr: Player = this.curPlayer) {
     let pColor = plyr.color;
-    let nCivs = plyr.civicTiles.filter(tile => tile.hex.isOnMap).length
+    let nCivics = plyr.nCivics;
     let auction = this.table.auctionCont
-    this.costIncHexCounters.forEach(([hex, counter, ndx]) => {
-      hex.tile?.paint(pColor);
-      hex.meep?.paint(pColor);
-      counter?.setValue(auction.costInc[nCivs][ndx]);
+    this.costIncHexCounters.forEach(([hex, counter, ndx, repaint]) => {
+      if (repaint) {
+        hex.tile?.paint(pColor);
+        hex.meep?.paint(pColor);
+      }
+      counter?.setValue(auction.costInc[nCivics][ndx]);
     })
   }
 

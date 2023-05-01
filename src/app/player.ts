@@ -29,6 +29,7 @@ export class Player {
   readonly gamePlay: GamePlay;
 
   readonly civicTiles: Civic[] = [];            // Player's S, H, C, U Tiles
+  get nCivics() { return this.civicTiles.filter(tile => tile.hex.isOnMap).length; }
   // Player's B, M, P, D, Police & Criminals-claimed
   get meeples() {return Meeple.allMeeples.filter(meep => meep.player == this)};
   // Resi/Busi/PS/Lake/Civics in play on Map

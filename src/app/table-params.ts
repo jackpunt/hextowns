@@ -17,6 +17,7 @@ export function buildURL(scheme = 'wss', host = TP.ghost, domain = TP.gdomain, p
 export class TP {
   static preShiftCount = 2;  // plus 1 at start of turn
   static auctionSlots = 4;   // QQQ: should we have a 'stable' market also?
+  static reserveSlots = 1;
   static resiPerPlayer = 10
   static busiPerPlayer = 10;
   static lakePerPlayer = 3;

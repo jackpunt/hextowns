@@ -537,7 +537,7 @@ export class AuctionTile extends Tile {
     if ((targetHex == ctx.originHex)) return super.dropFunc(targetHex, ctx);
 
     let player = GamePlay.gamePlay.curPlayer, pIndex = player.index;
-    let info = [ctx.targetHex.Aname, this.Aname, this.bonus, this];
+    let info = [ctx.targetHex.Aname, this.Aname, this.bonus];
     let auctionTiles = this.table.auctionCont.tiles;
     let reserveTiles = GamePlay.gamePlay.reservedTiles[pIndex];
     let auctionHexes = this.table.auctionCont.hexes;
@@ -548,18 +548,16 @@ export class AuctionTile extends Tile {
     if (rIndex >= 0) {
       reserveTiles[rIndex] = undefined;
     }
-    // add to reserveTiles:
-    let rIndex2 = reserveHexes.indexOf(targetHex)
-    if (rIndex2 >= 0) {
-      console.log(stime(this, `.dropFunc: Reserve[${rIndex2}]`), ...info);
-      player.gamePlay.reserveAction(this, rIndex2)
-    }
     // remove from auctionTiles:
     let auctionNdx = auctionTiles.indexOf(this); // if from auctionTiles
     if (auctionNdx >= 0) {
       auctionTiles[auctionNdx] = undefined
       this.player = player;
     }
+    super.dropFunc(targetHex, ctx); // set this.hex = targetHex, ctx.originHex.tile = undefined;
+    let type = className(this) as 'Busi' | 'Resi';
+    targetHex = this.hex as Hex2;   // where GamePlay put it (could be back to orig.hex)
+
     // add TO auctionTiles (from reserveHexes; see isLegalHex) FOR TEST & DEV
     let auctionNdx2 = auctionHexes.indexOf(targetHex);
     if (auctionNdx2 >= 0) {
@@ -568,8 +566,14 @@ export class AuctionTile extends Tile {
       this.player = undefined;
       this.paint(player.color); this.updateCache()
     }
-    super.dropFunc(targetHex, ctx); // set this.hex = targetHex, ctx.originHex.tile = undefined;
-    let type = className(this) as 'Busi' | 'Resi';
+    // add to reserveTiles:
+    let rIndex2 = reserveHexes.indexOf(targetHex)
+    if (rIndex2 >= 0) {
+      console.log(stime(this, `.dropFunc: Reserve[${rIndex2}]`), ...info);
+      player.gamePlay.reserveAction(this, rIndex2)
+    }
+    if (targetHex == ctx.originHex) return;
+
     // from market source:
     if (ctx.originHex.distText.text == type) {
       this.player = player;  // set player (already painted)
@@ -578,7 +582,7 @@ export class AuctionTile extends Tile {
     }
     if (targetHex.isOnMap) {
       console.log(stime(this, `.dropFunc: Build`), ...info);
-      // deposit Bribs with Player; ASSERT was from auctionTiles or reserveTiles
+      // deposit Bribs & Actns with Player; ASSERT was from auctionTiles or reserveTiles
       if (this.bonus.brib) {
         this.removeBonus('brib');
         player.bribs += 1;        // triggers coinCounter.updateValue

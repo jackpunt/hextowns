@@ -385,7 +385,7 @@ export class Hex2 extends Hex {
 
   override setInf(color: PlayerColor, dn: InfDir, inf: number): number {
     super.setInf(color, dn, inf)
-    this.showInf(color, dn, (this.playerColor !== color && (inf > 0 || this.isInf(color, H.dirRevEW[dn]))))
+    this.showInf(color, dn, (!this.occupied && (inf > 0 || this.isInf(color, H.dirRevEW[dn]))))
     return inf
   }
   static infVis = true   // set by ParamGui('showInf')
