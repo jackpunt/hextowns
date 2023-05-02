@@ -1,35 +1,49 @@
 import { C, className } from "@thegraid/common-lib";
 import { DragInfo, ValueCounter } from "@thegraid/easeljs-lib";
 import { Hex, Hex2, HexMap, HexShape } from "./hex";
-import { EwDir, H } from "./hex-intfs";
+import { EwDir, H, XYWH } from "./hex-intfs";
 import { Player } from "./player";
 import { C1, Church, Civic, InfMark, PS, PaintableShape, Tile, TownHall, TownStart, University } from "./tile";
 import { newPlanner } from "./plan-proxy";
 import { TP } from "./table-params";
-import { Shape } from "@thegraid/easeljs-module";
+import { Rectangle, Shape } from "@thegraid/easeljs-module";
 import { DragContext } from "./table";
 import { GamePlay } from "./game-play";
 
 class MeepleShape extends Shape implements PaintableShape {
+  static fillColor = 'rgba(250,250,250,.8)';
+  static overColor = 'rgba(120,120,120,.5)';
+
   constructor(public player: Player, public radius = TP.hexRad * .4, public y0 = radius * 5 / 6) {
     super()
+    this.paint();
+    this.overShape = this.makeOverlay();
   }
   paint(colorn = this.player?.colorn || C1.grey) {
     let x0 = 0, y0 = this.y0, r = this.radius;
     let g = this.graphics.c().ss(2)
     g.s(colorn).dc(x0, y0, r - 1)
-    g.f('rgba(250,250,250,.8)').dc(x0, y0, r - 1)
+    g.f(MeepleShape.fillColor).dc(x0, y0, r - 1)
     this.setBounds(x0 - r, y0 - r, 2 * r, 2 * r)
     return g
+  }
+  overShape: Shape;
+  makeOverlay() {
+    let {x, y, width: w, height: h} = this.getBounds();
+    const over = new Shape();
+    over.graphics.f(MeepleShape.overColor).dc(x + w / 2, y + h / 2, w / 2)
+    over.visible = false;
+    return over;
   }
 }
 
 type MeepleInf = -1 | 0 | 1;
 export class Meeple extends Tile {
-  static allMeeples = [];
+  static allMeeples: Meeple[] = [];
 
   readonly colorValues = C.nameToRgba("blue"); // with alpha component
   get y0() { return (this.childShape as MeepleShape).y0; }
+  get overShape() { return (this.childShape as MeepleShape).overShape; }
 
   /**
    * Meeple - Leader, Police, Criminal
@@ -46,8 +60,9 @@ export class Meeple extends Tile {
     econ = -6, // Econ required: -2 for Police, -3 for Criminal [place, not maintain]
   ) {
     super(player, Aname, inf, vp, cost, econ);
+    this.addChild(this.overShape);
     this.player = player
-    let { x, y, width, height } = this.childShape.getBounds()
+    let { x, y, width, height } = this.childShape.getBounds();
     this.nameText.visible = true
     this.nameText.y = y + height/2 - Tile.textSize/2;
     this.cache(x, y, width, height);
@@ -64,13 +79,40 @@ export class Meeple extends Tile {
     if (hex !== undefined) hex.meep = this;
   }
 
-  startHex: Hex2;       // in player.meepleHex[]
+  startHex: Hex;       // location at start-of-turn (see also: homeHex -- start-of-game/recycle)
 
   override get radius() { return TP.hexRad / 1.9 }
   override textVis(v: boolean) { super.textVis(true); }
   override makeShape(): PaintableShape { return new MeepleShape(this.player); }
 
+  /** start of turn: unmoved */
+  faceUp() {
+    this.overShape.visible = false;
+    this.startHex = this.hex;
+    this.table.hexMap.update()
+  }
 
+  /** when moved, show grey overlay */
+  faceDown() {
+    this.overShape.visible = true;
+    this.table.hexMap.update()
+  }
+
+  /** return to startHex, faceUp. */
+  unMove() {
+    this.moveTo(this.startHex);
+    this.faceUp();
+  }
+
+  override moveTo(hex: Hex): Hex {
+    const fromHex = this.hex;
+    const toHex = super.moveTo(hex);
+    if (toHex.isOnMap) {
+      if (fromHex.isOnMap && fromHex !== toHex) this.faceDown;
+      else this.faceUp();
+    }
+    return hex;
+  }
    // Meeple
   /** decorate with influence rays (white or black)
    * @param inf +1 | -1
@@ -136,7 +178,7 @@ export class Leader extends Meeple {
 
   override isLegalTarget(hex: Hex) { // Leader
     if (!super.isLegalTarget(hex)) return false;
-    if (!this.hex.isOnMap && (hex !== this.civicTile.hex)) return false; // deploy ONLY to civicTile
+    if (!this.hex.isOnMap && (hex !== this.civicTile.hex)) return false; // deploy ONLY to civicTile ???
     return true
   }
 
@@ -226,7 +268,7 @@ export class Police extends Meeple {
 
   // Police
   constructor(player: Player, index: number) {
-    super(`P:${player.index}-${index}`, player, 1, 0, 1, -2); // 2 Econ to place & maintain
+    super(`P:${player.index}-${index}`, player, 1, 0, 2, -2); // Cost 2 to place, -2 Econ to maintain.
     Police.source[player.index].newUnit(this);
   }
 
@@ -277,11 +319,13 @@ export class Criminal extends Meeple {
   }
 
   constructor(serial = ++Criminal.index) {
-    super(`Barb-${serial}`, undefined, -1, 0, 0, -3) // 3 econ to place; not to maintain.
+    super(`Barb-${serial}`, undefined, 1, 0, 3, -3) // 3 to place, -3 econ to maintain.
     Criminal.source.newUnit(this);
   }
 
-  override paint(pColor = this.player?.color) {
+  override get infColor(): "b" | "w" | "c" { return 'c'; }
+
+  override paint(pColor = this.player?.color || 'c') {
     let r = (this.childShape as MeepleShape).radius, colorn = TP.colorScheme[pColor];
     this.childShape.paint(C.BLACK);
     if (colorn)
@@ -330,7 +374,7 @@ export class Criminal extends Meeple {
     return false;
   }
 
-  override sendHome() {
+  override sendHome(): void {
     let source = Criminal.source
     source.availUnit(this);
     if (!source.hex.meep) source.nextUnit();

@@ -136,7 +136,6 @@ export class Hex {
   get rcs(): string { return (this.row >= 0) ? `[${this.row},${this.col}]` : this.Aname.substring(4)}
   get rowsp() { return (this.row?.toString() || '-1').padStart(2) }
   get colsp() { return (this.col?.toString() || '-1').padStart(2) } // col== -1 ? S_Skip; -2 ? S_Resign
-  // json(sc = this.ship?.player.color) { return `{"p":"${sc || 'u'}","r":${this.rowsp},"c":${this.colsp}}` }
   /** [row,col] OR S_Resign OR S_Skip */
   get rcsp(): string { return (this.row >= 0) ? `[${this.rowsp},${this.colsp}]` : this.Aname.substring(4).padEnd(7)}
   /** compute ONCE, *after* HexMap is populated with all the Hex! */
@@ -158,12 +157,12 @@ export class Hex {
   readonly links: LINKS = {}
 
   /** colorScheme(playerColor)@rcs */
-  toString(sc = this.meep?.player.color) {
-    return `${TP.colorScheme[sc]}@${this.rcs}` // hex.toString => COLOR@[r,c] | COLOR@Skip , COLOR@Resign
+  toString(sc = this.tile?.player?.color || this.meep?.player?.color) {
+    return `${TP.colorScheme[sc] || 'Empty'}@${this.rcs}` // hex.toString => COLOR@[r,c] | COLOR@Skip , COLOR@Resign
   }
   /** hex.rcspString => COLOR@[ r, c] | 'COLOR@Skip   ' , 'COLOR@Resign ' */
-  rcspString(sc = this.meep?.player.color) {
-    return `${TP.colorScheme[sc]}@${this.rcsp}`
+  rcspString(sc = this.tile?.player.color || this.meep?.player?.color) {
+    return `${TP.colorScheme[sc] || 'Empty'}@${this.rcsp}`
   }
 
   /**
@@ -180,8 +179,8 @@ export class Hex {
   // boosting on occupied cells.
   /** influence from presence of Tile/Meeple. */
   getInfP(color: PlayerColor) {
-    const tileInf = this.tile?.player?.color == color ? this.tileInf : 0;
-    const meepInf =  this.meep?.player?.color == color ? this.meepInf : 0;
+    const tileInf = this.tile?.infColor == color ? this.tileInf : 0;
+    const meepInf =  this.meep?.infColor == color ? this.meepInf : 0;
     return tileInf + meepInf;
   }
   /** Total external inf on this Hex. */
@@ -193,7 +192,7 @@ export class Hex {
   /** Total inf on this Hex. */
   getInfT(color: PlayerColor) {
     let infP = this.getInfP(color)
-    return infP > 0 ? infP : this.getInfX(color);
+    return infP + this.getInfX(color);
   }
 
   get infStr() {
@@ -201,11 +200,7 @@ export class Hex {
     let rv = infc.reduce((pv, cv, ci) => `${pv}${ci > 0 ? ':' : ''}${this.getInfT(cv as PlayerColor)}`, '');
     return rv;
   }
-  /** color of current Stone on this Hex (or undefined) */
-  get playerColor() {
-    return this.tile?.player.color; // Tiles (& Meeps) onMap always have a player & color.
-    //return this.tile ? this.tile.player.color : this.meep?.player.color;
-  }
+
   get tileInf() { return this.tile?.inf ?? 0; }
   get meepInf() { return this.meep?.inf ?? 0; }
   /**
@@ -251,16 +246,20 @@ export class Hex {
     )
   }
   /** @return true if Hex is influenced on 2 or more Axies of color */
-  isAttack(color: PlayerColor): boolean {
+  isAttack1(color: PlayerColor): boolean {
     let attacks = new Set<HexAxis>(), infs = this.inf[color]
     let dirMap = TP.parallelAttack ? H.dnToAxis2 : H.dnToAxis;
     return !!Object.entries(infs).find(([dn, inf]) =>
       (inf > 0) && (attacks.add(dirMap[dn]).size >= 2)
     )
   }
-  /** @return true if Hex has a Stone (of other color), and is attacked */
-  isCapture(color: PlayerColor): boolean {
-    return (this.playerColor !== undefined) && (this.playerColor !== color) && this.isAttack(color)
+  isAttack(color: PlayerColor) {
+    return this.getInfT(color) <= this.getInfT('c');
+  }
+  /** @return true if Hex is occupied by tile/meep, and is attacked */
+  isCapture(color: PlayerColor): Tile {
+    // QQQ: do Criminals first kill hex.tile or hex.meep?? pro'ly the tile, as it typically has lower infP
+    return this.isAttack(color) ? (this.tile || this.meep) : undefined;
   }
 
   get neighbors() {
@@ -385,7 +384,7 @@ export class Hex2 extends Hex {
 
   override setInf(color: PlayerColor, dn: InfDir, inf: number): number {
     super.setInf(color, dn, inf)
-    this.showInf(color, dn, (!this.occupied && (inf > 0 || this.isInf(color, H.dirRevEW[dn]))))
+    this.showInf(color, dn, (inf > 0 || this.isInf(color, H.dirRevEW[dn])))
     return inf
   }
   static infVis = true   // set by ParamGui('showInf')
@@ -473,12 +472,12 @@ export class MapCont extends Container {
   constructor(public hexMap: HexMap) {
     super()
   }
-  static cNames = ['hexCont', 'tileCont', 'markCont', 'counterCont', 'infCont'];
+  static cNames = ['hexCont', 'infCont', 'tileCont', 'markCont', 'counterCont'];
   hexCont: Container     // hex shapes on bottom stats: addChild(dsText), parent.rotation
+  infCont: Container     // infMark below tileCont; Hex2.showInf
   tileCont: Container    // Tiles & Meeples on Hex2/HexMap.
   markCont: Container    // showMark over Stones new CapMark [localToLocal]
   counterCont: Container // counters for AuctionCont
-  infCont: Container     // infMark on the top   Hex2.showInf
 }
 
 export interface HexM {

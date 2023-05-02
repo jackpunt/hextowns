@@ -21,8 +21,6 @@ export class Player {
     GamePlay.gamePlay.hexMap.update()
   }
 
-
-
   readonly Aname: string;
   readonly index: number = 0; // index in playerColors & allPlayers
   readonly color: PlayerColor = playerColors[this.index];
@@ -31,7 +29,7 @@ export class Player {
   readonly civicTiles: Civic[] = [];            // Player's S, H, C, U Tiles
   get nCivics() { return this.civicTiles.filter(tile => tile.hex.isOnMap).length; }
   // Player's B, M, P, D, Police & Criminals-claimed
-  get meeples() {return Meeple.allMeeples.filter(meep => meep.player == this)};
+  get meeples() { return Meeple.allMeeples.filter(meep => meep.player == this) };
   // Resi/Busi/PS/Lake/Civics in play on Map
   get tiles() { return Tile.allTiles.filter(t => !(t instanceof Meeple) && t.player == this) }
   get allLeaders() { return this.meeples.filter(m => m instanceof Leader && m.player == this) as Leader[] }
@@ -130,7 +128,7 @@ export class Player {
     town.rule = ruleCard[Math.floor(Math.random() * 2)];
     // in principle this could change based on the town.rule...
     let hex = this.gamePlay.hexMap.centerHex as Hex;
-    let path: HexDir[] = [['NW', 'W', 'W'] as HexDir[], ['SE', 'E', 'E'] as HexDir[]][this.index];
+    let path = [['NW', 'NW', 'NW'], ['NE', 'NE', 'E']][this.index] as HexDir[];
     path.forEach(dir => hex = hex.nextHex(dir));
     this.gamePlay.placeTile(town, hex);  // place and assert influence.
   }
@@ -153,8 +151,13 @@ export class Player {
     this.planner = newPlanner(gamePlay.hexMap, this.index)
   }
   newTurn() {
+    // faceUp and record start location:
+    this.meeples.forEach(meep => meep.hex?.isOnMap ? meep.faceUp() : meep.startHex = undefined)
     this.coins += (this.econs + this.expenses)
     if (this.coins >= 0) this.actions += 1;
+  }
+  unMove() {
+    this.meeples.forEach(meep => meep.hex?.isOnMap && meep.startHex && meep.unMove())
   }
   stopMove() {
     this.planner?.roboMove(false)

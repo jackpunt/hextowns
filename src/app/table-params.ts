@@ -43,8 +43,8 @@ export class TP {
   static maxBreadth = 7   // for robo-player lookahead
   static nPerDist = 4     // samples per district
   static Black_White = playerColorRecord<'BLACK' | 'WHITE'>('BLACK', 'WHITE')
-  static Blue_Red = playerColorRecord<'BLUE' | 'RED'>('BLUE', 'RED')
-  static Red_Blue = playerColorRecord<'RED' | 'BLUE'>('RED', 'BLUE')
+  static Blue_Red = playerColorRecord<'BLUE' | 'RED' | 'GREY'>('BLUE', 'RED', 'GREY')
+  static Red_Blue = playerColorRecord<'RED' | 'BLUE' | 'GREY'>('RED', 'BLUE', 'GREY')
   static schemeNames = ['Red_Blue', 'Blue_Red'];
   static colorScheme = TP.Blue_Red;
   static numPlayers = 2;
