@@ -13,7 +13,7 @@ export class C1 {
   static GREY = 'grey';
   static grey = 'grey';
   static lightgrey2 = 'rgb(225,225,225)' // needs to contrast with WHITE influence lines
-  static lightgrey_8 = 'rgb(220,220,220,.8)' // needs to contrast with WHITE influence lines
+  static lightgrey_8 = 'rgb(225,225,225,.8)' // needs to contrast with WHITE influence lines
 }
 
 export interface PaintableShape extends Shape {
@@ -22,12 +22,28 @@ export interface PaintableShape extends Shape {
 }
 
 class TileShape extends HexShape implements PaintableShape {
-  static fillColor = C1.lightgrey2;// 'rgba(200,200,200,.8)'
-  /** HexShape filled with colored disk: */
+  static fillColor = C1.lightgrey_8;// 'rgba(200,200,200,.8)'
+  /** colored HexShape filled with very-lightgrey disk: */
   override paint(colorn: string) {
+    super.paint(colorn)
+    return this.paint2(colorn)
+  }
+  paint0(colorn: string) {
     let r2 = this.radius * H.sqrt3 * .5 * (55 / 60);
-    super.paint(colorn).f(TileShape.fillColor).dc(0, 0, r2)
-    return this.graphics
+    return this.graphics.f(TileShape.fillColor).dc(0, 0, r2)
+  }
+  paint2(colorn: string) {
+    let r = this.radius, g = this.graphics, tilt = H.dirRot[this.tiltDir];
+    let r2 = this.radius * H.sqrt3 * .5 * (55 / 60);
+    // dp(...6), so tilt: 30 | 0; being nsAxis or ewAxis;
+    let w = r * Math.cos(Math.PI * tilt / 180)
+    let h = r * Math.cos(Math.PI * (tilt - 30) / 180)
+    this.cache(-w, -h, 2 * w, 2 * h);    // solid hexagon
+    g.c().f(C.BLACK).dc(0, 0, r2)
+    this.updateCache("destination-out"); // hole in hexagon
+    g.c(); this.paint0(colorn)
+    this.updateCache("source-over");     // translucent circle
+    return g;
   }
 }
 
@@ -167,10 +183,11 @@ export class Tile0 extends Container {
     return bm;
   }
 
+  get radius() { return TP.hexRad};
   readonly childShape: PaintableShape = this.makeShape();
   /** abstract: subclass should override. */
   makeShape(): PaintableShape {
-    return new TileShape();
+    return new TileShape(this.radius)
   }
 
   /** override for Meeple's xy offset. */
@@ -269,11 +286,6 @@ export class Tile extends Tile0 {
 
   get vp() { return this._vp + (this.bonus.star ? 1 : 0); } // override in Lake
   get econ() { return this._econ + (this.bonus.econ ? 1 : 0); } // override in Bank
-
-  get radius() { return TP.hexRad};
-  override makeShape(): PaintableShape {
-    return new TileShape(this.radius)
-  }
 
   override paint(pColor = this.player?.color, colorn = pColor ? TP.colorScheme[pColor] : C1.grey) {
     this.childShape.paint(colorn)
