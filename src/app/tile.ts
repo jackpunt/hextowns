@@ -7,7 +7,7 @@ import { ImageLoader } from "./image-loader";
 import { Player } from "./player";
 import { PlayerColor, TP } from "./table-params";
 import { DragContext, Table } from "./table";
-import { Meeple } from "./meeple";
+import { Leader, Meeple } from "./meeple";
 
 export class C1 {
   static GREY = 'grey';
@@ -142,12 +142,14 @@ class BonusMark extends Container {
 
   constructor(
     public type?: Bonus,
-    public info = BonusMark.bonusMap.get(type),
-    public mark = new info.dtype(),
-  ) {
-    super()
-    this.addChild(mark)
-    this.info.paint(this.mark, this.info);
+    rotation = 0,
+    ) {
+    super();            // this is a Container
+    let info = BonusMark.bonusMap.get(type); // has a paint() function
+    let dobj = new info.dtype();             // Shape or Text
+    this.addChild(dobj) // dobj is a Shape or Text or other info.dtype()
+    info.paint(dobj, info); // paint dobj with polystar(tilt) or Text(...)
+    this.rotation = rotation;
   }
 }
 
@@ -224,7 +226,7 @@ export class Tile0 extends Container {
       return
     }
     this.bonus[type] = false;
-    this.removeChildType(BonusMark, (c: BonusMark) => (c.info.type == type))
+    this.removeChildType(BonusMark, (c: BonusMark) => (c.type == type))
     this.paint();
   }
 
@@ -258,6 +260,8 @@ export class Tile extends Tile0 {
   get table() { return (GamePlay.gamePlay as GamePlay).table as Table; }
 
   homeHex: Hex = undefined;
+
+  get infP() { return this.inf }
 
   // Tile
   constructor(
@@ -426,6 +430,12 @@ export class Civic extends Tile {
     this.addImageBitmap(image);
     this.addBonus('star').y += this.radius / 12;
     player.civicTiles.push(this);
+  }
+
+  override get infP() {
+    let meep = this.hex.meep;
+    let leaderInf = (meep instanceof Leader) && meep.civicTile === this ? 1 : 0;
+    return super.infP + leaderInf;
   }
 
   override isLegalTarget(hex: Hex) {
@@ -659,42 +669,41 @@ class AdjBonusTile extends AuctionTile {
   constructor(
     public type: Bonus,
     public claz: new () => AuctionTile,
-     player?: Player, Aname?: string, inf = 0, vp = 0, cost = 1, econ = 0) {
+    public anyPlayer = false,
+    player?: Player, Aname?: string, inf = 0, vp = 0, cost = 1, econ = 0) {
     super(player, Aname, inf, vp, cost, econ);
-    this.addImageBitmap(type)
+    this.addImageBitmap(type)        // addChild(...myMarks) sometimes FAILS to add! [or get re-added?]
     this.addChild(...this.myMarks);  // add all the stars; will tweak visibility during draw
-    if (!this.children.includes(this.myMarks[5])) debugger;
   }
 
   myMarks = H.ewDirs.map(dir => {
-    let mark = new BonusMark(this.type);
+    let mark = new BonusMark(this.type, H.dirRot[dir]);
     mark.rotation = H.dirRot[dir];
     return mark;
   });
+  isBonus(tile: Tile | undefined) { return (tile instanceof this.claz) && (this.anyPlayer || tile.player == this.player); }
+  get clazCount() { return this.hex.linkHexes.filter(hex => this.isBonus(hex.tile)).length; }
 
   override draw(ctx: CanvasRenderingContext2D, ignoreCache?: boolean): boolean {
     this.myMarks?.forEach((m, ndx) => {
-      let tile = this.hex?.nextHex(H.ewDirs[ndx]).tile; // may be undefined
-      m.visible = ((tile instanceof this.claz) && tile.player == this.player);
+      //if (!this.children.includes(m)) debugger;
+      m.visible = this.isBonus(this.hex?.nextHex(H.ewDirs[ndx]).tile);
     })
     return super.draw(ctx, true); // ignoreCache! draw with new visiblity (still: cache in HexMap)
-  }
-  clazCount(anyPlayer = false) {
-    return this.hex.neighbors.filter(hex => (hex.tile instanceof this.claz) && (anyPlayer || hex.tile?.player == this.player)).length
   }
 }
 
 export class Bank extends AdjBonusTile {
   override get nBusiResi() { return [1, 0, 0, 0]; } // Bank
   constructor(player?: Player, Aname?: string, inf = 0, vp = 0, cost = 1, econ = 0) {
-    super('Bank', Busi, player, Aname, inf, vp, cost, econ);
+    super('Bank', Busi, true, player, Aname, inf, vp, cost, econ);
   }
-  override get econ() { return super.econ + this.clazCount(true) }
+  override get econ() { return super.econ + this.clazCount }
 }
 
 export class Lake extends AdjBonusTile {
   constructor(player?: Player, Aname?: string, inf = 0, vp = 0, cost = 1, econ = 0) {
-    super('Lake', Resi, player, Aname, inf, vp, cost, econ);
+    super('Lake', Resi, false, player, Aname, inf, vp, cost, econ);
   }
-  override get vp() { return super.vp + this.clazCount(); }
+  override get vp() { return super.vp + this.clazCount; }
 }

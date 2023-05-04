@@ -147,7 +147,7 @@ export class Meeple extends Tile {
   // Meeple
   override dropFunc(targetHex: Hex2, ctx: DragContext): void {
     this.dropInf(targetHex);   // setInfMark
-    this.table.gamePlay.placeMeep(this, targetHex);
+    this.table.gamePlay.placeMeep(this, targetHex); // Drop
   }
 
   dropInf(targetHex: Hex2): void {
@@ -264,7 +264,7 @@ export class TileSource<T extends Tile> {
     this.counter.attachToContainer(cont, xy)
   }
 }
-class UnitSource<T extends Meeple> extends TileSource<Meeple> {
+class UnitSource<T extends Meeple> extends TileSource<T> {
 
 }
 
@@ -355,7 +355,7 @@ export class Criminal extends Meeple {
       this.paint()
       this.updateCache()
     } else if (fromSrc) {
-      this.player = GamePlay.gamePlay.curPlayer; // no hex for recycle...
+      this.player = GamePlay.gamePlay.curPlayer; // no hex for recycle... (prev curPlayer for autoCrime)
       this.paint()
       this.updateCache()
       source.nextUnit()   // Criminal: shift; moveTo(source.hex); update source counter
@@ -375,13 +375,13 @@ export class Criminal extends Meeple {
     if (!this.super_isLegalTarget(hex)) return false;
     let curPlayer = GamePlay.gamePlay.curPlayer
     if (this.player && this.player !== curPlayer) return false;  // may not move Criminals placed by opponent.
-    let otherPlayer = curPlayer.otherPlayer();
     // must NOT be on or adj to curPlayer Tile:
     if (hex.tile?.player == curPlayer) return false;
-    if (hex.neighbors.find(hex => hex.tile?.player == curPlayer)) return false;
+    //if (hex.neighbors.find(hex => hex.tile?.player == curPlayer)) return false;
+    if (hex.findLinkHex(hex => { return (hex.tile?.player == curPlayer); })) return false;
     // must be on or adj to otherPlayer Tile:
     if (hex.tile?.player && hex.tile.player !== curPlayer) return true;
-    if (hex.neighbors.find(hex => hex.tile?.player && hex.tile.player !== curPlayer)) return true;
+    if (hex.findLinkHex(hex => hex.tile?.player && hex.tile.player !== curPlayer)) return true;
     return false;
   }
 

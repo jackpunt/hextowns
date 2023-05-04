@@ -1,9 +1,13 @@
 import { S, stime } from "@thegraid/common-lib";
 
-// TODO: move to @thegraid/common-lib;
-// see also: createjs.ImageLoader, which we don't use.
+/** Simple async Image loader [from ImageReveal.loadImage()]
+ *
+ * see also: createjs.ImageLoader, which we don't use.
+ */
 export class ImageLoader {
-  /** simple async image loader [from ImageReveal.loadImage()] */
+  /**
+   * Promise to load url as HTMLImageElement
+   */
   loadImage(url: string): Promise<HTMLImageElement> {
     //console.log(stime(`image-loader: try loadImage`), url)
     return new Promise((res, rej) => {
@@ -13,6 +17,12 @@ export class ImageLoader {
       img.src = url; // start loading
     });
   }
+
+  /**
+   * load all imageUrls, then invoke callback(images: HTMLImageElement[])
+   * @param imageUrls
+   * @param cb
+   */
   loadImages(imageUrls: string[], cb: (images: HTMLImageElement[]) => void) {
     let promises = imageUrls.map(url => this.loadImage(url));
     Promise.all(promises).then((values) => cb(values), (reason) => {

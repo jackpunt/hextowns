@@ -174,6 +174,10 @@ export class Hex {
   isInf(color: PlayerColor, dn: InfDir) { return this.inf[color][dn] > 0}
   getInf(color: PlayerColor, dn: InfDir) { return this.inf[color] ? (this.inf[color][dn] || 0) : 0 }
   setInf(color: PlayerColor, dn: InfDir, inf: number) { return this.inf[color][dn] = inf }
+
+  get tileInf() { return this.tile?.infP ?? 0; }
+  get meepInf() { return this.meep?.infP ?? 0; }
+
   // presence of Tile and/or Meeple provides influence to adjacent cells
   // that propagates along the axies, decrementing on empty un-occupied cells,
   // boosting on occupied cells.
@@ -201,8 +205,6 @@ export class Hex {
     return rv;
   }
 
-  get tileInf() { return this.tile?.inf ?? 0; }
-  get meepInf() { return this.meep?.inf ?? 0; }
   /**
    * @param inf is influence *passed-in* to Hex; *next* gets [inf+infP or inc-1]
    * @param test after hex.setInf(inf) and hex.propagateIncr(nxt), apply test(hex); [a visitor]
@@ -262,8 +264,15 @@ export class Hex {
     return this.isAttack(color) ? (this.tile || this.meep) : undefined;
   }
 
-  get neighbors() {
-    return Object.keys(this.links).map(k => this.links[k] as Hex)
+  /** convert LINKS object to Array */
+  get linkHexes() {
+    return Object.keys(this.links).map((dir: InfDir) => this.links[dir])
+  }
+  forEachLinkHex(func: (hex: Hex, dir: InfDir, hex0: Hex) => unknown) {
+    Object.keys(this.links).forEach((dir: InfDir) => func(this.links[dir], dir, this));
+  }
+  findLinkHex(pred: (hex: Hex, dir: InfDir, hex0: Hex) => boolean) {
+    return Object.keys(this.links).find((dir: InfDir) => pred(this.links[dir], dir, this));
   }
 
   nextHex(ds: HexDir, ns: number = 1) {

@@ -228,8 +228,9 @@ export class GamePlay0 {
   }
 
   /** Meeple.dropFunc() --> place Meeple (to Map, reserve; not Recycle) */
-  placeMeep(meep: Meeple, toHex: Hex) {
-    if (this.failToPayCost(meep, toHex)) {
+  placeMeep(meep: Meeple, toHex: Hex, autoCrime = (meep.player == undefined)) {
+    // if (meep instanceof Criminal) debugger;
+    if (!autoCrime && this.failToPayCost(meep, toHex)) { // TODO: autoCrime/criminalPlayer has no coins; incrInfl -> c:0
       meep.moveTo(meep.hex);
       return;
     }
@@ -291,7 +292,7 @@ export class GamePlay0 {
   private placeMeep0(meep: Meeple, hex: Hex) {
     if (!meep) return false;
     if (!meep.isLegalTarget(hex)) return false;
-    this.placeMeep(meep, hex);  // As an ACTION!
+    this.placeMeep(meep, hex);  // ACTION by curPlayer: check failToPay, set meep.owner
     return true;
   }
 
@@ -372,21 +373,33 @@ export class GamePlay extends GamePlay0 {
 
   autoCrime(dice = this.dice) {
     // no autoCrime until all Players have 3 VPs.
-    const tooPoor = this.allPlayers.find(plyr => plyr.econs < 3)
-    console.log(stime(this, `.autoCrime`), dice.text.text, { tooPoor })
-    if (!!tooPoor) return;
+    if (this.allPlayers.find(plyr => plyr.econs < 3)) return; // poverty
     let meep = this.table.crimeHex.meep as Criminal;
-    let hexes = this.hexMap.filterEachHex(hex => !hex.occupied && meep.isLegalTarget(hex) && hex.getInfT(this.curPlayer.color) < 1)
-    let targetHex = hexes[Math.floor(Math.random() * hexes.length)];
-    this.placeMeep(meep, targetHex);
-    meep.player = this.crimePlayer; // Meeple isOnMap but no player!
+    if (!meep) return;               // no Criminals available
+    let targetHex = this.autoCrimeTarget(meep);
+    this.placeMeep(meep, targetHex); // meep.player == undefined --> no failToPayCost()
+    meep.player = this.crimePlayer;
     // TODO: resolve attack.
+  }
+
+  autoCrimeTarget(meep: Criminal) {
+    // Gang up on a weak Tile:
+    let hexes = this.hexMap.filterEachHex(hex => !hex.occupied && meep.isLegalTarget(hex) && hex.getInfT(this.curPlayer.color) < 1)
+    let pColor = this.curPlayer.otherPlayer().color
+    hexes.sort((a, b) => a.getInfT(pColor) - b.getInfT(pColor))
+    let infs = hexes.map(hex => hex.getInfT(pColor));
+    let minInf = hexes[0] ? hexes[0].getInfT(pColor) : 0;
+    let hexes1 = hexes.filter(hex => hex.getInfT(pColor) == minInf);
+    if (hexes1.length > 0) hexes = hexes1;
+    let hexes2 = hexes.filter(hex => hex.findLinkHex(hex => hex.meep instanceof Criminal));
+    if (hexes2.length > 0) hexes = hexes2;
+    return hexes[Math.floor(Math.random() * hexes.length)];
   }
 
   unMove() {
     this.curPlayer.meeples.forEach(meep => {
       if (meep.hex?.isOnMap && meep.startHex) {
-        this.placeMeep(meep, meep.startHex); // updating influence
+        this.placeMeep(meep, meep.startHex); // unMove update influence; Note: no unMove for Hire! (sendHome)
         meep.faceUp()
       }
     })
@@ -437,6 +450,7 @@ export class GamePlay extends GamePlay0 {
     KeyBinder.keyBinder.setKey('v', { thisArg: this, func: this.autoPlay, argVal: 1})
     KeyBinder.keyBinder.setKey('u', { thisArg: this, func: this.unMove })
     KeyBinder.keyBinder.setKey('i', { thisArg: this, func: () => {table.showInf = !table.showInf; this.hexMap.update() } })
+    KeyBinder.keyBinder.setKey('M-C', { thisArg: this, func: this.autoCrime })// S-M-k
 
     // diagnostics:
     //KeyBinder.keyBinder.setKey('x', { thisArg: this, func: () => {this.table.enableHexInspector(); }})
