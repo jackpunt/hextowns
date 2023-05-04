@@ -245,7 +245,10 @@ export class Tile extends Tile0 {
 
   static textSize = 14;
   nameText: Text;
-  get nBusiResi() { return [0, 0, 0, 0]; }
+  get nB() { return 0; }
+  get nR() { return 0; }
+  get fB() { return 0; }
+  get fR() { return 0; }
 
   _hex: Hex = undefined;
   /** the map Hex on which this Tile sits. */
@@ -261,6 +264,9 @@ export class Tile extends Tile0 {
   homeHex: Hex = undefined;
 
   get infP() { return this.inf }
+
+  get vp() { return this._vp + (this.bonus.star ? 1 : 0); } // override in Lake
+  get econ() { return this._econ + (this.bonus.econ ? 1 : 0); } // override in Bank
 
   // Tile
   constructor(
@@ -283,12 +289,6 @@ export class Tile extends Tile0 {
     if (inf > 0) this.setInfMark(inf)
     this.paint()
   }
-
-  pinf = false;  // provides positive inf (Civic does this, bonus on AuctionTile)
-  ninf = false;  // provides negative inf (slum does this: permanent Criminal on Tile)
-
-  get vp() { return this._vp + (this.bonus.star ? 1 : 0); } // override in Lake
-  get econ() { return this._econ + (this.bonus.econ ? 1 : 0); } // override in Bank
 
   override paint(pColor = this.player?.color, colorn = pColor ? TP.colorScheme[pColor] : C1.grey) {
     this.childShape.paint(colorn)
@@ -433,7 +433,7 @@ export class Civic extends Tile {
 
   override get infP() {
     let meep = this.hex.meep;
-    let leaderInf = (meep instanceof Leader) && meep.civicTile === this ? 1 : 0;
+    let leaderInf = (meep instanceof Leader) && meep.civicTile === this ? TP.infOnCivic : 0;
     return super.infP + leaderInf;
   }
 
@@ -480,7 +480,8 @@ export class TownRules {
 }
 
 export class TownStart extends Civic {
-  override get nBusiResi() { return [0, 0, 1, 1]; } // TownStart
+  override get fB() { return 1; } // TS
+  override get fR() { return 1; } // TS
 
   rule: TownSpec;
   constructor(player: Player) {
@@ -495,14 +496,15 @@ export class TownHall extends Civic {
 }
 
 export class University extends Civic {
-  override get nBusiResi() { return [0, 0, 1, 1]; } // Univ
+  override get fB() { return 1; } // Univ
+  override get fR() { return 1; } // Univ
   constructor(player: Player) {
     super(player, 'U', Tile.Uname[player.index])
   }
 }
 
 export class Church extends Civic {
-  override get nBusiResi() { return [0, 0, 0, 1]; } // Church
+  override get fR() { return 1; } // Church
   constructor(player: Player) {
     super(player, 'C', 'Temple')
   }
@@ -541,13 +543,20 @@ export class AuctionTile extends Tile {
     addTiles(TP.lakePerPlayer * 2, Lake)
   }
 
+  static inTheBag() {
+    const counts = {}
+    const tileNames = AuctionTile.tileBag.map(tile => className(tile)).sort()
+    tileNames.forEach(name => counts[name] = (counts[name] ?? 0) + 1)
+    return counts;
+  }
+
   /** AuctionTile */
   constructor(player: Player, Aname?: string, inf?, vp?, cost?, econ?) {
     super(player, Aname, inf, vp, cost, econ)
   }
 
-  override recycle() {  // AuctionTile: removeBonus; to tileBag
-    super.recycle();    // isCapture?, moveTo(undefined), parent.removeChild
+  override sendHome(): void {  // AuctionTile: removeBonus; to tileBag
+    super.sendHome();
     this.removeBonus();
     this.parent.removeChild(this);
     console.log(stime(this, `.recycle: to tileBag`), this.Aname, this.player?.colorn, this)
@@ -642,7 +651,7 @@ export class AuctionTile extends Tile {
 }
 
 export class Resi extends AuctionTile {
-  override get nBusiResi() { return [0, 1, 0, 0]; } // Resi
+  override get nR() { return 1; } // Resi
   constructor(player?: Player, Aname?: string, inf = 0, vp = 1, cost = 1, econ = 1) {
     super(player, Aname, inf, vp, cost, econ);
     this.addImageBitmap('Resi')
@@ -650,7 +659,7 @@ export class Resi extends AuctionTile {
 }
 
 export class Busi extends AuctionTile {
-  override get nBusiResi() { return [1, 0, 0, 0]; } // Busi
+  override get nB() { return 1; } // Busi
   constructor(player?: Player, Aname?: string, inf = 0, vp = 1, cost = 1, econ = 1) {
     super(player, Aname, inf, vp, cost, econ);
     this.addImageBitmap('Busi')
@@ -664,10 +673,13 @@ export class PS extends AuctionTile {
 }
 
 class AdjBonusTile extends AuctionTile {
+  static isBusi(tile: Tile) { return (tile.nB + tile.fB) > 0; }
+  static isResi(tile: Tile) { return (tile.nR + tile.fR) > 0; }
+
   /** dodgy? merging Bonus.type with asset/image name */
   constructor(
     public type: Bonus,
-    public claz: new () => AuctionTile,
+    public bonusTile = (tile: Tile) => false,
     public anyPlayer = false,
     player?: Player, Aname?: string, inf = 0, vp = 0, cost = 1, econ = 0) {
     super(player, Aname, inf, vp, cost, econ);
@@ -680,29 +692,35 @@ class AdjBonusTile extends AuctionTile {
     mark.rotation = H.dirRot[dir];
     return mark;
   });
-  isBonus(tile: Tile | undefined) { return (tile instanceof this.claz) && (this.anyPlayer || tile.player == this.player); }
-  get clazCount() { return this.hex.linkHexes.filter(hex => this.isBonus(hex.tile)).length; }
+  isBonus(tile: Tile | undefined) {
+    return !!tile && this.bonusTile(tile) && (this.anyPlayer || tile.player == this.player);
+  }
+  get bonusTiles() { return this.hex.linkHexes.filter(hex => this.isBonus(hex.tile)).length; }
 
   override draw(ctx: CanvasRenderingContext2D, ignoreCache?: boolean): boolean {
     this.myMarks?.forEach((m, ndx) => {
-      //if (!this.children.includes(m)) debugger;
-      m.visible = this.isBonus(this.hex?.nextHex(H.ewDirs[ndx]).tile);
+      m.visible = this.hex?.isOnMap && this.isBonus(this.hex.nextHex(H.ewDirs[ndx]).tile);
     })
     return super.draw(ctx, true); // ignoreCache! draw with new visiblity (still: cache in HexMap)
+  }
+
+  override removeBonus(type?: Bonus): void {
+    super.removeBonus(type);
+    this.addChild(...this.myMarks);  // reinsert *these* bonus marks.
   }
 }
 
 export class Bank extends AdjBonusTile {
-  override get nBusiResi() { return [1, 0, 0, 0]; } // Bank
+  override get nB() { return 1; }
   constructor(player?: Player, Aname?: string, inf = 0, vp = 0, cost = 1, econ = 0) {
-    super('Bank', Busi, true, player, Aname, inf, vp, cost, econ);
+    super('Bank', AdjBonusTile.isBusi, true, player, Aname, inf, vp, cost, econ);
   }
-  override get econ() { return super.econ + this.clazCount }
+  override get econ() { return super.econ + this.bonusTiles }
 }
 
 export class Lake extends AdjBonusTile {
   constructor(player?: Player, Aname?: string, inf = 0, vp = 0, cost = 1, econ = 0) {
-    super('Lake', Resi, false, player, Aname, inf, vp, cost, econ);
+    super('Lake', AdjBonusTile.isResi, false, player, Aname, inf, vp, cost, econ);
   }
-  override get vp() { return super.vp + this.clazCount; }
+  override get vp() { return super.vp + this.bonusTiles; }
 }

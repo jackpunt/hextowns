@@ -143,12 +143,12 @@ export class GamePlay0 {
   playerBalance(player: Player, ivec = [0, 0, 0, 0]) {
     let [nBusi, nResi, fBusi, fResi] = ivec;
     this.hexMap.forEachHex(hex => {
-      if (hex.tile && hex.tile.player == player) {
-        let [busi, resi, fbusi, fresi] = hex.tile?.nBusiResi;
-        nBusi += busi;
-        nResi += resi;
-        fBusi += fbusi;
-        fResi += fresi;
+      let tile = hex.tile;
+      if (tile && tile.player == player) {
+        nBusi += tile.nB;
+        nResi += tile.nR;
+        fBusi += tile.fB;
+        fResi += tile.fR;
       }
     });
     return [nBusi, nResi, fBusi, fResi];
@@ -156,7 +156,7 @@ export class GamePlay0 {
 
   failToBalance(tile: Tile, player: Player) {
     // tile on map during Test/Dev, OR: when demolishing...
-    const ivec = tile.hex.isOnMap ? [0, 0, 0, 0] : tile.nBusiResi
+    const ivec = tile.hex.isOnMap ? [0, 0, 0, 0] : [tile.nB, tile.nR, tile.fB, tile.fR];
     const [nBusi, nResi, fBusi, fResi] = this.playerBalance(player, ivec);
     const hiBusi = nBusi > (nResi + fResi);
     const loBusi = nResi > 2 * (nBusi + fBusi);
@@ -203,6 +203,7 @@ export class GamePlay0 {
 
   failToPayCost(tile: Tile, toHex: Hex) {
     const toReserve = this.reserveHexes[this.curPlayerNdx].includes(toHex);
+    if (tile.hex == toHex) return false;  // no payment; recompute influence
     if (!(this.curPlayer && !tile.hex.isOnMap && (toHex.isOnMap || toReserve))) return false;
     // curPlayer && NOT FROM Map && TO [Map or Reserve]
     let bribR = 0, [infR, coinR] = this.getInfR(tile);
@@ -450,7 +451,8 @@ export class GamePlay extends GamePlay0 {
     KeyBinder.keyBinder.setKey('v', { thisArg: this, func: this.autoPlay, argVal: 1})
     KeyBinder.keyBinder.setKey('u', { thisArg: this, func: this.unMove })
     KeyBinder.keyBinder.setKey('i', { thisArg: this, func: () => {table.showInf = !table.showInf; this.hexMap.update() } })
-    KeyBinder.keyBinder.setKey('M-C', { thisArg: this, func: this.autoCrime })// S-M-k
+    KeyBinder.keyBinder.setKey('M-C', { thisArg: this, func: this.autoCrime })// S-M-C
+    KeyBinder.keyBinder.setKey('S-?', { thisArg: this, func: () => console.log(stime(this, `.inTheBag:`), AuctionTile.inTheBag()) })
 
     // diagnostics:
     //KeyBinder.keyBinder.setKey('x', { thisArg: this, func: () => {this.table.enableHexInspector(); }})

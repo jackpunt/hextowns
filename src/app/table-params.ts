@@ -24,6 +24,7 @@ export class TP {
   static policeCost = 0;
   static criminalCost = 0;
 
+  static infOnCivic = 1;
   static preShiftCount = 2;  // plus 1 at start of turn
   static maxCivics = 4;
   static auctionSlots = 4;   // QQQ: should we have a 'stable' market also?
