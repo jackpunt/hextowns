@@ -1,4 +1,4 @@
-import { C, className } from "@thegraid/common-lib";
+import { C, F, S, className } from "@thegraid/common-lib";
 import { DragInfo, ValueCounter } from "@thegraid/easeljs-lib";
 import { Hex, Hex2, HexMap, HexShape } from "./hex";
 import { EwDir, H, XYWH } from "./hex-intfs";
@@ -6,24 +6,25 @@ import { Player } from "./player";
 import { C1, Church, Civic, InfMark, PS, PaintableShape, Tile, TownHall, TownStart, University } from "./tile";
 import { newPlanner } from "./plan-proxy";
 import { TP } from "./table-params";
-import { Rectangle, Shape } from "@thegraid/easeljs-module";
+import { Rectangle, Shape, Text } from "@thegraid/easeljs-module";
 import { DragContext } from "./table";
 import { GamePlay } from "./game-play";
 
 class MeepleShape extends Shape implements PaintableShape {
-  static fillColor = 'rgba(250,250,250,.8)';
-  static overColor = 'rgba(120,120,120,.5)';
+  static fillColor = 'rgba(225,225,225,.7)';
+  static overColor = 'rgba(120,210,120,.5)';
 
   constructor(public player: Player, public radius = TP.hexRad * .4, public y0 = radius * 5 / 6) {
     super()
     this.paint();
     this.overShape = this.makeOverlay();
   }
+  /** stroke a ring of colorn, r=radius-1, width=2; fill disk with (~WHITE,.8) */
   paint(colorn = this.player?.colorn || C1.grey) {
     let x0 = 0, y0 = this.y0, r = this.radius;
     let g = this.graphics.c().ss(2)
-    g.s(colorn).dc(x0, y0, r - 1)
-    g.f(MeepleShape.fillColor).dc(x0, y0, r - 1)
+    g.s(colorn).dc(x0, y0, r - 1)                 // ring
+    g.f(MeepleShape.fillColor).dc(x0, y0, r - 1)  // disk
     this.setBounds(x0 - r, y0 - r, 2 * r, 2 * r)
     return g
   }
@@ -33,6 +34,7 @@ class MeepleShape extends Shape implements PaintableShape {
     const over = new Shape();
     over.graphics.f(MeepleShape.overColor).dc(x + w / 2, y + h / 2, w / 2)
     over.visible = false;
+    over.name = over[S.Aname] = 'overShape';
     return over;
   }
 }
@@ -89,26 +91,22 @@ export class Meeple extends Tile {
   faceUp() {
     this.overShape.visible = false;
     this.startHex = this.hex;
+    this.updateCache()
     this.table.hexMap.update()
   }
 
   /** when moved, show grey overlay */
   faceDown() {
     this.overShape.visible = true;
+    this.updateCache()
     this.table.hexMap.update()
-  }
-
-  /** return to startHex, faceUp. */
-  unMove() {
-    this.moveTo(this.startHex);
-    this.faceUp();
   }
 
   override moveTo(hex: Hex): Hex {
     const fromHex = this.hex;
     const toHex = super.moveTo(hex);
     if (toHex.isOnMap) {
-      if (fromHex.isOnMap && fromHex !== toHex) this.faceDown;
+      if (fromHex.isOnMap && fromHex !== toHex) this.faceDown();
       else this.faceUp();
     }
     return hex;
@@ -149,7 +147,7 @@ export class Meeple extends Tile {
   // Meeple
   override dropFunc(targetHex: Hex2, ctx: DragContext): void {
     this.dropInf(targetHex);   // setInfMark
-    super.dropFunc(targetHex, ctx);
+    this.table.gamePlay.placeMeep(this, targetHex);
   }
 
   dropInf(targetHex: Hex2): void {
@@ -161,12 +159,6 @@ export class Meeple extends Tile {
 }
 
 export class Leader extends Meeple {
-  constructor(tile: Civic, abbrev: string) {
-    super(`${abbrev}:${tile.player.index}`, tile.player, 1, 1, 1, -6); // 6 Econ to place/maintain
-    this.civicTile = tile;
-    this.addBonus('star');
-    this.paint()
-  }
   /** new Civic Tile with a Leader 'on' it. */
   static makeLeaders(p: Player, nPolice = 10) {
     new Builder(new TownStart(p)) // Rook: Chariot, Rector, Count
@@ -174,7 +166,26 @@ export class Leader extends Meeple {
     new Dean(new University(p))   // Queen
     new Priest(new Church(p))     // Bishop
   }
+
   civicTile: Civic;     // the special tile for this Meeple/Leader
+
+  constructor(tile: Civic, abbrev: string) {
+    super(`${abbrev}:${tile.player.index}`, tile.player, 1, 1, TP.leaderCost, TP.leaderEcon);
+    this.civicTile = tile;
+    const mark = this.addBonus('star');
+    this.addChildAt(mark, 1); // move bonus-star just above MeepleShape
+    this.paint()
+    this.markCivicWithLetter();
+  }
+
+  markCivicWithLetter(civic = this.civicTile) {
+    const letterText = new Text(this.Aname.substring(0, 1), F.fontSpec(civic.radius / 2));
+    letterText.visible = true;
+    letterText.textAlign = 'center';
+    letterText.y -= civic.radius * .75;
+    civic.addChild(letterText);
+    civic.paint();
+  }
 
   override isLegalTarget(hex: Hex) { // Leader
     if (!super.isLegalTarget(hex)) return false;
@@ -268,7 +279,7 @@ export class Police extends Meeple {
 
   // Police
   constructor(player: Player, index: number) {
-    super(`P:${player.index}-${index}`, player, 1, 0, 2, -2); // Cost 2 to place, -2 Econ to maintain.
+    super(`P:${player.index}-${index}`, player, 1, 0, TP.policeCost, TP.policeEcon);
     Police.source[player.index].newUnit(this);
   }
 
@@ -319,7 +330,7 @@ export class Criminal extends Meeple {
   }
 
   constructor(serial = ++Criminal.index) {
-    super(`Barb-${serial}`, undefined, 1, 0, 3, -3) // 3 to place, -3 econ to maintain.
+    super(`Barb-${serial}`, undefined, 1, 0, TP.criminalCost, TP.criminalEcon)
     Criminal.source.newUnit(this);
   }
 
@@ -327,9 +338,9 @@ export class Criminal extends Meeple {
 
   override paint(pColor = this.player?.color || 'c') {
     let r = (this.childShape as MeepleShape).radius, colorn = TP.colorScheme[pColor];
-    this.childShape.paint(C.BLACK);
+    let g = this.childShape.paint(C.BLACK);
     if (colorn)
-      this.childShape.graphics.ss(3).s(colorn).dc(0, this.y0, r - 2)
+      g.ss(3).s(colorn).dc(0, this.y0, r - 2) // stroke a colored ring inside black ring
     this.updateCache()
   }
 

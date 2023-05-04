@@ -275,8 +275,8 @@ export class Tile extends Tile0 {
     Tile.allTiles.push(this);
     if (!Aname) this.Aname = `${className(this)}-${Tile.serial++}`;
     this.cache(-radius, -radius, 2 * radius, 2 * radius)
-    this.addChild(this.childShape)// index = 0
-    this.addNameText()            // index = 1
+    this.addChild(this.childShape)       // index = 0
+    this.nameText = this.addNameText()   // index = 1
     if (inf > 0) this.setInfMark(inf)
     this.paint()
   }
@@ -308,12 +308,13 @@ export class Tile extends Tile0 {
     this.cache(-rad, -rad, 2 * rad, 2 * rad)
   }
 
-  addNameText() {
-    let nameText = this.nameText = new Text(this.Aname, F.fontSpec(Tile.textSize))
+  addNameText(name = this.Aname) {
+    let nameText = new Text(name, F.fontSpec(Tile.textSize))
     nameText.textAlign = 'center'
     nameText.y = (this.radius - Tile.textSize) * .55;
     nameText.visible = false
     this.addChild(nameText);
+    return nameText;
   }
 
   textVis(vis = !this.nameText.visible) {
@@ -413,9 +414,7 @@ export class Tile extends Tile0 {
    * @param ctx DragContext
    */
   dropFunc(targetHex: Hex2, ctx: DragContext) {
-    let gamePlay = this.table.gamePlay;
-    gamePlay.placeTile(this, targetHex);
-    Player.updateCounters();      // drop an AuctionTile or Meeple
+    this.table.gamePlay.placeTile(this, targetHex);
   }
 }
 
@@ -425,7 +424,7 @@ export class Civic extends Tile {
     super(player, `${type}:${player.index}`, inf, vp, cost, econ);
     this.player = player;
     this.addImageBitmap(image);
-    this.addBonus('star').y += this.radius/12;
+    this.addBonus('star').y += this.radius / 12;
     player.civicTiles.push(this);
   }
 
@@ -442,7 +441,7 @@ export class Civic extends Tile {
   }
   override dropFunc(targetHex: Hex2, ctx: DragContext): void {
       super.dropFunc(targetHex, ctx);
-      (GamePlay.gamePlay as GamePlay).setAuctionPrices();
+      (GamePlay.gamePlay as GamePlay).showPlayerPrices();
   }
 }
 

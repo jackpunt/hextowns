@@ -6,7 +6,7 @@ import { Criminal, Leader, Meeple, Police } from "./meeple"
 import { IPlanner, newPlanner } from "./plan-proxy"
 import { PlayerColor, TP, otherColor, playerColors } from "./table-params"
 import { AuctionTile, Civic, Tile, TownRules, TownStart } from "./tile"
-import { ValueCounter } from "@thegraid/easeljs-lib"
+import { CenterText, NumCounter } from "./table"
 
 export class Player {
   static allPlayers: Player[] = [];
@@ -17,6 +17,7 @@ export class Player {
       player.econCounter.updateValue(player.econs)
       player.expenseCounter.updateValue(player.expenses)
       player.vpCounter.updateValue(player.vps)
+      player.balanceText.text = GamePlay.gamePlay.playerBalanceString(player);
     })
     GamePlay.gamePlay.hexMap.update()
   }
@@ -35,39 +36,26 @@ export class Player {
   get allLeaders() { return this.meeples.filter(m => m instanceof Leader && m.player == this) as Leader[] }
   get allPolice() { return this.meeples.filter(m => m instanceof Police && m.player == this) as Police[] }
 
-  bribCounter: ValueCounter;
-  _bribs = 0;
-  get bribs() { return this._bribs; }
-  set bribs(v: number) {
-    this._bribs = v
-    this.bribCounter?.updateValue(v)
-  }
+  readonly balanceText = new CenterText('[...]')
 
-  coinCounter: ValueCounter;
-  _coins = 0;
-  get coins() { return this._coins; }
-  set coins(v: number) {
-    this._coins = v
-    this.coinCounter?.updateValue(v)
-  }
+  // Created in masse by Table.layoutCounter
+  bribCounter: NumCounter;
+  get bribs() { return this.bribCounter?.getValue(); }
+  set bribs(v: number) { this.bribCounter?.updateValue(v); }
 
-  actionCounter: ValueCounter;
-  _actions = 0;
-  get actions() { return this._actions; }
-  set actions(v: number) {
-    this._actions = v
-    this.actionCounter?.updateValue(v)
-  }
+  coinCounter: NumCounter;
+  get coins() { return this.coinCounter?.getValue(); }
+  set coins(v: number) { this.coinCounter?.updateValue(v); }
 
-  captureCounter: ValueCounter;
-  _captures = 0;    // captured Criminals; Tiles captured by Criminals moved by Player
-  get captures() { return this._captures; }
-  set captures(v: number) {
-    this._captures = v;
-    this.captureCounter.updateValue(this.captures)
-  }
+  actionCounter: NumCounter;
+  get actions() { return this.actionCounter?.getValue(); }
+  set actions(v: number) { this.actionCounter?.updateValue(v); }
 
-  econCounter: ValueCounter;
+  captureCounter: NumCounter;
+  get captures() { return this.captureCounter?.getValue(); }
+  set captures(v: number) { this.captureCounter?.updateValue(v); }
+
+  econCounter: NumCounter;
   get econs() {
     let econ = 0;
     this.gamePlay.hexMap.forEachHex(hex => {
@@ -78,7 +66,7 @@ export class Player {
     })
     return econ;
   }
-  expenseCounter: ValueCounter;
+  expenseCounter: NumCounter;
   get expenses() {
     let expense = 0
     this.gamePlay.hexMap.forEachHex(hex => {
@@ -89,7 +77,7 @@ export class Player {
     })
     return expense
   }
-  vpCounter: ValueCounter;
+  vpCounter:NumCounter;
   get vps() {
     let vp = 0;
     this.gamePlay.hexMap.forEachHex(hex => {
@@ -155,9 +143,6 @@ export class Player {
     this.meeples.forEach(meep => meep.hex?.isOnMap ? meep.faceUp() : meep.startHex = undefined)
     this.coins += (this.econs + this.expenses)
     if (this.coins >= 0) this.actions += 1;
-  }
-  unMove() {
-    this.meeples.forEach(meep => meep.hex?.isOnMap && meep.startHex && meep.unMove())
   }
   stopMove() {
     this.planner?.roboMove(false)

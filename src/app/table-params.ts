@@ -15,7 +15,17 @@ export function buildURL(scheme = 'wss', host = TP.ghost, domain = TP.gdomain, p
   return `${scheme}://${host}.${domain}:${port}${path}`
 }
 export class TP {
+  // negative Econ is charged as cost when recruited.
+  static leaderEcon = -6;
+  static policeEcon = -2;
+  static criminalEcon = -3;
+  // Meeples: pay with econ; no inf cost, place in Civic/PStation, or crime zone.
+  static leaderCost = 0;
+  static policeCost = 0;
+  static criminalCost = 0;
+
   static preShiftCount = 2;  // plus 1 at start of turn
+  static maxCivics = 4;
   static auctionSlots = 4;   // QQQ: should we have a 'stable' market also?
   static reserveSlots = 1;
   static resiPerPlayer = 10

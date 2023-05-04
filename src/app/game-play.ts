@@ -7,7 +7,7 @@ import { Planner } from "./plan-proxy";
 import { Player } from "./player";
 import { GameStats, TableStats } from "./stats";
 import { LogWriter } from "./stream-writer";
-import { CostIncCounter, Table } from "./table";
+import { NumCounter, Table } from "./table";
 import { PlayerColor, TP, otherColor, playerColors } from "./table-params";
 import { AuctionBonus, AuctionTile, Bonus, Busi, Resi, Tile, TownRules, TownStart } from "./tile";
 import { NC } from "./choosers";
@@ -137,9 +137,11 @@ export class GamePlay0 {
     })
   }
 
-  failToBalance(tile: Tile, player: Player) {
-    // tile on map during Test/Dev, OR: when demolishing...
-    let [nBusi, nResi, fBusi, fResi] = tile.hex.isOnMap ? [0, 0, 0, 0] : tile.nBusiResi;
+  playerBalanceString(player: Player, ivec = [0, 0, 0, 0]) {
+    return this.playerBalance(player, ivec).toString(); // so we can use alternate format if desired
+  }
+  playerBalance(player: Player, ivec = [0, 0, 0, 0]) {
+    let [nBusi, nResi, fBusi, fResi] = ivec;
     this.hexMap.forEachHex(hex => {
       if (hex.tile && hex.tile.player == player) {
         let [busi, resi, fbusi, fresi] = hex.tile?.nBusiResi;
@@ -149,6 +151,13 @@ export class GamePlay0 {
         fResi += fresi;
       }
     });
+    return [nBusi, nResi, fBusi, fResi];
+  }
+
+  failToBalance(tile: Tile, player: Player) {
+    // tile on map during Test/Dev, OR: when demolishing...
+    const ivec = tile.hex.isOnMap ? [0, 0, 0, 0] : tile.nBusiResi
+    const [nBusi, nResi, fBusi, fResi] = this.playerBalance(player, ivec);
     const hiBusi = nBusi > (nResi + fResi);
     const loBusi = nResi > 2 * (nBusi + fBusi);
     const fail = hiBusi || loBusi;
@@ -158,43 +167,77 @@ export class GamePlay0 {
     return fail;
   }
 
+  // Costinc [0] = curPlayer.civics.filter(civ => civ.hex.isOnMap).length + 1
+  // each succeeding is 1 less; to min of 1, except last slot is min of 0;
+  // initially: 2 1 1 0;
+  // Array<nCivOnMap,slotN> => [1, 1, 1, 0], [2, 1, 1, 0], [3, 2, 1, 0], [4, 3, 2, 1], [5, 4, 3, 2]
+  // Array<nCivOnMap,slotN> => [0, 0, 0, -1], [1, 0, 0, -1], [2, 1, 0, -1], [3, 2, 1, 0], [4, 3, 2, 1]
+  costIncMatrix(maxCivics = TP.maxCivics, nSlots = TP.auctionSlots) {
+    // [0...maxCivs]
+    return new Array(maxCivics + 1).fill(1).map((civElt, nCivics) => {
+      // [0...nSlots-1]
+      return new Array(nSlots + 1).fill(1).map((costIncElt, iSlot) => {
+        let minVal = (iSlot == (nSlots - 1)) ? -1 : 0;
+        return Math.max(minVal, (nCivics) - iSlot) // assert nSlots <= maxCivics; final slot always = 0
+      })
+    })
+  }
+  readonly costInc = this.costIncMatrix()
+
   /** show player color and cost. */
-  readonly costIncHexCounters: [Hex2, CostIncCounter, number, boolean][] = [];
-  costIncFromHex(hex: Hex) {
-    const [onHex, counter] = this.costIncHexCounters.find(([h]) => h == hex) || [];
-    return counter?.getValue() as number || 0;
+  readonly costIncHexCounters: [hex: Hex2, ndx :number, infCounter?: NumCounter, repaint?: boolean][] = [];
+  costNdxFromHex(hex: Hex) {
+    const [, ndx] = this.costIncHexCounters.find(([h]) => h == hex); // Criminal/Police: ndx, no counter
+    return ndx;
+  }
+
+  /** must supply tile.hex OR ndx */
+  getInfR(tile: Tile | undefined, ndx = this.costNdxFromHex(tile.hex)) {
+    let incr = this.costInc[this.curPlayer.nCivics][ndx]
+    // assert: !tile.hex.isOnMap (esp: tile.hex == tile.homeHex)
+    let infR = (tile?.cost ?? 0) + incr; // Influence required.
+    if (tile instanceof AuctionTile) infR += tile.bonusCount;
+    let coinR = infR + ((tile?.econ ?? 0) < 0 ? -tile.econ : 0);  // Salary also required when recruited.
+    return [infR, coinR];
   }
 
   failToPayCost(tile: Tile, toHex: Hex) {
-    const fromHex = tile.hex;
     const toReserve = this.reserveHexes[this.curPlayerNdx].includes(toHex);
-    let infFail = false, coinsFail = false, fail = false, cost = 0;
-    if (this.curPlayer && !fromHex.isOnMap && (toHex.isOnMap || toReserve)) {
-      cost = tile.cost + this.costIncFromHex(fromHex);
-      if (tile instanceof AuctionTile) cost += tile.bonusCount;
-
-      if (!toReserve) {
-        infFail = (cost > toHex.getInfT(this.curPlayer.color) + this.curPlayer.bribs);
-        if (!infFail && cost > toHex.getInfT(this.curPlayer.color)) {
-          this.curPlayer.bribs -= cost - toHex.getInfT(this.curPlayer.color);
-          Player.updateCounters();
-        }
-        if (infFail) console.log(stime(this, `.failToPayCost: infFail`), cost, toHex.getInfT(this.curPlayer.color))
+    if (!(this.curPlayer && !tile.hex.isOnMap && (toHex.isOnMap || toReserve))) return false;
+    // curPlayer && NOT FROM Map && TO [Map or Reserve]
+    let bribR = 0, [infR, coinR] = this.getInfR(tile);
+    if (!toReserve) {
+      // bribes can be used to reduce the influence required to deploy:
+      const infT = toHex.getInfT(this.curPlayer.color)
+      bribR = infR - infT;        // add'l influence needed, expect <= 0
+      if (bribR > this.curPlayer.bribs) {
+        console.log(stime(this, `.failToPayCost: infFail ${infR} >`), infT, toHex.Aname);
+        return true;
       }
-      coinsFail = (cost > this.curPlayer.coins);
-      if (coinsFail) console.log(stime(this, `.failToPayCost: coinsFail`), cost, this.curPlayer.coins)
-      if (!coinsFail) this.curPlayer.coins -= cost;
-      fail = (infFail || coinsFail);
     }
-    return fail;
+    if (coinR > this.curPlayer.coins) {
+      console.log(stime(this, `.failToPayCost: coinsFail ${coinR} [${infR}] >`), this.curPlayer.coins, toHex.Aname)
+      return true;
+    }
+    // fail == false; commit to purchase:
+    if (bribR > 0) {
+      this.curPlayer.bribs -= bribR;
+    }
+    this.curPlayer.coins -= coinR;
+    return false;
   }
 
-  /** Place tile on Map (or other topRow Hex? or Recycle?) */
-  placeMeep(meep: Meeple, hex: Hex) {
-    this.placeEither(meep, hex);
+  /** Meeple.dropFunc() --> place Meeple (to Map, reserve; not Recycle) */
+  placeMeep(meep: Meeple, toHex: Hex) {
+    if (this.failToPayCost(meep, toHex)) {
+      meep.moveTo(meep.hex);
+      return;
+    }
+    this.placeEither(meep, toHex);
   }
 
-  /** Place tile [on Map? on Reserve? or topRow Hex? or Recycle?] */
+  // from tile.dropFunc()
+  /** Tile.dropFunc() --> place Tile (to Map, reserve, ~>auction; not Recycle) */
   placeTile(tile: Tile, toHex: Hex) {
     if (toHex.isOnMap && this.failToBalance(tile, this.curPlayer) || this.failToPayCost(tile, toHex)) {
       tile.moveTo(tile.hex);
@@ -220,6 +263,7 @@ export class GamePlay0 {
         this.incrInfluence(tile.hex, infColor);
       }
     }
+    Player.updateCounters();
   }
 
   /** from auctionTiles to reservedTiles */
@@ -244,17 +288,18 @@ export class GamePlay0 {
     return true;
   }
 
-  recruitAction(leader: Leader) {
-    if (leader.hex?.isOnMap) return false;
-    if (!leader.civicTile.hex?.isOnMap) return false;
-    leader.hex = leader.civicTile.hex
-    return true;
-  }
-
   private placeMeep0(meep: Meeple, hex: Hex) {
     if (!meep) return false;
     if (!meep.isLegalTarget(hex)) return false;
     this.placeMeep(meep, hex);  // As an ACTION!
+    return true;
+  }
+
+  // TODO: click on leader to recruit
+  recruitAction(leader: Leader) {
+    if (leader.hex?.isOnMap) return false;
+    if (!leader.civicTile.hex?.isOnMap) return false;
+    this.placeMeep0(leader, leader.civicTile.hex)
     return true;
   }
 
@@ -339,7 +384,12 @@ export class GamePlay extends GamePlay0 {
   }
 
   unMove() {
-    this.curPlayer.unMove();
+    this.curPlayer.meeples.forEach(meep => {
+      if (meep.hex?.isOnMap && meep.startHex) {
+        this.placeMeep(meep, meep.startHex); // updating influence
+        meep.faceUp()
+      }
+    })
   }
 
   addBonus(type?: AuctionBonus, tile = this.auctionTiles[0]) {
@@ -523,24 +573,29 @@ export class GamePlay extends GamePlay0 {
     this.table.buttonsForPlayer[this.curPlayerNdx].visible = false;
     super.setNextPlayer(plyr)
     this.table.buttonsForPlayer[this.curPlayerNdx].visible = true;
-    this.setAuctionPrices(plyr)
+    this.showPlayerPrices(plyr)
     this.table.showNextPlayer() // get to nextPlayer, waitPaused when Player tries to make a move.?
     this.hexMap.update()
     this.startTurn()
     this.makeMove()
   }
 
-  setAuctionPrices(plyr: Player = this.curPlayer) {
-    let pColor = plyr.color;
-    let nCivics = plyr.nCivics;
-    let auction = this.table.auctionCont
-    this.costIncHexCounters.forEach(([hex, counter, ndx, repaint]) => {
+  showPlayerPrices(plyr: Player = this.curPlayer) {
+    this.costIncHexCounters.forEach(([hex, ndx, incCounter, repaint]) => {
       if (repaint) {
-        hex.tile?.paint(pColor);
-        hex.meep?.paint(pColor);
+        hex.tile?.paint(plyr.color);
+        hex.meep?.paint(plyr.color);
       }
-      counter?.setValue(auction.costInc[nCivics][ndx]);
+      let [infR] = this.getInfR(hex.tile, ndx);
+      incCounter?.setValue(infR);
     })
+  }
+
+  // when  tile lands on AuctionHex, show new/currect price?
+  showNewPrice(hex: Hex2) {
+    let [, ndx, incCounter] = this.costIncHexCounters.find(([h]) => h == hex)
+    let [infR] = this.getInfR(hex.tile, ndx);
+    incCounter?.setValue(infR);
   }
 
   /** dropFunc | eval_sendMove -- indicating new Move attempt */

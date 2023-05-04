@@ -22,6 +22,13 @@ interface StageTable extends Stage {
   table: Table;
 }
 
+export class CenterText extends Text {
+  constructor(text?: string, size = TP.hexRad / 2, color?: string) {
+    super(text, F.fontSpec(size), color);
+    this.textAlign = 'center';
+    this.y -= size / 2;
+  }
+}
 export interface DragContext {
   originHex: Hex2;      // where Tile was picked
   targetHex: Hex2;      // last isLegalHex() or originHex
@@ -188,8 +195,12 @@ export class Table extends EventDispatcher  {
   leaderHexes: Hex2[][] = [[], []]; // per player
 
   addCostCounter(hex: Hex2, name?: string, ndx = 0, setPlayer = false) {
-    const counter = name ? new CostIncCounter(hex, `${name}`) : undefined;
-    this.gamePlay.costIncHexCounters.push([hex, counter, ndx, setPlayer]);
+    /** show cost in influence and coins */
+    let infCounter: NumCounter;
+    if (name) {
+      infCounter = new CostIncCounter(hex, `${name}Inf`);
+    }
+    this.gamePlay.costIncHexCounters.push([hex, ndx, infCounter, setPlayer]);
     return hex;
   }
 
@@ -241,7 +252,7 @@ export class Table extends EventDispatcher  {
 
     this.gamePlay.recycleHex = this.makeRecycleHex(hexMap, 5, -.5)
 
-    this.crimeHex = this.addCostCounter(topRowHex(2, `Barbs`, 6), undefined, 0, true);  // repaint for curPlayer
+    this.crimeHex = this.addCostCounter(topRowHex(2, `Barbs`, 6), undefined, TP.auctionSlots, true);  // repaint for curPlayer
     Criminal.makeSource(this.crimeHex, TP.criminalPrePlayer * this.gamePlay.allPlayers.length);
 
     [Busi, Resi].forEach((type, ndx) => {
@@ -264,10 +275,11 @@ export class Table extends EventDispatcher  {
 
     this.buttonsForPlayer.length = 0; // TODO: maybe deconstruct
     Player.allPlayers.forEach((p, pIndex) => {
-      this.makeButtonsForPlayer(p);
+      this.layoutButtonsAndCounters(p);
       p.makePlayerBits();
       let leaderHexes = p.allLeaders.map((meep, ndx) => topRowHex(pIndex, meep.Aname, ndx))
       let academyHex = topRowHex(pIndex, `Academy:${pIndex}`, leaderHexes.length)
+      this.addCostCounter(academyHex, undefined, TP.auctionSlots, false); // no Counter, no repaint
       this.reserveHexes[pIndex] = [];
       for (let i = 0; i < TP.reserveSlots; i++) {
         let rhex = secondRowHex(pIndex, `Reserve:${pIndex}-${i}`, 3 - i);
@@ -279,7 +291,7 @@ export class Table extends EventDispatcher  {
       this.leaderHexes[pIndex] = leaderHexes;
       p.allLeaders.forEach((meep, i) => {
         meep.homeHex = meep.civicTile.homeHex = meep.civicTile.moveTo(meep.moveTo(leaderHexes[i]))
-        this.addCostCounter(meep.homeHex as Hex2, `${meep.Aname}-c`, 1);
+        this.addCostCounter(meep.homeHex as Hex2, `${meep.Aname}-c`, TP.auctionSlots);
       })
       Police.makeSource(p, academyHex, TP.policePerPlayer);
     })
@@ -307,7 +319,7 @@ export class Table extends EventDispatcher  {
 
   readonly buttonsForPlayer: Container[] = [];
   /** per player buttons to invoke GamePlay */
-  makeButtonsForPlayer(player: Player) {
+  layoutButtonsAndCounters(player: Player) {
     let parent = this.scaleCont
     let chex = this.hexMap.getCornerHex([H.W, H.E][player.index]) as Hex2;
     let ehex = this.hexMap.getCornerHex(H.NE) as Hex2;
@@ -329,38 +341,39 @@ export class Table extends EventDispatcher  {
       b.mouseEnabled = true
       b.attachToContainer(cont, { x: 0, y: rowy(i) }) // just a label
       b.on(S.click, () => this.doButton(label), this)[S.Aname] = `b:${label}`;
-    })
-
-    bLabels.forEach(label => {
       let key = label.substring(0, 1).toLowerCase();
       KeyBinder.keyBinder.setKey(key, { thisArg: this, func: this.doButton, argVal: label })
     })
+    this.layoutCounters(player, cont, rowy);
+  }
 
-    let layoutCounter = (name: string, color: string, rowy: number, colx = 1 ) => {
-      let dir = 1 - player.index * 2
-      let cname = `${name}Counter`, cnames = `${name}s`
-      let counter = player[cname] = new ValueCounter(`${cname}:${player.index}`, player[cnames], color, TP.hexRad * .75)
-      let pt = cont.localToLocal(dir * (colx + 1) * TP.hexRad, rowy, this.scaleCont)
-      counter.attachToContainer(this.scaleCont, pt);
+  layoutCounters(player: Player, cont: Container, rowy: (row: number) => number) {
+    let dir = 1 - player.index * 2 as -1 | 1;
+    let counterCont = this.scaleCont;
+    let layoutCounter = (name: string, color: string, rowy: number, colx = 1, incr = true ) => {
+      let cname = `${name}Counter`, fSize = TP.hexRad * .75;
+      let counter = player[cname] = new NumCounter(`${cname}:${player.index}`, 0, color, fSize)
+      let pt = cont.localToLocal(dir * (colx + 1) * TP.hexRad, rowy, counterCont)
+      counter.attachToContainer(counterCont, pt);
       counter.mouseEnabled = true;
+      counter.setLabel(`${name}s`, { x: 0, y: fSize / 2 - 5 }, 12);
+      if (incr) counter.on(S.click, (evt: MouseEvent) => counter.incValue(evt.nativeEvent.ctrlKey ? -1 : 1));
       player[cname] = counter;
       return counter
     };
-    layoutCounter('action', C.YELLOW, rowy(0)).on(S.click, (evt: MouseEvent) => {
-      player.actions = player.actions + (evt.nativeEvent.ctrlKey ? 1 : -1);
-    })
-
-    layoutCounter('coin', C.coinGold, rowy(1)).on(S.click, (evt: MouseEvent) => {
-      player.coins = player.coins + (evt.nativeEvent.ctrlKey ? 1 : -1);
-    })
-    layoutCounter('econ', C.GREEN, rowy(1), 2)
-    layoutCounter('expense', C.GREEN, rowy(1), 3)
-
+    {
+      let bText = player.balanceText;
+      bText.textAlign = dir == -1 ? 'right' : 'left';
+      cont.localToLocal(2.75 * dir * TP.hexRad, bText.y + rowy(0), counterCont, bText)
+      counterCont.addChild(bText);
+    }
+    layoutCounter('action', C.YELLOW, rowy(0));
+    layoutCounter('coin', C.coinGold, rowy(1));
+    layoutCounter('econ', C.GREEN, rowy(1), 2, false);
+    layoutCounter('expense', C.GREEN, rowy(1), 3, false);
     layoutCounter('capture', 'lightblue', rowy(2));
-    layoutCounter('brib', 'grey', rowy(3)).on(S.click, (evt: MouseEvent) => {
-      player.bribs = player.bribs + (evt.nativeEvent.ctrlKey ? 1 : -1);
-    })
-    layoutCounter('vp', C.briteGold, rowy(5))
+    layoutCounter('brib', 'grey', rowy(3));
+    layoutCounter('vp', C.briteGold, rowy(5), 1, false)
   }
 
   /**
@@ -442,7 +455,7 @@ export class Table extends EventDispatcher  {
         tile: tile,
         originHex: tile.hex as Hex2,      // where Tile was picked
         targetHex: tile.hex as Hex2,      // last isLegalHex() or originHex
-        lastShift: undefined,
+        lastShift: info.event?.nativeEvent?.shiftKey,
         info: info,
       }
       this.dragStart(tile, hex, ctx);
@@ -455,7 +468,7 @@ export class Table extends EventDispatcher  {
     let info = ctx.info
     // track shiftKey because we don't pass 'event' to isLegalTarget(hex)
     const shiftKey = info.event?.nativeEvent?.shiftKey
-    if (info.first || shiftKey !== ctx.lastShift || ctx.targetHex !== hex) {
+    if (shiftKey !== ctx.lastShift || ctx.targetHex !== hex) {
       ctx.lastShift = shiftKey
       // do shift-down/shift-up actions...
       this.dragShift(ctx.tile, shiftKey, ctx);
@@ -463,7 +476,8 @@ export class Table extends EventDispatcher  {
   }
 
   dragStart(tile: Tile, hex: Hex2, ctx: DragContext) {
-    if (tile.player !== undefined && tile.player !== this.gamePlay.curPlayer) {
+    if (tile.player !== undefined && tile.player !== this.gamePlay.curPlayer && !ctx.lastShift) {
+      // press SHIFT to capture [recycle] opponents Criminals or Tiles
       console.log(stime(this, `.dragStart: Not your tile ${tile.Aname}`), 'ctx=',{...ctx});
       this.stopDragging();
     } else {
@@ -615,7 +629,17 @@ export class Table extends EventDispatcher  {
   }
 }
 
-export class CostIncCounter extends ValueCounterBox {
+/** ValueCounter specifically for number values (not string) */
+export class NumCounter extends ValueCounter {
+  override getValue(): number {
+    return super.getValue() as number
+  }
+  incValue(incr: number) {
+    this.updateValue(this.getValue() + incr);
+  }
+}
+
+export class CostIncCounter extends NumCounter {
 
   constructor(hex: Hex2, name = `costInc`, initValue?: number) {
     super(name, initValue, 'grey', TP.hexRad / 2)
@@ -642,11 +666,19 @@ export class CostIncCounter extends ValueCounterBox {
     return rv;
   }
 }
+class CostTotalCounter extends CostIncCounter {
+  protected override makeBox(color: string, high: number, wide: number): DisplayObject {
+    let box = new Shape();
+    let size = Math.max(high, wide)
+    box.graphics.c().f(C.coinGold).dc(0, 0, TP.hexRad);
+    box.scaleX = box.scaleY = .5 * size / TP.hexRad;
+    return box
+  }
+}
 
 class AuctionCont {
   readonly maxndx: number;
   readonly hexes: Hex2[] = []
-  readonly costInc = this.costIncMatrix()
 
   constructor(
     readonly tiles: AuctionTile[],
@@ -671,21 +703,7 @@ class AuctionCont {
     gamePlay.dice.setContainer(hexMap.mapCont.counterCont, x0 -1.5 * rad, y0 + .4 * rad);
   }
 
-  // Costinc [0] = curPlayer.civics.filter(civ => civ.hex.isOnMap).length + 1
-  // each succeeding is 1 less; to min of 1, except last slot is min of 0;
-  // initially: 2 1 1 0;
-  // Array<nCivOnMap,slotN> => [1, 1, 1, 0], [2, 1, 1, 0], [3, 2, 1, 0], [4, 3, 2, 1], [5, 4, 3, 2]
-  // Array<nCivOnMap,slotN> => [0, 0, 0, -1], [1, 0, 0, -1], [2, 1, 0, -1], [3, 2, 1, 0], [4, 3, 2, 1]
-  costIncMatrix(maxCivs = 4, nSlots = TP.auctionSlots) {
-    // [0...maxCivs]
-    return new Array(maxCivs + 1).fill(1).map((civElt, nCivs) => {
-      // [0...nSlots-1]
-      return new Array(nSlots).fill(1).map((costIncElt, iSlot) => {
-        let minVal = (iSlot < (nSlots - 1)) ? 0 : -1;
-        return Math.max(minVal, (nCivs) - iSlot)
-      })
-    })
-  }
+
   tileCounter: ValueCounter;  // number of Tiles in tileBag
 
   shift(tile = AuctionTile.selectOne()) {
