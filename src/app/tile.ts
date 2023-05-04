@@ -1,9 +1,8 @@
-import { C, F, className, stime } from "@thegraid/common-lib";
+import { C, F, className, stime, ImageLoader } from "@thegraid/common-lib";
 import { Bitmap, Container, DisplayObject, Graphics, MouseEvent, Shape, Text } from "@thegraid/easeljs-module";
 import { GamePlay } from "./game-play";
 import { Hex, Hex2, HexMap, HexShape } from "./hex";
 import { H } from "./hex-intfs";
-import { ImageLoader } from "./image-loader";
 import { Player } from "./player";
 import { PlayerColor, TP } from "./table-params";
 import { DragContext, Table } from "./table";
