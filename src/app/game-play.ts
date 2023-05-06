@@ -120,20 +120,20 @@ export class GamePlay0 {
   }
 
   /** after add Tile to hex: propagate its influence in each direction; maybe capture. */
-  incrInfluence(hex: Hex, color: PlayerColor) {
+  incrInfluence(hex: Hex, infColor: PlayerColor) {
     //let infP = hex.getInfP(color);
     H.infDirs.forEach(dn => {
-      let inf = hex.getInf(color, dn);
-      hex.propagateIncr(color, dn, inf); // use test to identify captured Criminals?
+      let inf = hex.getInf(infColor, dn);
+      hex.propagateIncr(infColor, dn, inf); // use test to identify captured Criminals?
     })
   }
 
   /** after remove Tile [w/tileInf] from hex: propagate influence in each direction. */
-  decrInfluence(hex: Hex, tileInf: number, color: PlayerColor) {
+  decrInfluence(hex: Hex, tileInf: number, infColor: PlayerColor) {
     H.infDirs.forEach(dn => {
-      let inf = hex.getInf(color, dn)
+      let inf = hex.getInf(infColor, dn)
       //let inc = hex.links[H.dirRev[dn]]?.getInf(color, dn) || 0
-      hex.propagateDecr(color, dn, inf, tileInf)       // because no-stone, hex gets (inf - 1)
+      hex.propagateDecr(infColor, dn, inf, tileInf)       // because no-stone, hex gets (inf - 1)
     })
   }
 
@@ -231,7 +231,7 @@ export class GamePlay0 {
   /** Meeple.dropFunc() --> place Meeple (to Map, reserve; not Recycle) */
   placeMeep(meep: Meeple, toHex: Hex, autoCrime = (meep.player == undefined)) {
     // if (meep instanceof Criminal) debugger;
-    if (!autoCrime && this.failToPayCost(meep, toHex)) { // TODO: autoCrime/criminalPlayer has no coins; incrInfl -> c:0
+    if (!autoCrime && this.failToPayCost(meep, toHex)) {
       meep.moveTo(meep.hex);
       return;
     }
@@ -372,6 +372,13 @@ export class GamePlay extends GamePlay0 {
   startTurn() {
   }
 
+  allAttacks(aColor: PlayerColor) {
+    return this.hexMap.filterEachHex(hex => {
+      let oColor = hex.tile.infColor || hex.meep.infColor;
+      return (hex.getInfT(aColor) > hex.getInfT(oColor))
+    })
+  }
+
   autoCrime(dice = this.dice) {
     // no autoCrime until all Players have 3 VPs.
     if (this.allPlayers.find(plyr => plyr.econs < 3)) return; // poverty
@@ -381,6 +388,8 @@ export class GamePlay extends GamePlay0 {
     this.placeMeep(meep, targetHex); // meep.player == undefined --> no failToPayCost()
     meep.player = this.crimePlayer;
     // TODO: resolve attack.
+    // Not like this... hexMap has 1 mark which moves around...
+    this.allAttacks(meep.infColor).forEach(hex => this.hexMap.showMark(hex))
   }
 
   autoCrimeTarget(meep: Criminal) {

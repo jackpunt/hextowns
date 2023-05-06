@@ -5,9 +5,10 @@ import { GamePlay } from "./game-play";
 import { StatsPanel, TableStats } from "./stats";
 import { Table } from "./table";
 import { TP } from "./table-params";
-import { Tile, Tile0 } from "./tile";
+import { Civic, Tile, Tile0 } from "./tile";
 import { Meeple } from "./meeple";
 import { Player } from "./player";
+import { InfMark } from "./hex";
 
 /** show " R" for " N" */
 stime.anno = (obj: string | { constructor: { name: string; }; }) => {
@@ -142,6 +143,9 @@ export class GameSetup {
     }
     gui.spec("colorScheme").onChange = (item: ParamItem) => {
       gui.setValue(item)
+      Tile.allTiles.forEach(tile => tile.paint(tile.infColor || this.gamePlay?.curPlayer?.color))
+      Meeple.allMeeples.forEach(meep => meep.setInfRays());
+      InfMark.setInfGraphics();
       this.gamePlay.hexMap.update()
     }
     parent.addChild(gui)
@@ -161,6 +165,7 @@ export class GameSetup {
     gui.makeParamSpec("log", [-1, 0, 1, 2], { style: { textAlign: 'right' } }); TP.log
     gui.makeParamSpec("maxPlys", [1, 2, 3, 4, 5, 6, 7, 8], { fontColor: "blue" }); TP.maxPlys
     gui.makeParamSpec("maxBreadth", [5, 6, 7, 8, 9, 10], { fontColor: "blue" }); TP.maxBreadth
+    gui.makeParamSpec('infOnCivic', [0, 1]); TP.infOnCivic;
     // gui.makeParamSpec("nPerDist", [2, 3, 4, 5, 6, 8, 11, 15, 19], { fontColor: "blue" }); TP.nPerDist
     // gui.makeParamSpec("pWeight", [1, .99, .97, .95, .9]) ; TP.pWeight
     // gui.makeParamSpec("pWorker", [true, false], { chooser: BC }); TP.pWorker

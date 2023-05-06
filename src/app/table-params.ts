@@ -2,6 +2,7 @@ export const playerColors = ['b', 'w'] as const // Player Colors!
 export const playerColorsC = ['b', 'w', 'c'] as const // Player Colors + Criminal!
 export const playerColor0 = playerColors[0]
 export const playerColor1 = playerColors[1]
+export const playerColor2 = playerColorsC[2]
 //type playerColorTuple = typeof playerColors
 export type PlayerColor = typeof playerColorsC[number];
 export function otherColor(color: PlayerColor): PlayerColor { return color === playerColor0 ? playerColor1 : playerColor0 }
@@ -9,7 +10,7 @@ export function otherColor(color: PlayerColor): PlayerColor { return color === p
 /** PlayerColerRecord<T> maps from PlayerColor -> T */
 export type PlayerColorRecord<T> = Record<PlayerColor, T>
 export function playerColorRecord<T>(b: T = undefined, w: T = undefined, c: T = undefined): PlayerColorRecord<T> { return { 'b': b, 'w': w, 'c': c} };
-export function playerColorRecordF<T>(f: (sc: PlayerColor) => T) { return playerColorRecord(f(playerColor0), f(playerColor1)) }
+export function playerColorRecordF<T>(f: (sc: PlayerColor) => T) { return playerColorRecord(f(playerColor0), f(playerColor1), f(playerColor2)) }
 
 export function buildURL(scheme = 'wss', host = TP.ghost, domain = TP.gdomain, port = TP.gport, path = ''): string {
   return `${scheme}://${host}.${domain}:${port}${path}`
@@ -53,9 +54,10 @@ export class TP {
   static maxPlys = 5      // for robo-player lookahead
   static maxBreadth = 7   // for robo-player lookahead
   static nPerDist = 4     // samples per district
-  static Black_White = playerColorRecord<'BLACK' | 'WHITE'>('BLACK', 'WHITE')
-  static Blue_Red = playerColorRecord<'BLUE' | 'RED' | 'GREY'>('BLUE', 'RED', 'GREY')
-  static Red_Blue = playerColorRecord<'RED' | 'BLUE' | 'GREY'>('RED', 'BLUE', 'GREY')
+  // Note that DARKGREY is actually lighter than GREY
+  static Black_White = playerColorRecord<'BLACK' | 'WHITE' | 'DARKGREY'>('BLACK', 'WHITE', 'DARKGREY')
+  static Blue_Red = playerColorRecord<'BLUE' | 'RED' | 'DARKGREY'>('BLUE', 'RED', 'DARKGREY')
+  static Red_Blue = playerColorRecord<'RED' | 'BLUE' | 'DARKGREY'>('RED', 'BLUE', 'DARKGREY')
   static schemeNames = ['Red_Blue', 'Blue_Red'];
   static colorScheme = TP.Blue_Red;
   static numPlayers = 2;

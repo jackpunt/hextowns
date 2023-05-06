@@ -35,8 +35,8 @@ class TileShape extends HexShape implements PaintableShape {
     let r = this.radius, g = this.graphics, tilt = H.dirRot[this.tiltDir];
     let r2 = this.radius * H.sqrt3 * .5 * (55 / 60);
     // dp(...6), so tilt: 30 | 0; being nsAxis or ewAxis;
-    let w = r * Math.cos(Math.PI * tilt / 180)
-    let h = r * Math.cos(Math.PI * (tilt - 30) / 180)
+    let w = r * Math.cos(Hex2.degToRadians * tilt)
+    let h = r * Math.cos(Hex2.degToRadians * (tilt - 30))
     this.cache(-w, -h, 2 * w, 2 * h);    // solid hexagon
     g.c().f(C.BLACK).dc(0, 0, r2)
     this.updateCache("destination-out"); // hole in hexagon
@@ -46,15 +46,24 @@ class TileShape extends HexShape implements PaintableShape {
   }
 }
 
-export class InfMark extends Container {
-  constructor(inf = 1, y0 = .7, xw = 3) {
+/** lines showing influence of a Tile. */
+export class InfRays extends Container {
+  /**
+   * draw 6 rays (around a HexShape)
+   * @param inf number of rays to draw
+   * @param infColor color of ray
+   * @param y0 start of ray (ends at .9) X TP.hexRad
+   * @param xw width of each ray
+   */
+  constructor(inf = 1, infColor?: PlayerColor, y0 = .7, xw = 3) {
     super()
-    let color = (inf > 0) ? C.WHITE : C.BLACK, rad = TP.hexRad;
-    let xs = [[0], [-.1, +.1], [-.1, 0, +.1]][Math.abs(inf) - 1];
+    let color = infColor ? TP.colorScheme[infColor] : C.WHITE;
+    let rad = TP.hexRad, y1 = y0 * rad, y2 = .9 * rad;
+    let xs = [[0], [-.1 * rad, +.1 * rad], [-.1 * rad, 0, +.1 * rad]][Math.abs(inf) - 1];
     H.ewDirs.forEach(dir => {
       let sl = new Shape(), gl = sl.graphics
       gl.ss(xw).s(color)
-      xs.forEach(x => gl.mt(rad * x, rad * y0).lt(rad * x, rad * .9))
+      xs.forEach(x => gl.mt(x, y1).lt(x, y2))
       sl.rotation = H.dirRot[dir]
       this.addChild(sl)
     })
@@ -69,7 +78,7 @@ export class InfShape extends Container {
     let s = new Shape(), c = this;
     s.graphics.f(bgColor).dp(0, 0, TP.hexRad, 6, 0, 30)
     c.addChild(s)
-    c.addChild(new InfMark(1, .3, 10))
+    c.addChild(new InfRays(1, undefined, .3, 10)) // short & wide; it gets scaled down
     c.scaleX = c.scaleY = 1 / 4;
   }
 }
@@ -243,7 +252,7 @@ export class Tile extends Tile0 {
   static allTiles: Tile[] = [];
   static serial = 0;    // serial number of each Tile created
 
-  static textSize = 14;
+  static textSize = 20;
   nameText: Text;
   get nB() { return 0; }
   get nR() { return 0; }
@@ -286,7 +295,8 @@ export class Tile extends Tile0 {
     this.cache(-radius, -radius, 2 * radius, 2 * radius)
     this.addChild(this.childShape)       // index = 0
     this.nameText = this.addNameText()   // index = 1
-    if (inf > 0) this.setInfMark(inf)
+    this.infText = this.addNameText('', TP.hexRad)
+    if (inf > 0) this.setInfRays(inf)
     this.paint()
   }
 
@@ -302,19 +312,27 @@ export class Tile extends Tile0 {
     return bm;
   }
 
-  /** add influence rays to Tile. */
-  setInfMark(inf = 1, rad = this.radius) {
-    this.removeChildType(InfMark)
+  /** add influence rays to Tile (for infP).
+   * @inf this.hex.getInfP(this.infColor)
+   */
+  setInfRays(inf = this.inf, rad = this.radius) {
+    this.removeChildType(InfRays)
     if (inf !== 0) {
-      this.addChildAt(new InfMark(inf), this.children.length - 1)
+      this.addChildAt(new InfRays(inf, this.infColor), this.children.length - 1)
     }
     this.cache(-rad, -rad, 2 * rad, 2 * rad)
   }
 
-  addNameText(name = this.Aname) {
+  infText: Text
+  setInfText(text: string) {
+    this.infText.text = text;
+    this.updateCache()
+  }
+
+  addNameText(name = this.Aname, y0 = TP.hexRad / 2) {
     let nameText = new Text(name, F.fontSpec(Tile.textSize))
     nameText.textAlign = 'center'
-    nameText.y = (this.radius - Tile.textSize) * .55;
+    nameText.y = (y0 - Tile.textSize) * .55;
     nameText.visible = false
     this.addChild(nameText);
     return nameText;
@@ -322,6 +340,7 @@ export class Tile extends Tile0 {
 
   textVis(vis = !this.nameText.visible) {
     this.nameText.visible = vis
+    this.infText.visible = vis
     this.updateCache()
   }
 
@@ -376,19 +395,16 @@ export class Tile extends Tile0 {
     }
   }
 
-  moveHome() {
-
-  }
-
   // highlight legal targets, record targetHex when meeple is over a legal target hex.
   dragFunc0(hex: Hex2, ctx: DragContext) {
     let isCapture = (hex == GamePlay.gamePlay.recycleHex); // dev/test: use manual capture.
     ctx.targetHex = (isCapture || this.isLegalTarget(hex)) ? hex : ctx.originHex;
-    //hex.showMark(true);
+    ctx.targetHex.hexMap.showMark(ctx.targetHex);
   }
 
   dropFunc0(hex: Hex2, ctx: DragContext) {
     this.dropFunc(ctx.targetHex, ctx)
+    ctx.targetHex.hexMap.showMark(undefined)
   }
 
   /** override as necessary. */
@@ -413,7 +429,7 @@ export class Tile extends Tile0 {
 
   /**
    * Tile.dropFunc; Override in AuctionTile, Civic, Meeple/Leader.
-   * @param hex Hex2 this Tile is over when dropped (may be undefined; see also: TargetHex)
+   * @param targetHex Hex2 this Tile is over when dropped (may be undefined; see also: ctx.targetHex)
    * @param ctx DragContext
    */
   dropFunc(targetHex: Hex2, ctx: DragContext) {
@@ -435,6 +451,12 @@ export class Civic extends Tile {
     let meep = this.hex.meep;
     let leaderInf = (meep instanceof Leader) && meep.civicTile === this ? TP.infOnCivic : 0;
     return super.infP + leaderInf;
+  }
+
+  // also paint the InfRays
+  override paint(pColor?: PlayerColor, colorn?: string): void {
+    super.paint(pColor);
+    this.setInfRays()
   }
 
   override isLegalTarget(hex: Hex) {
@@ -673,8 +695,6 @@ export class PS extends AuctionTile {
 }
 
 class AdjBonusTile extends AuctionTile {
-  static isBusi(tile: Tile) { return (tile.nB + tile.fB) > 0; }
-  static isResi(tile: Tile) { return (tile.nR + tile.fR) > 0; }
 
   /** dodgy? merging Bonus.type with asset/image name */
   constructor(
@@ -713,14 +733,15 @@ class AdjBonusTile extends AuctionTile {
 export class Bank extends AdjBonusTile {
   override get nB() { return 1; }
   constructor(player?: Player, Aname?: string, inf = 0, vp = 0, cost = 1, econ = 0) {
-    super('Bank', AdjBonusTile.isBusi, true, player, Aname, inf, vp, cost, econ);
+    super('Bank', t => (t.nB + t.fB) > 0, true, player, Aname, inf, vp, cost, econ);
+    // TODO: Banks don't credit adjacent Banks.
   }
   override get econ() { return super.econ + this.bonusTiles }
 }
 
 export class Lake extends AdjBonusTile {
   constructor(player?: Player, Aname?: string, inf = 0, vp = 0, cost = 1, econ = 0) {
-    super('Lake', AdjBonusTile.isResi, false, player, Aname, inf, vp, cost, econ);
+    super('Lake', t => (t.nR + t.fR) > 0, false, player, Aname, inf, vp, cost, econ);
   }
   override get vp() { return super.vp + this.bonusTiles; }
 }

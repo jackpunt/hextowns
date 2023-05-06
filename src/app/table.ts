@@ -1,7 +1,7 @@
 import { AT, C, Dragger, DragInfo, F, KeyBinder, S, ScaleableContainer, stime, ValueCounter, XY } from "@thegraid/easeljs-lib";
 import { Bitmap, Container, DisplayObject, EventDispatcher, Graphics, MouseEvent, Shape, Stage, Text } from "@thegraid/easeljs-module";
 import { GamePlay } from "./game-play";
-import { Hex, Hex2, HexM, HexMap, IHex } from "./hex";
+import { Hex, Hex2, HexM, HexMap, IHex, InfMark } from "./hex";
 import { HexEvent } from "./hex-event";
 import { H, XYWH } from "./hex-intfs";
 //import { TablePlanner } from "./planner";
@@ -209,6 +209,7 @@ export class Table extends EventDispatcher  {
     let hexMap = this.hexMap = gamePlay.hexMap
 
     hexMap.addToMapCont();               // addToMapCont; make Hex2
+    InfMark.setInfGraphics();
     hexMap.makeAllDistricts();           // typically: (4,2)
 
     let mapCont = hexMap.mapCont, hexCont = mapCont.hexCont; // local reference
@@ -498,6 +499,7 @@ export class Table extends EventDispatcher  {
 
   isDragging() { return this.dragContext.tile !== undefined }
 
+  /** Force this.dragger to drop the current drag object on given target Hex */
   stopDragging(target: Hex2 = this.dragContext.originHex) {
     //console.log(stime(this, `.stopDragging: dragObj=`), this.dragger.dragCont.getChildAt(0), {noMove, isDragging: this.isDragging()})
     if (!this.isDragging()) return

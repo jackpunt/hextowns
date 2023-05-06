@@ -22,7 +22,8 @@ type Topo = TopoEW | TopoNS
 export type HSC = { hex: Hex, sc: PlayerColor, Aname: string }
 export function newHSC(hex: Hex, sc: PlayerColor, Aname = hex.Aname) { return { Aname, hex, sc } }
 
-class InfMark extends Shape {
+/** Lines showing influence on the HexMap. */
+export class InfMark extends Shape {
   /** Note: requires a Canvas for nameToRgbaString() */
   static gColor(sc: PlayerColor, g: Graphics = new Graphics()) {
     let alpha = '.85'
@@ -172,7 +173,7 @@ export class Hex {
    * @returns true if Hex is PlayerColor or has InfMark(color, dn)
    */
   isInf(color: PlayerColor, dn: InfDir) { return this.inf[color][dn] > 0}
-  getInf(color: PlayerColor, dn: InfDir) { return this.inf[color] ? (this.inf[color][dn] || 0) : 0 }
+  getInf(color: PlayerColor, dn: InfDir) { return this.inf[color] ? (this.inf[color][dn] ?? 0) : 0 }
   setInf(color: PlayerColor, dn: InfDir, inf: number) { return this.inf[color][dn] = inf }
 
   get tileInf() { return this.tile?.infP ?? 0; }
@@ -232,9 +233,6 @@ export class Hex {
     if (inf0 > 0) this.links[dn]?.propagateDecr(color, dn, nxt, 0, test) // pass-on a smaller number
     if (test) test(this);
   }
-
-  /** create empty INF for each color */
-  clearInf() { playerColors.forEach(c => this.inf[c] = {}) }
 
   /** true if hex influence by 1 or more Axies of color */
   isThreat(color: PlayerColor) {
@@ -385,38 +383,29 @@ export class Hex2 extends Hex {
   }
 
   /** set visibility of rcText & distText */
-  showText(vis = !this.rcText.visible) {
-    if(this.isOnMap) this.distText.text = this.infStr;
+  showText(vis = this.rcText.visible) {
+    if (this.isOnMap) {
+      this.distText.text = this.infStr;
+      this.tile?.setInfText(this.infStr);
+    }
     this.rcText.visible = this.distText.visible = vis
     this.cont.updateCache()
   }
 
   override setInf(color: PlayerColor, dn: InfDir, inf: number): number {
     super.setInf(color, dn, inf)
-    this.showInf(color, dn, (inf > 0 || this.isInf(color, H.dirRevEW[dn])))
+    this.showInf(color, dn, inf > 0)
     return inf
   }
-  static infVis = true   // set by ParamGui('showInf')
+
   showInf(color: PlayerColor, dn: InfDir, show = true) {
     let ds: HexAxis = H.dnToAxis[dn], infMark = this.infm[color][ds]  // infm only on [ds]
-    if (show) {
-      if (!infMark) {
-        infMark = this.infm[color][ds] = new InfMark(color, ds, this.x, this.y)
-        this.map.mapCont.infCont.addChild(infMark)
-      }
-      infMark.visible = Hex2.infVis
-    } else {
-      //infMark?.parent?.removeChild(infMark)
-      if (infMark) { infMark.visible = false; }
+    if (this.isOnMap) this.showText(); // update infStr
+    if (show && !infMark) {
+      infMark = this.infm[color][ds] = new InfMark(color, ds, this.x, this.y)
+      this.map.mapCont.infCont.addChild(infMark)
     }
-  }
-  override clearInf(): void {
-    playerColors.forEach(color => {
-      for (let mark of Object.values(this.infm[color]))
-        //mark?.parent?.removeChild(mark)
-        mark && (mark.visible = false)
-    })
-    super.clearInf()
+    if (infMark) { infMark.visible = show; }
   }
 
   /** set hexShape using color: draw border and fill
@@ -448,13 +437,13 @@ export class Hex2 extends Hex {
     let d0 = H.dirRot[dir0], d1 = H.dirRot[dir1]
     let a2 = (d0 + d1) / 2, h = this.radius
     if (Math.abs(d0 - d1) > 180) a2 += 180
-    let a = a2 * this.degToRadians
+    let a = a2 * Hex2.degToRadians
     return new Point(this.x + Math.sin(a) * h, this.y - Math.cos(a) * h)
   }
-  readonly degToRadians = Math.PI/180;
+  static readonly degToRadians = Math.PI / 180;
   /** location of edge point in dir; in parent coordinates. */
   edgePoint(dir: HexDir) {
-    let a = H.dirRot[dir] * this.degToRadians, h = this.radius * H.sqrt3 / 2
+    let a = H.dirRot[dir] * Hex2.degToRadians, h = this.radius * H.sqrt3 / 2
     return new Point(this.x + Math.sin(a) * h, this.y - Math.cos(a) * h)
   }
 }
@@ -685,7 +674,7 @@ export class HexMap extends Array<Array<Hex>> implements HexM {
       mark.x = hex.x
       mark.y = hex.y
       mark.visible = true
-      this.mapCont.markCont.addChild(mark) // show mark *below* Stone & infMark
+      this.mapCont.markCont.addChild(mark)
     }
   }
   /** neighborhood topology, E-W & N-S orientation; even(n0) & odd(n1) rows: */

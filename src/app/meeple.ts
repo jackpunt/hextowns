@@ -3,7 +3,7 @@ import { DragInfo, ValueCounter } from "@thegraid/easeljs-lib";
 import { Hex, Hex2, HexMap, HexShape } from "./hex";
 import { EwDir, H, XYWH } from "./hex-intfs";
 import { Player } from "./player";
-import { C1, Church, Civic, InfMark, PS, PaintableShape, Tile, TownHall, TownStart, University } from "./tile";
+import { C1, Church, Civic, InfRays, PS, PaintableShape, Tile, TownHall, TownStart, University } from "./tile";
 import { newPlanner } from "./plan-proxy";
 import { TP } from "./table-params";
 import { Rectangle, Shape, Text } from "@thegraid/easeljs-module";
@@ -106,19 +106,19 @@ export class Meeple extends Tile {
     const fromHex = this.hex;
     const toHex = super.moveTo(hex);
     if (toHex.isOnMap) {
-      if (fromHex.isOnMap && fromHex !== toHex) this.faceDown();
-      else this.faceUp();
+      if (fromHex.isOnMap && toHex !== this.startHex) { this.faceDown(); }
+      else { this.faceUp(); }
     }
     return hex;
   }
    // Meeple
-  /** decorate with influence rays (white or black)
-   * @param inf +1 | -1
+  /** decorate with influence rays (playerColorn)
+   * @param inf 0 ... n (see also: this.infColor)
    */
-  override setInfMark(inf: number): void {
-    this.removeChildType(InfMark)
+  override setInfRays(inf = this.inf): void {
+    this.removeChildType(InfRays)
     if (inf !== 0) {
-      this.addChildAt(new InfMark(inf), this.children.length - 1)
+      this.addChildAt(new InfRays(inf, this.infColor), this.children.length - 1)
     }
     let radxy = -TP.hexRad, radwh = 2 * TP.hexRad
     this.cache(radxy, radxy, radwh, radwh)
@@ -140,21 +140,16 @@ export class Meeple extends Tile {
   }
 
   override dragStart(hex: Hex2): void {
-    this.hex.tile?.setInfMark(this.hex.tile.inf); // removing meeple influence
-    this.setInfMark(this.inf);  // show influence rays on this meeple
+    this.hex.tile?.setInfRays(this.hex.tile.inf); // removing meeple influence
+    this.setInfRays(this.inf);  // show influence rays on this meeple
   }
 
   // Meeple
   override dropFunc(targetHex: Hex2, ctx: DragContext): void {
-    this.dropInf(targetHex);   // setInfMark
     this.table.gamePlay.placeMeep(this, targetHex); // Drop
-  }
-
-  dropInf(targetHex: Hex2): void {
-    let targetTile = targetHex.tile
-    let totalInf = this.inf + (targetTile?.inf ?? 0);
-    targetTile?.setInfMark(totalInf);
-    this.setInfMark(totalInf);
+    const infP = this.hex.getInfP(this.infColor);
+    targetHex.tile?.setInfRays(infP);
+    this.setInfRays(infP);
   }
 }
 
