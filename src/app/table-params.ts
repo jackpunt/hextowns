@@ -3,6 +3,7 @@ export const playerColorsC = ['b', 'w', 'c'] as const // Player Colors + Crimina
 export const playerColor0 = playerColors[0]
 export const playerColor1 = playerColors[1]
 export const playerColor2 = playerColorsC[2]
+export const criminalColor = playerColorsC[2]
 //type playerColorTuple = typeof playerColors
 export type PlayerColor = typeof playerColorsC[number];
 export function otherColor(color: PlayerColor): PlayerColor { return color === playerColor0 ? playerColor1 : playerColor0 }
@@ -25,7 +26,8 @@ export class TP {
   static policeCost = 0;
   static criminalCost = 0;
 
-  static infOnCivic = 1;
+  static bankAdjBank = false;
+  static infOnCivic = 0;
   static preShiftCount = 2;  // plus 1 at start of turn
   static maxCivics = 4;
   static auctionSlots = 4;   // QQQ: should we have a 'stable' market also?

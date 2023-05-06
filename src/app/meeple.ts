@@ -134,8 +134,8 @@ export class Meeple extends Tile {
   override isLegalTarget(hex: Hex) {  // Meeple
     if (!hex) return false;
     if (hex.meep) return false;    // no move onto meeple
-    // no move onto other player's Tile:
-    if (hex.tile?.player && hex.tile.player !== this.player) return false;
+    // no move onto other player's Tile: WHY NOT? ... allow Police to invade opponent's territory.
+    // if (hex.tile?.player && hex.tile.player !== this.player) return false;
     return hex.isOnMap;
   }
 
@@ -146,8 +146,8 @@ export class Meeple extends Tile {
 
   // Meeple
   override dropFunc(targetHex: Hex2, ctx: DragContext): void {
-    this.table.gamePlay.placeMeep(this, targetHex); // Drop
-    const infP = this.hex.getInfP(this.infColor);
+    GamePlay.gamePlay.placeMeep(this, targetHex); // Drop
+    const infP = this.hex?.getInfP(this.infColor) ?? 0;
     targetHex.tile?.setInfRays(infP);
     this.setInfRays(infP);
   }
@@ -157,9 +157,9 @@ export class Leader extends Meeple {
   /** new Civic Tile with a Leader 'on' it. */
   static makeLeaders(p: Player, nPolice = 10) {
     new Builder(new TownStart(p)) // Rook: Chariot, Rector, Count
-    new Mayor(new TownHall(p))    // King
     new Dean(new University(p))   // Queen
     new Priest(new Church(p))     // Bishop
+    new Mayor(new TownHall(p))    // King
   }
 
   civicTile: Civic;     // the special tile for this Meeple/Leader
@@ -341,33 +341,24 @@ export class Criminal extends Meeple {
 
   override moveTo(hex: Hex) {
     let source = Criminal.source
-    let fromSrc = (this.hex == source.hex), toSrc = (hex == source.hex);
-    super.moveTo(hex);
-    if (toSrc && fromSrc) {
-      // nothing
-    } else if (toSrc) {
+    let fromHex = this.hex;
+    let toHex = super.moveTo(hex);
+    let fromSrc = (fromHex == source.hex), toSrc = (toHex == source.hex);
+    if (toSrc) {   // birth or recycle
       this.player = undefined;
       this.paint()
       this.updateCache()
-    } else if (fromSrc) {
+    } else if (fromSrc) { // Assert: isOnMap from isLegalTarget
       this.player = GamePlay.gamePlay.curPlayer; // no hex for recycle... (prev curPlayer for autoCrime)
       this.paint()
       this.updateCache()
       source.nextUnit()   // Criminal: shift; moveTo(source.hex); update source counter
     }
-    return hex;
-  }
-
-  super_isLegalTarget(hex: Hex) {
-    if (!hex) return false;
-    if (hex.meep) return false;    // no move onto meeple
-    // Criminal can/must move onto other player tile!
-    // if (hex.tile?.player && hex.tile.player !== this.player) return false;
-    return hex.isOnMap;
+    return toHex;
   }
 
   override isLegalTarget(hex: Hex): boolean { // Criminal
-    if (!this.super_isLegalTarget(hex)) return false;
+    if (!super.isLegalTarget(hex)) return false;
     let curPlayer = GamePlay.gamePlay.curPlayer
     if (this.player && this.player !== curPlayer) return false;  // may not move Criminals placed by opponent.
     // must NOT be on or adj to curPlayer Tile:

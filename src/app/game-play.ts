@@ -8,7 +8,7 @@ import { Player } from "./player";
 import { GameStats, TableStats } from "./stats";
 import { LogWriter } from "./stream-writer";
 import { NumCounter, Table } from "./table";
-import { PlayerColor, TP, otherColor, playerColors } from "./table-params";
+import { PlayerColor, TP, criminalColor, otherColor, playerColorRecordF, playerColors, playerColorsC } from "./table-params";
 import { AuctionBonus, AuctionTile, Bonus, Busi, Resi, Tile, TownRules, TownStart } from "./tile";
 import { NC } from "./choosers";
 import { H } from "./hex-intfs";
@@ -78,7 +78,7 @@ export class GamePlay0 {
     this.gStats = new GameStats(this.hexMap) // AFTER allPlayers are defined so can set pStats
     // Create and Inject all the Players: (picking a townStart?)
     Player.allPlayers.length = 0;
-    playerColors.forEach((color, ndx) => new Player(ndx, color, this))
+    playerColors.forEach((color, ndx) => new Player(ndx, color, this)); // make real Players...
 
     this.crimePlayer = new Player(2, 'c', this);
     Player.allPlayers.length = 2;
@@ -135,6 +135,22 @@ export class GamePlay0 {
       //let inc = hex.links[H.dirRev[dn]]?.getInf(color, dn) || 0
       hex.propagateDecr(infColor, dn, inf, tileInf)       // because no-stone, hex gets (inf - 1)
     })
+  }
+
+  whichAttacks(hex: Hex) {
+    const tInf = playerColorRecordF(tc => hex.getInfT(tc));
+    const occ = hex.occupied; // if there are any Tiles, are they 'under' attack?
+    return playerColorsC.filter(pc => !!occ?.find(t => t && tInf[t.infColor] < tInf[pc]))
+  }
+
+  isAttack(hex: Hex) {
+    const tInf = playerColorRecordF(tc => hex.getInfT(tc));
+    const occ = hex.occupied; // if there are any Tiles, are they 'under' attack?
+    return !!occ && !!playerColorsC.find(pc => !!occ?.find(t => t && tInf[t.infColor] < tInf[pc]))
+  }
+
+  allAttacks() {
+    return this.hexMap.filterEachHex(hex => this.isAttack(hex))
   }
 
   playerBalanceString(player: Player, ivec = [0, 0, 0, 0]) {
@@ -230,9 +246,8 @@ export class GamePlay0 {
 
   /** Meeple.dropFunc() --> place Meeple (to Map, reserve; not Recycle) */
   placeMeep(meep: Meeple, toHex: Hex, autoCrime = (meep.player == undefined)) {
-    // if (meep instanceof Criminal) debugger;
     if (!autoCrime && this.failToPayCost(meep, toHex)) {
-      meep.moveTo(meep.hex);
+      meep.moveTo(meep.hex);  // abort; return to fromHex
       return;
     }
     this.placeEither(meep, toHex);
@@ -242,13 +257,13 @@ export class GamePlay0 {
   /** Tile.dropFunc() --> place Tile (to Map, reserve, ~>auction; not Recycle) */
   placeTile(tile: Tile, toHex: Hex) {
     if (toHex.isOnMap && this.failToBalance(tile, this.curPlayer) || this.failToPayCost(tile, toHex)) {
-      tile.moveTo(tile.hex);
+      tile.moveTo(tile.hex); // abort; return to fromHex
       return;
     }
     this.placeEither(tile, toHex);
   }
 
-  placeEither(tile:Tile, toHex: Hex) {
+  placeEither(tile: Tile, toHex: Hex) {
     // update influence on map:
     const fromHex = tile.hex, infColor = tile.infColor || this.curPlayer.color;
     if (fromHex.isOnMap) {
@@ -372,13 +387,6 @@ export class GamePlay extends GamePlay0 {
   startTurn() {
   }
 
-  allAttacks(aColor: PlayerColor) {
-    return this.hexMap.filterEachHex(hex => {
-      let oColor = hex.tile.infColor || hex.meep.infColor;
-      return (hex.getInfT(aColor) > hex.getInfT(oColor))
-    })
-  }
-
   autoCrime(dice = this.dice) {
     // no autoCrime until all Players have 3 VPs.
     if (this.allPlayers.find(plyr => plyr.econs < 3)) return; // poverty
@@ -386,10 +394,7 @@ export class GamePlay extends GamePlay0 {
     if (!meep) return;               // no Criminals available
     let targetHex = this.autoCrimeTarget(meep);
     this.placeMeep(meep, targetHex); // meep.player == undefined --> no failToPayCost()
-    meep.player = this.crimePlayer;
-    // TODO: resolve attack.
-    // Not like this... hexMap has 1 mark which moves around...
-    this.allAttacks(meep.infColor).forEach(hex => this.hexMap.showMark(hex))
+    meep.player = this.crimePlayer;  // autoCrime: not owned by curPlayer
   }
 
   autoCrimeTarget(meep: Criminal) {
@@ -404,6 +409,19 @@ export class GamePlay extends GamePlay0 {
     let hexes2 = hexes.filter(hex => hex.findLinkHex(hex => hex.meep instanceof Criminal));
     if (hexes2.length > 0) hexes = hexes2;
     return hexes[Math.floor(Math.random() * hexes.length)];
+  }
+
+  markedAttacks: Hex[] = [];
+  showAttackMarks() {
+    this.markedAttacks = this.allAttacks();
+    this.markedAttacks.forEach((hex: Hex2) => {
+      const attacks = this.whichAttacks(hex);
+      attacks?.forEach(pc => hex.markCapture(pc));
+    }
+      );
+  }
+  clearAttackMarks() {
+    this.markedAttacks.forEach((hex: Hex2) => hex.unmarkCapture());
   }
 
   unMove() {
@@ -514,11 +532,13 @@ export class GamePlay extends GamePlay0 {
     this.makeMove(true, undefined, 1)
   }
 
-  override placeTile(tile: Tile, toHex: Hex): void {
+  override placeEither(tile: Tile, toHex: Hex): void {
     const info = { tile, fromHex: tile.hex, toHex, hexInf: toHex.infStr };
-    console.log(stime(this, `.placeTile:`), info);
+    console.log(stime(this, `.placeEither:`), info);
 
-    super.placeTile(tile, toHex);
+    this.clearAttackMarks();
+    super.placeEither(tile, toHex);
+    this.showAttackMarks();
   }
 
   /**

@@ -1,4 +1,4 @@
-import { C, F, RC, S } from "@thegraid/easeljs-lib";
+import { C, F, RC, S, XY } from "@thegraid/easeljs-lib";
 import { Container, DisplayObject, Graphics, Point, Shape, Text } from "@thegraid/easeljs-module";
 import { EwDir, H, HexAxis, HexDir, InfDir, NsDir } from "./hex-intfs";
 import { Meeple } from "./meeple";
@@ -55,16 +55,28 @@ export class InfMark extends Shape {
   }
 }
 
-/** to recognize this class in hexUnderPoint and obtain the contained Hex. */
+/** CapMark indicates if hex has been captured. */
+class CapMark extends Shape {
+  static capSize = TP.hexRad/4   // depends on HexMap.height
+  static xyOffset = playerColorRecord<XY>({ x: -.3, y: -.5 }, { x: .3, y: -.5 }, { x: 0, y: .3 })
+  constructor(hex: Hex2, pc: PlayerColor, vis = true) {
+    super()
+    this.paint(TP.colorScheme[pc]);
+    let { x, y } = CapMark.xyOffset[pc];
+    hex.cont.parent.localToLocal(hex.x + x * TP.hexRad, hex.y + y * TP.hexRad, hex.map.mapCont.markCont, this);
+    this.visible = vis;
+    this.mouseEnabled = false;
+  }
+  // for each Player: hex.tile
+  paint(color = Hex.capColor, vis = true) {
+    this.graphics.c().f(color).dp(0, 0, CapMark.capSize, 6, 0, 30);
+    this.visible = vis;
+  }
+}
+
+/** to recognize this class in hexUnderPoint and obtain the associated Hex2. */
 class HexCont extends Container {
-  // useCache = false;
-  // override cache(x, y, w, h) {
-  //   this.useCache && super.cache(x, y, w, h);
-  // }
-  // override updateCache() {
-  //   this.useCache && super.updateCache()
-  // }
-  constructor(public hex: Hex2) {
+  constructor(public hex2: Hex2) {
     super()
   }
 }
@@ -77,7 +89,7 @@ class HexCont extends Container {
  * non-Planet Hex is unexplored or contains a AfHex.
  */
 export class Hex {
-  static capColor = H.capColor1 // dynamic set
+  static capColor = H.capColor1 // dynamic bind in GamePlay.doProtoMove()
   /** return indicated Hex from otherMap */
   static ofMap(ihex: IHex, otherMap: HexMap) {
     try {
@@ -128,7 +140,7 @@ export class Hex {
   get meep() { return this._meep; }
   set meep(meep: Meeple) { this._meep = meep }
 
-  get occupied() { return this.meep || this.tile }
+  get occupied(): [Tile, Meeple] { return (this.tile || this.meep) ? [this.tile, this.meep] : undefined; }
 
   readonly Aname: string
   /** reduce to serializable IHex (removes map, inf, links, etc) */
@@ -295,9 +307,8 @@ export class Hex {
 /** One Hex cell in the game, shown as a polyStar Shape */
 export class Hex2 extends Hex {
   // cont holds hexShape(color), rcText, distText, capMark
-  cont: HexCont = new HexCont(this) // Hex IS-A Hex0, HAS-A Container
-  get mapCont() { return (this.cont.parent.parent as MapCont) }
-  get hexMap() { return this.mapCont?.hexMap; }
+  cont: HexCont = new HexCont(this) // Hex IS-A Hex0, HAS-A HexCont Container
+  get mapCont() { return this.map.mapCont; }
 
   get x() { return this.cont.x}
   set x(v: number) { this.cont.x = v}
@@ -406,6 +417,20 @@ export class Hex2 extends Hex {
       this.map.mapCont.infCont.addChild(infMark)
     }
     if (infMark) { infMark.visible = show; }
+  }
+
+  readonly capMarks: PlayerColorRecord<CapMark> = playerColorRecord(); // shown on this.map.markCont
+
+  /** make and show CapMark(s) on this Hex2 */
+  markCapture(pc: PlayerColor) {
+    if (this.capMarks[pc] === undefined) {
+      this.capMarks[pc] = this.map.mapCont.markCont.addChild(new CapMark(this, pc));
+    } else {
+      this.capMarks[pc].paint(TP.colorScheme[pc]);
+    }
+  }
+   unmarkCapture() {
+    playerColorsC.forEach(pc => this.capMarks[pc] && (this.capMarks[pc].visible = false))
   }
 
   /** set hexShape using color: draw border and fill
@@ -719,7 +744,7 @@ export class HexMap extends Array<Array<Hex>> implements HexM {
    */
   hexUnderPoint(x: number, y: number): Hex2 {
     let obj = this.mapCont.hexCont.getObjectUnderPoint(x, y, 1) // 0=all, 1=mouse-enabled (Hex, not Stone)
-    return (obj instanceof HexCont) ? obj.hex : undefined
+    return (obj instanceof HexCont) ? obj.hex2 : undefined
   }
   /**
    *

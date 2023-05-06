@@ -399,12 +399,12 @@ export class Tile extends Tile0 {
   dragFunc0(hex: Hex2, ctx: DragContext) {
     let isCapture = (hex == GamePlay.gamePlay.recycleHex); // dev/test: use manual capture.
     ctx.targetHex = (isCapture || this.isLegalTarget(hex)) ? hex : ctx.originHex;
-    ctx.targetHex.hexMap.showMark(ctx.targetHex);
+    ctx.targetHex.map.showMark(ctx.targetHex);
   }
 
   dropFunc0(hex: Hex2, ctx: DragContext) {
     this.dropFunc(ctx.targetHex, ctx)
-    ctx.targetHex.hexMap.showMark(undefined)
+    ctx.targetHex.map.showMark(undefined)
   }
 
   /** override as necessary. */
@@ -731,17 +731,22 @@ class AdjBonusTile extends AuctionTile {
 }
 
 export class Bank extends AdjBonusTile {
+  static isAdj(t: Tile) {
+    return (TP.bankAdjBank || !(t instanceof Bank)) && (t.nB + t.fB) > 0;
+  }
   override get nB() { return 1; }
   constructor(player?: Player, Aname?: string, inf = 0, vp = 0, cost = 1, econ = 0) {
-    super('Bank', t => (t.nB + t.fB) > 0, true, player, Aname, inf, vp, cost, econ);
-    // TODO: Banks don't credit adjacent Banks.
+    super('Bank', Bank.isAdj, true, player, Aname, inf, vp, cost, econ);
   }
   override get econ() { return super.econ + this.bonusTiles }
 }
 
 export class Lake extends AdjBonusTile {
+  static isAdj(t: Tile) {
+    return (t.nR + t.fR) > 0;
+  }
   constructor(player?: Player, Aname?: string, inf = 0, vp = 0, cost = 1, econ = 0) {
-    super('Lake', t => (t.nR + t.fR) > 0, false, player, Aname, inf, vp, cost, econ);
+    super('Lake', Lake.isAdj, false, player, Aname, inf, vp, cost, econ);
   }
   override get vp() { return super.vp + this.bonusTiles; }
 }
