@@ -5,7 +5,7 @@ import { GamePlay } from "./game-play";
 import { StatsPanel, TableStats } from "./stats";
 import { Table } from "./table";
 import { TP } from "./table-params";
-import { Civic, Tile, Tile0 } from "./tile";
+import { Tile } from "./tile";
 import { Meeple } from "./meeple";
 import { Player } from "./player";
 import { InfMark } from "./hex";
@@ -30,7 +30,7 @@ export class GameSetup {
   constructor(canvasId: string, ext?: string[]) {
     stime.fmt = "MM-DD kk:mm:ss.SSS"
     this.stage = makeStage(canvasId, false)
-    Tile0.loadImages(() => this.startup(ext));
+    Tile.loader.loadImages(() => this.startup(ext));
   }
   _netState = " " // or "yes" or "ref"
   set netState(val: string) {
@@ -68,6 +68,7 @@ export class GameSetup {
    * @param ext Extensions from URL
    */
   startup(ext: string[] = []) {
+    Tile.serial = 0;
     Tile.allTiles = [];
     Meeple.allMeeples = [];
     Player.allPlayers = [];

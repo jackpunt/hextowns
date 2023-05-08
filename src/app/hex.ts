@@ -24,20 +24,21 @@ export function newHSC(hex: Hex, sc: PlayerColor, Aname = hex.Aname) { return { 
 
 /** Lines showing influence on the HexMap. */
 export class InfMark extends Shape {
+  static wxoAry = playerColorRecord([5, 2.5], [5, -2.5], [6, 0]); // [width, xoffset]
   /** Note: requires a Canvas for nameToRgbaString() */
   static gColor(sc: PlayerColor, g: Graphics = new Graphics()) {
     let alpha = '.85'
     let lightgreyA = C.nameToRgbaString('lightgrey', '.5')
-    let r = TP.hexRad * H.sqrt3 / 2 - 1, w = 5, wo = w / 2, wos = sc === playerColor0 ? wo : -wo
-    let c: string = TP.colorScheme[sc]; c = C.nameToRgbaString(c, alpha)
+    let c = C.nameToRgbaString(TP.colorScheme[sc], alpha)
+    let r = TP.hexRad * H.sqrt3 / 2 - 1, [w, xo] = InfMark.wxoAry[sc];
 
-    let gStroke = (g: Graphics, color: string, w: number, wo: number, r: number) => {
-      return g.ss(w).s(color).mt(wo, r).lt(wo, -r)
+    let gStroke = (color: string, w: number) => {
+      return g.ss(w).s(color).mt(xo, r).lt(xo, -r)
     }
     g.clear()
-    if (C.dist(c, "white") < 10) gStroke(g, lightgreyA, w + 2, wos, r) // makes 'white' more visible
-    if (C.dist(c, "black") < 10) w -= 1 // makes 'black' less bold
-    gStroke(g, c, w, wos, r)
+    if (C.dist(c, C.WHITE) < 10) gStroke(lightgreyA, w + 2) // makes 'white' more visible
+    if (C.dist(c, C.BLACK) < 10) w -= 1 // makes 'black' less bold
+    gStroke(c, w)
     return g
   }
   /** 2 Graphics, one is used by each InfMark */
@@ -405,7 +406,7 @@ export class Hex2 extends Hex {
 
   override setInf(color: PlayerColor, dn: InfDir, inf: number): number {
     super.setInf(color, dn, inf)
-    this.showInf(color, dn, inf > 0)
+    this.showInf(color, dn, inf + this.getInf(color, H.dirRevEW[dn]) > 0)
     return inf
   }
 

@@ -30,7 +30,7 @@ export class TP {
   static infOnCivic = 0;
   static preShiftCount = 2;  // plus 1 at start of turn
   static maxCivics = 4;
-  static auctionSlots = 4;   // QQQ: should we have a 'stable' market also?
+  static auctionSlots = 4;
   static reserveSlots = 1;
   static resiPerPlayer = 10
   static busiPerPlayer = 10;
@@ -40,6 +40,7 @@ export class TP {
   static policePerPlayer = 3;
   static psPerPlayer = 3;
   // 35 in Bag + 4 Civic Tiles per player.
+  static textLogLines = 6;
 
   static parallelAttack = true;  // true --> N intersects S
   static allowSacrifice = true;

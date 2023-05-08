@@ -89,7 +89,7 @@ export class Player {
     return vp
   }
 
-  otherPlayer(plyr: Player = this.gamePlay.curPlayer) { return Player.allPlayers[1 - plyr.index] }
+  get otherPlayer() { return Player.allPlayers[1 - this.index] }
 
   planner: IPlanner
   /** if true then invoke plannerMove */

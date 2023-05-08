@@ -4,7 +4,7 @@ import { GamePlay } from "./game-play";
 import { Hex, Hex2, HexMap, HexShape } from "./hex";
 import { H } from "./hex-intfs";
 import { Player } from "./player";
-import { PlayerColor, TP } from "./table-params";
+import { PlayerColor, TP, playerColors, playerColorsC } from "./table-params";
 import { DragContext, Table } from "./table";
 import { Leader, Meeple } from "./meeple";
 
@@ -83,9 +83,9 @@ export class InfShape extends Container {
   }
 }
 
-export type Bonus = 'star' | 'brib' | 'actn' | 'econ' | 'Bank' | 'Lake'
+type Bonus = 'star' | 'brib' | 'actn' | 'econ' | 'Bank' | 'Lake'
 export type AuctionBonus = Exclude<Bonus, 'Bank' | 'Lake'>;
-export type BonusObj = { [key in AuctionBonus]: boolean}
+type BonusObj = { [key in AuctionBonus]: boolean}
 
 type BonusInfo<T extends DisplayObject> = {
   type: Bonus, dtype: new () => T,
@@ -161,22 +161,24 @@ class BonusMark extends Container {
   }
 }
 
-/** Someday refactor: all the cardboard bits (Tiles, Meeples & Coins) */
-export class Tile0 extends Container {
-
-  static Uname = ['Univ0', 'Univ1'];
-  static imageMap = new Map<string, HTMLImageElement>()
-  static imageArgs = {
+class TileLoader {
+  Uname = ['Univ0', 'Univ1'];
+  imageMap = new Map<string, HTMLImageElement>()
+  imageArgs = {
     root: 'assets/images/',
-    fnames: ['Resi', 'Busi', 'Pstation', 'Bank', 'Lake', 'Recycle', 'TownStart', 'TownHall', 'Temple', ...Tile0.Uname],
+    fnames: ['Resi', 'Busi', 'Pstation', 'Bank', 'Lake', 'Recycle', 'TownStart', 'TownHall', 'Temple', ...this.Uname],
     ext: 'png',
   };
 
   /** use ImageLoader to load images, THEN invoke callback. */
-  static loadImages(cb: () => void) {
-    new ImageLoader(Tile0.imageArgs, Tile0.imageMap, (imap) => cb())
+  loadImages(cb: () => void) {
+    new ImageLoader(this.imageArgs, this.imageMap, (imap) => cb())
   }
+}
 
+/** Someday refactor: all the cardboard bits (Tiles, Meeples & Coins) */
+class Tile0 extends Container {
+  static loader = new TileLoader();
   // constructor() { super(); }
 
   public player: Player;
@@ -184,7 +186,7 @@ export class Tile0 extends Container {
 
   /** name in set of filenames loaded in GameSetup */
   addImageBitmap(name: string) {
-    let img = Tile.imageMap.get(name), bm = new Bitmap(img);
+    let img = Tile0.loader.imageMap.get(name), bm = new Bitmap(img);
     let width = TP.hexRad
     bm.scaleX = bm.scaleY = width / Math.max(img.height, img.width);
     bm.x = bm.y = -width / 2;
@@ -200,15 +202,17 @@ export class Tile0 extends Container {
     return new TileShape(this.radius)
   }
 
-  /** override for Meeple's xy offset. */
+  /** will override for Meeple's xy offset. */
   hexUnderObj(hexMap: HexMap) {
     let dragObj = this;
     let pt = dragObj.parent.localToLocal(dragObj.x, dragObj.y, hexMap.mapCont.hexCont)
     return hexMap.hexUnderPoint(pt.x, pt.y)
   }
 
+  lastColor: PlayerColor;
   /** paint with PlayerColor; updateCache() */
-  paint(pColor?: PlayerColor, colorn = pColor ? TP.colorScheme[pColor] : C1.grey) {
+  paint(pColor = this.lastColor, colorn = pColor ? TP.colorScheme[pColor] : C1.grey) {
+    this.lastColor = pColor;
     this.childShape.paint(colorn); // recache childShape
     this.updateCache()
   }
@@ -300,10 +304,10 @@ export class Tile extends Tile0 {
     this.paint()
   }
 
-  override paint(pColor = this.player?.color, colorn = pColor ? TP.colorScheme[pColor] : C1.grey) {
-    this.childShape.paint(colorn)
-    this.updateCache(); // draw other children and re-cache.
-  }
+  // override paint(pColor = this.player?.color, colorn = pColor ? TP.colorScheme[pColor] : C1.grey) {
+  //   this.childShape.paint(colorn)
+  //   this.updateCache(); // draw other children and re-cache.
+  // }
 
   /** name in set of filenames loaded in GameSetup */
   override addImageBitmap(name: string) {
@@ -459,7 +463,7 @@ export class Civic extends Tile {
     this.setInfRays()
   }
 
-  override isLegalTarget(hex: Hex) {
+  override isLegalTarget(hex: Hex) { // Civic
     if (!super.isLegalTarget(hex)) return false;
     if (!hex.isOnMap) return false;
     // if insufficient influence(hex) return false;
@@ -511,7 +515,7 @@ export class TownStart extends Civic {
   }
 }
 
-export class TownHall extends Civic {
+export class Courthouse extends Civic {
   constructor(player: Player) {
     super(player, 'TH', 'TownHall')
   }
@@ -521,7 +525,7 @@ export class University extends Civic {
   override get fB() { return 1; } // Univ
   override get fR() { return 1; } // Univ
   constructor(player: Player) {
-    super(player, 'U', Tile.Uname[player.index])
+    super(player, 'U', Tile.loader.Uname[player.index])
   }
 }
 
@@ -578,7 +582,9 @@ export class AuctionTile extends Tile {
   }
 
   override sendHome(): void {  // AuctionTile: removeBonus; to tileBag
-    super.sendHome();
+    const fromHex = this.hex;
+    super.sendHome();          // move to bag; this.hex = undefined
+    GamePlay.gamePlay.fromMarket(fromHex)?.nextUnit(); // maybe source nextUnit
     this.removeBonus();
     this.parent.removeChild(this);
     console.log(stime(this, `.recycle: to tileBag`), this.Aname, this.player?.colorn, this)
@@ -593,7 +599,15 @@ export class AuctionTile extends Tile {
     return GamePlay.gamePlay.auctionTiles.indexOf(this);
   }
 
-  override isLegalTarget(hex: Hex): boolean {
+  override addBonus(type: AuctionBonus): BonusMark {
+    if (GamePlay.gamePlay.auctionTiles.includes(this)) {
+      console.log(stime(this, `.addBonus`), { tile: this, type })
+    }
+    return super.addBonus(type);
+  }
+
+
+  override isLegalTarget(hex: Hex): boolean { // AuctionTile
     if (!hex) return false;
     const gamePlay = GamePlay.gamePlay;
     let curPlayer = gamePlay.curPlayer, curNdx = curPlayer.index;
@@ -633,7 +647,7 @@ export class AuctionTile extends Tile {
     let toHex = this.hex as Hex2;   // where GamePlay.placeTile() put it (could be back to orig.hex)
     if (toHex === undefined) return; // recycled...
 
-    // add TO auctionTiles (from reserveHexes; see isLegalHex) FOR TEST & DEV
+    // add TO auctionTiles (from reserveHexes; see isLegalTarget) FOR TEST & DEV
     let auctionNdx2 = auctionHexes.indexOf(toHex);
     if (auctionNdx2 >= 0) {
       auctionTiles[auctionNdx2]?.moveTo(ctx.originHex)
@@ -651,12 +665,8 @@ export class AuctionTile extends Tile {
     if (toHex === ctx.originHex) return;
 
     // from market source:
-    let type = className(this) as 'Busi' | 'Resi';
-    if (ctx.originHex.distText.text == type) {
-      this.player = player;  // set player (already painted)
-      let tile = GamePlay.gamePlay.getMarketSource(type)?.nextUnit()
-      tile?.paint(player.color)
-    }
+    GamePlay.gamePlay.fromMarket(ctx.originHex)?.nextUnit();
+
     if (toHex.isOnMap) {
       console.log(stime(this, `.dropFunc: Build`), ...info);
       // deposit Bribs & Actns with Player; ASSERT was from auctionTiles or reserveTiles

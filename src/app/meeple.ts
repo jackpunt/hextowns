@@ -1,14 +1,13 @@
-import { C, F, S, className } from "@thegraid/common-lib";
-import { DragInfo, ValueCounter } from "@thegraid/easeljs-lib";
-import { Hex, Hex2, HexMap, HexShape } from "./hex";
-import { EwDir, H, XYWH } from "./hex-intfs";
-import { Player } from "./player";
-import { C1, Church, Civic, InfRays, PS, PaintableShape, Tile, TownHall, TownStart, University } from "./tile";
-import { newPlanner } from "./plan-proxy";
-import { TP } from "./table-params";
-import { Rectangle, Shape, Text } from "@thegraid/easeljs-module";
-import { DragContext } from "./table";
+import { C, F, S } from "@thegraid/common-lib";
+import { ValueCounter } from "@thegraid/easeljs-lib";
+import { Shape, Text } from "@thegraid/easeljs-module";
 import { GamePlay } from "./game-play";
+import { Hex, Hex2, HexMap } from "./hex";
+import { H } from "./hex-intfs";
+import { Player } from "./player";
+import { DragContext } from "./table";
+import { TP } from "./table-params";
+import { C1, Church, Civic, Courthouse, InfRays, PS, PaintableShape, Tile, TownStart, University } from "./tile";
 
 class MeepleShape extends Shape implements PaintableShape {
   static fillColor = 'rgba(225,225,225,.7)';
@@ -124,7 +123,7 @@ export class Meeple extends Tile {
     this.cache(radxy, radxy, radwh, radwh)
   }
 
-  /** override for Meeple's y0 offset. */
+  /** here we override for Meeple's y0 offset. */
   override hexUnderObj(hexMap: HexMap) {
     let dragObj = this;
     let pt = dragObj.parent.localToLocal(dragObj.x, dragObj.y + this.y0, hexMap.mapCont.hexCont)
@@ -156,10 +155,10 @@ export class Meeple extends Tile {
 export class Leader extends Meeple {
   /** new Civic Tile with a Leader 'on' it. */
   static makeLeaders(p: Player, nPolice = 10) {
-    new Builder(new TownStart(p)) // Rook: Chariot, Rector, Count
-    new Dean(new University(p))   // Queen
+    new Mayor(new TownStart(p))   // King
     new Priest(new Church(p))     // Bishop
-    new Mayor(new TownHall(p))    // King
+    new Judge(new Courthouse(p))  // Queen
+    new Chancellor(new University(p))   // Rook: Chariot, Rector, Count
   }
 
   civicTile: Civic;     // the special tile for this Meeple/Leader
@@ -189,21 +188,21 @@ export class Leader extends Meeple {
   }
 
 }
-export class Builder extends Leader {
-  constructor(tile: Civic) {
-    super(tile, 'B')
-  }
-}
-
 export class Mayor extends Leader {
   constructor(tile: Civic) {
     super(tile, 'M')
   }
 }
 
-export class Dean extends Leader {
+export class Judge extends Leader {
   constructor(tile: Civic) {
-    super(tile, 'D')
+    super(tile, 'J')
+  }
+}
+
+export class Chancellor extends Leader {
+  constructor(tile: Civic) {
+    super(tile, 'C')
   }
 }
 
