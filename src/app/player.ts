@@ -11,6 +11,8 @@ import { NumCounter, PerRoundCounter } from "./counters"
 
 export class Player {
   static allPlayers: Player[] = [];
+  static playerStartDir: HexDir[] = ['NW', 'E', 'SW'];
+
 
   /** econ, expense, vp */
   static updateCounters() {
@@ -108,6 +110,17 @@ export class Player {
     this.gamePlay = gameplay as GamePlay;
     this.Aname = `Player${index}-${this.colorn}`
     Player.allPlayers[index] = this;
+    this.startDir = Player.playerStartDir[index];
+  }
+
+  readonly startDir: HexDir;
+
+  // HexMap is populated AFTER Players are created!
+  get startHex() {
+    let hex = this.gamePlay.hexMap.centerHex as Hex;
+    let path = [this.startDir, this.startDir, this.startDir];
+    path.forEach(dir => hex = hex.nextHex(dir));
+    return hex;
   }
 
   /** make Civics, Leaders & Police; also makeLeaderHex() */
@@ -116,15 +129,13 @@ export class Player {
     Leader.makeLeaders(this); // push new Civic onto this.civics, push new Leader onto this.meeples
   }
 
+
   /** choose TownRules & placement of TownStart */
   placeTown(town = this.civicTiles[0] as TownStart) {
     let ruleCard = TownRules.inst.selectOne();
     town.rule = ruleCard[Math.floor(Math.random() * 2)];
     // in principle this could change based on the town.rule...
-    let hex = this.gamePlay.hexMap.centerHex as Hex;
-    let path = [['NW', 'NW', 'NW'], ['NE', 'NE', 'E']][this.index] as HexDir[];
-    path.forEach(dir => hex = hex.nextHex(dir));
-    this.gamePlay.placeTile(town, hex);  // place and assert influence.
+    this.gamePlay.placeTile(town, this.startHex) // place and assert influence.
   }
 
   endGame(): void {

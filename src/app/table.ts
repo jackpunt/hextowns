@@ -1,7 +1,7 @@
 import { AT, C, Dragger, DragInfo, F, KeyBinder, S, ScaleableContainer, stime, XY } from "@thegraid/easeljs-lib";
 import { Container, DisplayObject, EventDispatcher, Graphics, MouseEvent, Shape, Stage, Text } from "@thegraid/easeljs-module";
 import { GamePlay } from "./game-play";
-import { Hex2, HexMap, IHex, InfMark } from "./hex";
+import { Hex2, HexMap, IHex } from "./hex";
 import { H, XYWH } from "./hex-intfs";
 //import { TablePlanner } from "./planner";
 import { Criminal, Police, TileSource } from "./meeple";
@@ -317,7 +317,7 @@ export class Table extends EventDispatcher  {
     }
 
     // TODO: Criminal.source[plyr], just like Police
-    const crimeHex = this.addCostCounter(topRowHex(`Barbs`, 4), undefined, TP.auctionSlots, true);  // repaint for curPlayer
+    const crimeHex = this.addCostCounter(topRowHex(`Barbs`, 4), undefined, -1, true);  // no counter, no incr, repaint for curPlayer
     Criminal.makeSource(crimeHex, TP.criminalPrePlayer * this.gamePlay.allPlayers.length);
 
     [Busi, Resi].forEach((type, ndx) => {
@@ -340,7 +340,7 @@ export class Table extends EventDispatcher  {
       let colf2 = (ndx: number) => (pIndex == 0 ? ndx - 1 : 15 - ndx);
       let leaderHexes = p.allLeaders.map((meep, ndx) => topRowHex(meep.Aname, colf1(ndx), -1, 0))
       let academyHex = topRowHex(`Academy:${pIndex}`, colf2(1), 0, 0)
-      this.addCostCounter(academyHex, undefined, TP.auctionSlots, false); // academyHex[plyr]: no Counter, no repaint
+      this.addCostCounter(academyHex, undefined, -1, false); // academyHex[plyr]: no Counter, no incr, no repaint
       this.reserveHexes[pIndex] = [];
       for (let i = 0; i < TP.reserveSlots; i++) {
         let rhex = topRowHex(`Reserve:${pIndex}-${i}`, colf2(3), 0);
@@ -502,8 +502,11 @@ export class Table extends EventDispatcher  {
       dragger.makeDragable(tile, this, this.dragFunc, this.dropFunc);
       dragger.clickToDrag(tile, true); // also enable clickToDrag;
     })
+    this.hexMap.forEachHex(hex => hex.isLegal = false); // redundant?
 
     this.gamePlay.forEachPlayer(p => {
+      p.startHex.forEachLinkHex(hex => hex.isLegal = true, true )
+      this.hexMap.update();
       // place Town on hexMap
       p.placeTown()
       this.toggleText(false)
@@ -717,8 +720,7 @@ class AuctionCont {
     readonly table: Table,
     newHex: (name: string, ndx: number) => Hex2,
     public nm = 0,// merge per-player arrays of length nm into nm * 2; nm-1 --> nm * 2
-  )
-  {
+  ) {
     //super()
     this.maxndx = tiles.length - 1; // Note: tiles.length = TP.auctionSlots + nm;
     this.hexes.length = 0;

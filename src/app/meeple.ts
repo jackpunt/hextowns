@@ -7,7 +7,8 @@ import { H } from "./hex-intfs";
 import { Player } from "./player";
 import { DragContext } from "./table";
 import { TP } from "./table-params";
-import { C1, Church, Civic, Courthouse, InfRays, PS, PaintableShape, Tile, TownStart, University } from "./tile";
+import { Church, Civic, Courthouse, InfRays, PS, Tile, TownStart, University } from "./tile";
+import { PaintableShape, C1 } from "./shapes";
 
 class MeepleShape extends Shape implements PaintableShape {
   static fillColor = 'rgba(225,225,225,.7)';
@@ -332,7 +333,6 @@ export class Criminal extends Meeple {
 
   static makeSource(hex: Hex2, n = 0) {
     let source = Criminal.source = new CriminalSource(Criminal, undefined, hex)
-    console.log(stime(this, `.makeSource:`), source, Criminal.source);
     for (let i = 0; i < n; i++) new Criminal(i + 1).homeHex = hex;
     source.nextUnit(); // moveTo(source.hex)
   }
@@ -382,15 +382,15 @@ export class Criminal extends Meeple {
 
   override isLegalTarget(hex: Hex): boolean { // Criminal
     if (!super.isLegalTarget(hex)) return false;
-    let curPlayer = GamePlay.gamePlay.curPlayer
-    // must NOT be on or adj to curPlayer Tile:
-    if (hex.tile?.player == curPlayer) return false;
-    if (hex.findLinkHex(hex => { return (hex.tile?.player == curPlayer); })) return false;
+    let plyr = this.player ?? GamePlay.gamePlay.curPlayer; // owner or soon-to-be owner
+    // must NOT be on or adj to plyr's Tile:
+    if (hex.tile?.player == plyr) return false;
+    if (hex.findLinkHex(hex => { return (hex.tile?.player == plyr); })) return false;
     // must be on or adj to otherPlayer Tile OR aligned Criminal:
-    if (hex.tile?.player && hex.tile.player !== curPlayer) return true;
+    if (hex.tile?.player && hex.tile.player !== plyr) return true;
     if (hex.findLinkHex(hex =>
-      (hex.tile?.player && hex.tile.player !== curPlayer) ||
-      ((hex.meep instanceof Criminal) && hex.meep.player === curPlayer))
+      (hex.tile?.player && hex.tile.player !== plyr) ||
+      ((hex.meep instanceof Criminal) && hex.meep.player === plyr))
       ) return true;
     return false;
   }

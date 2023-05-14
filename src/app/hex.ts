@@ -1,8 +1,9 @@
-import { C, F, RC, S, XY } from "@thegraid/easeljs-lib";
+import { C, F, RC, S } from "@thegraid/easeljs-lib";
 import { Container, DisplayObject, Graphics, Point, Shape, Text } from "@thegraid/easeljs-module";
 import { EwDir, H, HexAxis, HexDir, InfDir, NsDir } from "./hex-intfs";
 import { Meeple } from "./meeple";
-import { PlayerColor, PlayerColorRecord, TP, playerColor0, playerColorRecord, playerColorRecordF, playerColors, playerColorsC } from "./table-params";
+import { CapMark, HexShape, LegalMark } from "./shapes";
+import { PlayerColor, PlayerColorRecord, TP, playerColorRecord, playerColorRecordF, playerColorsC } from "./table-params";
 import { Tile } from "./tile";
 
 export const S_Resign = 'Hex@Resign'
@@ -53,25 +54,6 @@ export class InfMark extends Shape {
     this.rotation = H.dirRot[ds]
     this.x = x; this.y = y
     this[S.Aname] = `Inf[${TP.colorScheme[sc]},${ds},${this.id}]`  // for debug, not production
-  }
-}
-
-/** CapMark indicates if hex has been captured. */
-class CapMark extends Shape {
-  static capSize = TP.hexRad/4   // depends on HexMap.height
-  static xyOffset = playerColorRecord<XY>({ x: -.3, y: -.5 }, { x: .3, y: -.5 }, { x: 0, y: .3 })
-  constructor(hex: Hex2, pc: PlayerColor, vis = true) {
-    super()
-    this.paint(TP.colorScheme[pc]);
-    let { x, y } = CapMark.xyOffset[pc];
-    hex.cont.parent.localToLocal(hex.x + x * TP.hexRad, hex.y + y * TP.hexRad, hex.map.mapCont.markCont, this);
-    this.visible = vis;
-    this.mouseEnabled = false;
-  }
-  // for each Player: hex.tile
-  paint(color = Hex.capColor, vis = true) {
-    this.graphics.c().f(color).dp(0, 0, CapMark.capSize, 6, 0, 30);
-    this.visible = vis;
   }
 }
 
@@ -162,6 +144,10 @@ export class Hex {
     this._district = d
   }
   get isOnMap() { return this.district !== undefined; } // also: (row !== undefined) && (col !== undefined)
+
+  _isLegal: boolean;
+  get isLegal() { return this._isLegal; }
+  set isLegal(v: boolean) { this._isLegal = v; }
 
   readonly map: HexMap;  // Note: this.parent == this.map.hexCont [cached]
   readonly row: number
@@ -276,7 +262,8 @@ export class Hex {
   get linkHexes() {
     return Object.keys(this.links).map((dir: InfDir) => this.links[dir])
   }
-  forEachLinkHex(func: (hex: Hex, dir: InfDir, hex0: Hex) => unknown) {
+  forEachLinkHex(func: (hex: Hex, dir: InfDir, hex0: Hex) => unknown, inclCenter = false) {
+    if (inclCenter) func(this, undefined, this);
     Object.keys(this.links).forEach((dir: InfDir) => func(this.links[dir], dir, this));
   }
   findLinkHex(pred: (hex: Hex, dir: InfDir, hex0: Hex) => boolean) {
@@ -387,6 +374,7 @@ export class Hex2 extends Hex {
     this.distText = new Text(``, F.fontSpec(20));
     this.distText.textAlign = 'center'; this.distText.y = tdy + 46 // yc + 26+20
     this.cont.addChild(this.distText)
+    this.legalMark = new LegalMark(this);
     this.showText(true); // & this.cache()
   }
 
@@ -398,6 +386,12 @@ export class Hex2 extends Hex {
     }
     this.rcText.visible = this.distText.visible = vis
     this.cont.updateCache()
+  }
+
+  readonly legalMark: LegalMark;
+  override set isLegal(v: boolean) {
+    super.isLegal = v;
+    this.legalMark.visible = v;
   }
 
   override setInf(color: PlayerColor, dn: InfDir, inf: number): number {
@@ -421,7 +415,7 @@ export class Hex2 extends Hex {
   /** make and show CapMark(s) on this Hex2 */
   markCapture(pc: PlayerColor) {
     if (this.capMarks[pc] === undefined) {
-      this.capMarks[pc] = this.map.mapCont.markCont.addChild(new CapMark(this, pc));
+      this.capMarks[pc] = new CapMark(this, pc);
     } else {
       this.capMarks[pc].paint(TP.colorScheme[pc]);
     }
@@ -470,24 +464,6 @@ export class Hex2 extends Hex {
   }
 }
 
-/**
- * The colored PaintableShape that fills a Hex.
- * @param radius in call to drawPolyStar()
- */
-export class HexShape extends Shape {
-  constructor(
-    readonly radius = TP.hexRad,
-    readonly tiltDir: HexDir = 'NE',
-  ) {
-    super()
-  }
-
-  /** draw a Hexagon 1/60th inside the given radius */
-  paint(color: string) {
-    let g = this.graphics.c(), tilt = H.dirRot[this.tiltDir];
-    return g.f(color).dp(0, 0, Math.floor(this.radius * 59 / 60), 6, 0, tilt);
-  }
-}
 export class MapCont extends Container {
   constructor(public hexMap: HexMap) {
     super()
@@ -496,7 +472,7 @@ export class MapCont extends Container {
   hexCont: Container     // hex shapes on bottom stats: addChild(dsText), parent.rotation
   infCont: Container     // infMark below tileCont; Hex2.showInf
   tileCont: Container    // Tiles & Meeples on Hex2/HexMap.
-  markCont: Container    // showMark over Stones new CapMark [localToLocal]
+  markCont: Container    // showMark over Hex2; CapMark, LegalMark
   counterCont: Container // counters for AuctionCont
 }
 

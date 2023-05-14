@@ -1,50 +1,13 @@
-import { C, F, className, stime, ImageLoader } from "@thegraid/common-lib";
-import { Bitmap, Container, DisplayObject, Graphics, MouseEvent, Shape, Text } from "@thegraid/easeljs-module";
+import { C, F, ImageLoader, className, stime } from "@thegraid/common-lib";
+import { Bitmap, Container, DisplayObject, MouseEvent, Shape, Text } from "@thegraid/easeljs-module";
 import { GamePlay } from "./game-play";
-import { Hex, Hex2, HexMap, HexShape } from "./hex";
+import { Hex, Hex2, HexMap } from "./hex";
 import { H } from "./hex-intfs";
+import { Meeple } from "./meeple";
 import { Player } from "./player";
-import { PlayerColor, TP, playerColors, playerColorsC } from "./table-params";
+import { C1, PaintableShape, TileShape } from "./shapes";
 import { DragContext, Table } from "./table";
-import { Leader, Meeple } from "./meeple";
-
-export class C1 {
-  static GREY = 'grey';
-  static grey = 'grey';
-  static lightgrey2 = 'rgb(225,225,225)' // needs to contrast with WHITE influence lines
-  static lightgrey_8 = 'rgb(225,225,225,.8)' // needs to contrast with WHITE influence lines
-}
-
-export interface PaintableShape extends Shape {
-  /** paint with new player color; updateCache() */
-  paint(colorn: string): Graphics;
-}
-
-class TileShape extends HexShape implements PaintableShape {
-  static fillColor = C1.lightgrey_8;// 'rgba(200,200,200,.8)'
-  /** colored HexShape filled with very-lightgrey disk: */
-  override paint(colorn: string) {
-    super.paint(colorn)
-    return this.paint2(colorn)
-  }
-  paint0(colorn: string) {
-    let r2 = this.radius * H.sqrt3 * .5 * (55 / 60);
-    return this.graphics.f(TileShape.fillColor).dc(0, 0, r2)
-  }
-  paint2(colorn: string) {
-    let r = this.radius, g = this.graphics, tilt = H.dirRot[this.tiltDir];
-    let r2 = this.radius * H.sqrt3 * .5 * (55 / 60);
-    // dp(...6), so tilt: 30 | 0; being nsAxis or ewAxis;
-    let w = r * Math.cos(Hex2.degToRadians * tilt)
-    let h = r * Math.cos(Hex2.degToRadians * (tilt - 30))
-    this.cache(-w, -h, 2 * w, 2 * h);    // solid hexagon
-    g.c().f(C.BLACK).dc(0, 0, r2)
-    this.updateCache("destination-out"); // hole in hexagon
-    g.c(); this.paint0(colorn)
-    this.updateCache("source-over");     // translucent circle
-    return g;
-  }
-}
+import { PlayerColor, TP } from "./table-params";
 
 /** lines showing influence of a Tile. */
 export class InfRays extends Container {
@@ -197,6 +160,7 @@ class Tile0 extends Container {
 
   get radius() { return TP.hexRad};
   readonly childShape: PaintableShape = this.makeShape();
+
   /** abstract: subclass should override. */
   makeShape(): PaintableShape {
     return new TileShape(this.radius)
@@ -272,7 +236,8 @@ export class Tile extends Tile0 {
     this._hex = hex
     if (hex !== undefined) hex.tile = this;
   }
-  get table() { return (GamePlay.gamePlay as GamePlay).table as Table; }
+
+  get table() { return (GamePlay.gamePlay as GamePlay).table; }
 
   homeHex: Hex = undefined;
 
@@ -431,6 +396,7 @@ export class Tile extends Tile0 {
   isLegalTarget(hex: Hex) {
     if (!hex) return false;
     if (hex.tile) return false;
+    // if (hex.isLegalTarget)
     // TODO: when auto-capture is working, re-assert no dragging.
     // if ((this.hex as Hex2).isOnMap) return false;
     return true;
@@ -653,8 +619,7 @@ export class AuctionTile extends Tile {
     let info = [ctx.targetHex.Aname, this.Aname, this.bonus];
     let reserveTiles = gamePlay.reserveTiles[pIndex];
     let reserveHexes = gamePlay.reserveHexes[pIndex];
-    let auctionTiles = this.table.auctionCont.tiles;
-    let auctionHexes = this.table.auctionCont.hexes;
+    let auctionTiles = gamePlay.auctionTiles;
 
     // remove from reserveTiles:
     let rIndex = reserveTiles.indexOf(this)
@@ -673,12 +638,13 @@ export class AuctionTile extends Tile {
     if (toHex === undefined) return; // recycled...
 
     // add TO auctionTiles (from reserveHexes; see isLegalTarget) FOR TEST & DEV
-    let auctionNdx2 = auctionHexes.indexOf(toHex);
+    let auctionNdx2 = this.table.auctionCont.hexes.indexOf(toHex);
     if (auctionNdx2 >= 0) {
       auctionTiles[auctionNdx2]?.moveTo(ctx.originHex)
       auctionTiles[auctionNdx2] = this;
       this.player = undefined;
-      this.paint(player.color); this.updateCache()
+      this.paint(player.color);
+      this.updateCache();
     }
     // add to reserveTiles:
     let rIndex2 = reserveHexes.indexOf(toHex)

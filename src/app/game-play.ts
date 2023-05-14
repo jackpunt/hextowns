@@ -215,18 +215,17 @@ export class GamePlay0 {
   /** show player color and cost. */
   readonly costIncHexCounters = new Map<Hex,CostIncCounter>()
   costNdxFromHex(hex: Hex) {
-    return this.costIncHexCounters.get(hex)?.ndx ?? 0; // Criminal/Police: ndx, no counter
+    return this.costIncHexCounters.get(hex)?.ndx ?? -1; // Criminal/Police: ndx, no counter
   }
 
   /** Influence Required; must supply tile.hex OR ndx */
   getInfR(tile: Tile | undefined, ndx = this.costNdxFromHex(tile.hex), plyr = this.curPlayer) {
-    let incr = this.costInc[plyr.nCivics][ndx], nmi = 2 * TP.auctionMerge;
-    let aIndex = this.auctionTiles.indexOf(tile as AuctionTile); // -1 if not from Auction
-    if (aIndex >= 0 && aIndex < nmi) ++incr;
-    // assert: !tile.hex.isOnMap (esp: tile.hex == tile.homeHex)
+    let incr = this.costInc[plyr.nCivics][ndx] ?? 0; // ndx out-of-range --> incr = 0
+    // assert: !tile.hex.isOnMap (esp fromHex: tile.hex == tile.homeHex)
     let infR = (tile?.cost ?? 0) + incr; // Influence required.
     if (tile instanceof AuctionTile) infR += tile.bonusCount;
-    let coinR = infR + ((tile?.econ ?? 0) < 0 ? -tile.econ : 0);  // Salary also required when recruited.
+    let coinR = infR + ((tile?.econ ?? 0) < 0 ? -tile.econ : 0);  // Salary is required when recruited.
+    if (Number.isNaN(coinR)) debugger;
     return [infR, coinR];
   }
 
@@ -407,10 +406,11 @@ export class GamePlay extends GamePlay0 {
   }
 
   // mercenaries rally to your cause against the enemy (no cost, follow your orders.)
+  // TODO: allow 'curPlayer' to place one of their [autoCrime] Criminals
   autoCrime() {
     // no autoCrime until all Players have 3 VPs.
     if (this.allPlayers.find(plyr => plyr.econs < TP.econForCrime)) return; // poverty
-    const meep = Criminal.source.hexMeep;
+    const meep = Criminal.source.hexMeep;   // TODO: use per-player Criminal source
     if (!meep) return;               // no Criminals available
     const targetHex = this.autoCrimeTarget(meep);
     meep.autoCrime = true;
@@ -569,7 +569,7 @@ export class GamePlay extends GamePlay0 {
 
   override placeEither(tile: Tile, toHex: Hex): void {
     const info = { tile, fromHex: tile.hex, toHex, hexInf: toHex.infStr };
-    console.log(stime(this, `.placeEither:`), info);
+    if (toHex !== tile.hex) console.log(stime(this, `.placeEither:`), info);
 
     this.clearAttackMarks();
     super.placeEither(tile, toHex);
