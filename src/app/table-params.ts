@@ -28,6 +28,7 @@ export class TP {
   static econForCrime = 6;
 
   static bankAdjBank = false;
+  static anyPlayerAdj = true;
   static vpOnCivic = 1;
   static infOnCivic = 0;
   static preShiftCount = 2;  // plus 1 at start of turn

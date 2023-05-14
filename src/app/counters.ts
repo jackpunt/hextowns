@@ -6,6 +6,7 @@ import { H } from "./hex-intfs";
 import { TP } from "./table-params";
 import { InfShape } from "./tile";
 import { ValueCounter } from "@thegraid/easeljs-lib";
+import { Player } from "./player";
 
 /** ValueCounter in a Rectangle. */
 export class ValueCounterBox extends ValueCounter {
@@ -76,7 +77,7 @@ export class CostIncCounter extends NumCounter {
     public hex: Hex2,
     name = `costInc`,
     public ndx?: number,
-    public repaint: boolean | ((PlayerColor) => void) = true)
+    public repaint: boolean | Player = true)
   {
     super(name, 0, 'grey', TP.hexRad / 2)
     let counterCont = hex.mapCont.counterCont;

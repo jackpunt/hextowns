@@ -240,7 +240,7 @@ export class Table extends EventDispatcher  {
   auctionCont: AuctionCont;
   leaderHexes: Hex2[][] = [[], []]; // per player
 
-  addCostCounter(hex: Hex2, name?: string, ndx = 0, repaint: boolean | ((pc: PlayerColor) => void) = false) {
+  addCostCounter(hex: Hex2, name?: string, ndx = 0, repaint: boolean | Player = false) {
     /** show cost in influence and coins */
     let infCounter = new CostIncCounter(hex, `${name?? '?'}Inf`, ndx, repaint);
     if (!name) {
@@ -304,15 +304,10 @@ export class Table extends EventDispatcher  {
     auctionTiles.length = TP.auctionSlots + nm;
     this.auctionCont = new AuctionCont(auctionTiles, this, splitRow, nm);
 
-    let ndx = (i: number) => (i < nm) ? i : (i - nm);
     this.auctionCont.hexes.forEach((hex, hexi) => {
-      const ahex = this.addCostCounter(hex, `CostInc${hexi}`, ndx(hexi), true);
-      const repaintAuction = (pc: PlayerColor) => {
-        let pci = (hexi < nm) ? playerColor0 : (hexi < 2 * nm) ? playerColor1 : pc
-        ahex.tile?.paint(pci);
-      }
-      const cic = this.gamePlay.costIncHexCounters.get(ahex);
-      cic.repaint = repaintAuction;
+      const ndx = this.auctionCont.getNdx(hexi);
+      const repaint = this.auctionCont.getPlayer(hexi, true)
+      this.addCostCounter(hex, `CostInc${hexi}`, ndx, repaint); // auctionHex
     });
 
     for (let i = 0; i < TP.preShiftCount; i++) {
@@ -321,6 +316,7 @@ export class Table extends EventDispatcher  {
       })
     }
 
+    // TODO: Criminal.source[plyr], just like Police
     const crimeHex = this.addCostCounter(topRowHex(`Barbs`, 4), undefined, TP.auctionSlots, true);  // repaint for curPlayer
     Criminal.makeSource(crimeHex, TP.criminalPrePlayer * this.gamePlay.allPlayers.length);
 
@@ -331,7 +327,7 @@ export class Table extends EventDispatcher  {
       gamePlay.marketSource[type.name] = source;
       tiles.forEach(tile => source.availUnit(AuctionTile.takeTile(tile)))
       source.nextUnit();
-      this.addCostCounter(hex, type.name, 1, true);
+      this.addCostCounter(hex, type.name, 1, true);  // Busi/Resi market
     })
 
     this.hexMap.update();
@@ -344,11 +340,11 @@ export class Table extends EventDispatcher  {
       let colf2 = (ndx: number) => (pIndex == 0 ? ndx - 1 : 15 - ndx);
       let leaderHexes = p.allLeaders.map((meep, ndx) => topRowHex(meep.Aname, colf1(ndx), -1, 0))
       let academyHex = topRowHex(`Academy:${pIndex}`, colf2(1), 0, 0)
-      this.addCostCounter(academyHex, undefined, TP.auctionSlots, false); // no Counter, no repaint
+      this.addCostCounter(academyHex, undefined, TP.auctionSlots, false); // academyHex[plyr]: no Counter, no repaint
       this.reserveHexes[pIndex] = [];
       for (let i = 0; i < TP.reserveSlots; i++) {
         let rhex = topRowHex(`Reserve:${pIndex}-${i}`, colf2(3), 0);
-        this.addCostCounter(rhex, `rCost-${i}`, 1, false);
+        this.addCostCounter(rhex, `rCost-${i}`, 1, false); // reserveHexes[plyr]
         this.reserveHexes[pIndex].push(rhex);
       }
 
@@ -357,7 +353,7 @@ export class Table extends EventDispatcher  {
       p.allLeaders.forEach((meep, i) => {
         const homeHex = meep.civicTile.moveTo(meep.moveTo(leaderHexes[i])) as Hex2;
         meep.homeHex = meep.civicTile.homeHex = homeHex;
-        this.addCostCounter(homeHex, `${meep.Aname}-c`, TP.auctionSlots, false);
+        this.addCostCounter(homeHex, `${meep.Aname}-c`, 0, p); // leaderHex[plyr]
       })
       Police.makeSource(p, academyHex, TP.policePerPlayer);
     })
@@ -739,11 +735,20 @@ class AuctionCont {
     gamePlay.dice.setContainer(hexMap.mapCont.counterCont, x0 -1.5 * rad, y0 + .4 * rad);
   }
 
+  getNdx(hexi: number) {
+    return (hexi < this.nm) ? hexi : (hexi - this.nm);
+  }
+
+  getPlayer(hexi: number, alt: boolean = undefined): Player | boolean {
+    return (hexi < 0) ? alt :
+      hexi < this.nm ? Player.allPlayers[0] :
+        hexi < 2 * this.nm ? Player.allPlayers[1] :
+          alt;
+  }
 
   tileCounter: NumCounter;  // number of Tiles in tileBag
 
   shift(pIndex = this.table.gamePlay.curPlayerNdx) {
-    const plyr = this.table.gamePlay.curPlayer;
     const tile = AuctionTile.selectOne()
     tile.paint(this.table.gamePlay.curPlayer?.color)
     let tiles = this.tiles, hexes = this.hexes
@@ -763,7 +768,7 @@ class AuctionCont {
     shift1(tile, pIndex * this.nm)
     this.tileCounter.stage && this.tileCounter.setValue(AuctionTile.tileBag.length)
     console.log(stime(this, `.shift`), tiles)
-    this.table.gamePlay.showPlayerPrices(plyr);
+    this.table.gamePlay.showPlayerPrices();
     return tiles[0]
   }
 

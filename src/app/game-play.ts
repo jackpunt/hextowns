@@ -198,17 +198,15 @@ export class GamePlay0 {
   }
 
   // Costinc [0] = curPlayer.civics.filter(civ => civ.hex.isOnMap).length + 1
-  // each succeeding is 1 less; to min of 1, except last slot is min of 0;
-  // initially: 2 1 1 0;
-  // Array<nCivOnMap,slotN> => [1, 1, 1, 0], [2, 1, 1, 0], [3, 2, 1, 0], [4, 3, 2, 1], [5, 4, 3, 2]
-  // Array<nCivOnMap,slotN> => [0, 0, 0, -1], [1, 0, 0, -1], [2, 1, 0, -1], [3, 2, 1, 0], [4, 3, 2, 1]
+  // each succeeding is 1 less; to min of 1, except last slot is min of -1;
+  // costInc[nCivOnMap][slotN] => [0, 0, 0, -1], [1, 0, 0, -1], [2, 1, 0, -1], [3, 2, 1, 0], [4, 3, 2, 1]
   costIncMatrix(maxCivics = TP.maxCivics, nSlots = TP.auctionSlots) {
-    // [0...maxCivs]
+    // nCivics = [0...maxCivics]
     return new Array(maxCivics + 1).fill(1).map((civElt, nCivics) => {
-      // [0...nSlots-1]
-      return new Array(nSlots + 1).fill(1).map((costIncElt, iSlot) => {
-        let minVal = (iSlot == (nSlots - 1)) ? -1 : 0;
-        return Math.max(minVal, (nCivics) - iSlot) // assert nSlots <= maxCivics; final slot always = 0
+      // iSlot = [0...nSlots - 1]
+      return new Array(nSlots).fill(1).map((costIncElt, iSlot) => {
+        let minVal = (iSlot === (nSlots - 1)) ? -1 : 0;
+        return Math.max(minVal, nCivics - iSlot) // assert nSlots <= maxCivics; final slot always = 0
       })
     })
   }
@@ -221,8 +219,8 @@ export class GamePlay0 {
   }
 
   /** Influence Required; must supply tile.hex OR ndx */
-  getInfR(tile: Tile | undefined, ndx = this.costNdxFromHex(tile.hex)) {
-    let incr = this.costInc[this.curPlayer.nCivics][ndx], nmi = 2 * TP.auctionMerge;
+  getInfR(tile: Tile | undefined, ndx = this.costNdxFromHex(tile.hex), plyr = this.curPlayer) {
+    let incr = this.costInc[plyr.nCivics][ndx], nmi = 2 * TP.auctionMerge;
     let aIndex = this.auctionTiles.indexOf(tile as AuctionTile); // -1 if not from Auction
     if (aIndex >= 0 && aIndex < nmi) ++incr;
     // assert: !tile.hex.isOnMap (esp: tile.hex == tile.homeHex)
@@ -665,26 +663,18 @@ export class GamePlay extends GamePlay0 {
     this.makeMove()
   }
 
-  showPlayerPrices(plyr: Player = this.curPlayer) {
+  showPlayerPrices() {
     this.costIncHexCounters.forEach(cic => {
-      if (!!cic.repaint) {
-        if (typeof cic.repaint === 'function') {
-          cic.repaint(plyr.color)
-        } else {
-          cic.hex.tile?.paint(plyr.color);
-          cic.hex.meep?.paint(plyr.color);
+      let plyr = (cic.repaint instanceof Player) ? cic.repaint : this.curPlayer;
+      if (cic.repaint !== false) {
+        {
+          cic.hex.tile?.paint(plyr.color); //
+          cic.hex.meep?.paint(plyr.color); // flipping criminals!
         }
       }
-      let [infR] = this.getInfR(cic.hex.tile, cic.ndx);
+      let [infR] = this.getInfR(cic.hex.tile, cic.ndx, plyr);
       cic.setValue(infR);
     })
-  }
-
-  // when  tile lands on AuctionHex, show new/currect price?
-  showNewPrice(hex: Hex2) {
-    let incCounter = this.costIncHexCounters.get(hex);
-    let [infR] = this.getInfR(hex.tile, incCounter.ndx);
-    incCounter?.setValue(infR);
   }
 
   /** dropFunc | eval_sendMove -- indicating new Move attempt */

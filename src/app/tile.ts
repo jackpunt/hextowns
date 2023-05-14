@@ -448,7 +448,7 @@ export class Tile extends Tile0 {
 
 // Leader.civicTile -> Civic; Civic does not point to its leader...
 export class Civic extends Tile {
-  constructor(player: Player, type: string, image: string, inf = 1, vp = 1, cost = 2, econ = 1) {
+  constructor(player: Player, type: string, image: string, inf = 1, vp = 1, cost = 1, econ = 1) {
     super(player, `${type}:${player.index}`, inf, vp, cost, econ);
     this.player = player;
     this.addImageBitmap(image);
@@ -601,10 +601,9 @@ export class AuctionTile extends Tile {
   override canBeMovedBy(player: Player, ctx: DragContext): boolean {
     if (!super.canBeMovedBy(player, ctx)) return false;
     // exclude opponent's [unowned] private auction Tiles:
-    const opi = player.otherPlayer.index, nm = this.table.auctionCont.nm
-    const oppAuctionTiles = this.table.gamePlay.auctionTiles.slice(opi * nm, opi + nm)
-    const isOppAuction = oppAuctionTiles.includes(this as AuctionTile);
-    return !isOppAuction;
+    const ndx = this.table.gamePlay.auctionTiles.indexOf(this);
+    const plyr = this.table.auctionCont.getPlayer(ndx, true);
+    return (plyr === true) ? true : (plyr === player);
   }
 
   override addBonus(type: AuctionBonus): BonusMark {
@@ -736,7 +735,7 @@ class AdjBonusTile extends AuctionTile {
   constructor(
     public type: Bonus,
     public bonusTile = (tile: Tile) => false,
-    public anyPlayer = false,
+    public anyPlayer = TP.anyPlayerAdj, // true -> bonus for adj tile, even if owner is different
     player?: Player, Aname?: string, inf = 0, vp = 0, cost = 1, econ = 0) {
     super(player, Aname, inf, vp, cost, econ);
     this.addImageBitmap(type)        // addChild(...myMarks) sometimes FAILS to add! [or get re-added?]
@@ -749,7 +748,7 @@ class AdjBonusTile extends AuctionTile {
     return mark;
   });
   isBonus(tile: Tile | undefined) {
-    return !!tile && this.bonusTile(tile) && (this.anyPlayer || tile.player == this.player);
+    return !!tile && this.bonusTile(tile) && (this.anyPlayer || tile.player === this.player);
   }
   get bonusTiles() { return this.hex.linkHexes.filter(hex => this.isBonus(hex.tile)).length; }
 
