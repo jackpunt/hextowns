@@ -6,7 +6,8 @@ import { Criminal, Leader, Meeple, Police } from "./meeple"
 import { IPlanner, newPlanner } from "./plan-proxy"
 import { PlayerColor, TP, otherColor, playerColors } from "./table-params"
 import { AuctionTile, Civic, Tile, TownRules, TownStart } from "./tile"
-import { CenterText, NumCounter } from "./table"
+import { CenterText } from "./table"
+import { NumCounter, PerRoundCounter } from "./counters"
 
 export class Player {
   static allPlayers: Player[] = [];
@@ -17,6 +18,7 @@ export class Player {
       player.econCounter.updateValue(player.econs)
       player.expenseCounter.updateValue(player.expenses)
       player.vpCounter.updateValue(player.vps)
+      player.totalVpCounter.updateValue(player.totalVps)
       player.balanceText.text = GamePlay.gamePlay.playerBalanceString(player);
     })
     GamePlay.gamePlay.hexMap.update()
@@ -77,17 +79,21 @@ export class Player {
     })
     return expense
   }
-  vpCounter:NumCounter;
+  vpCounter: NumCounter;
   get vps() {
     let vp = 0;
     this.gamePlay.hexMap.forEachHex(hex => {
-      if ((hex.tile?.player == this) && !(hex.meep instanceof Criminal)) {
-        vp += hex.tile.vp
-        // console.log(stime(this, `.vps`), hex.tile.Aname, hex.Aname, hex.tile.vp, vp);
-      }
+      const dv = (hex.meep instanceof Criminal) ? 0 :
+        (((hex.tile?.player == this && hex.tile.vp) +
+          (hex.meep?.player == this && hex.meep.vp)));
+      vp += dv;
+      //hex.tile && console.log(stime(this, `.vps`), hex.tile.Aname, hex.Aname, vp, dv, (hex.tile?.player == this && hex.tile.vp), (hex.meep?.player == this && hex.meep.vp));
     })
     return vp
   }
+  totalVpCounter: PerRoundCounter;
+  get totalVps() { return this.totalVpCounter.getValue(); }
+  get vpsPerRound() { return this.totalVpCounter.perRound; }
 
   get otherPlayer() { return Player.allPlayers[1 - this.index] }
 

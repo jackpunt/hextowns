@@ -25,11 +25,14 @@ export class TP {
   static leaderCost = 0;
   static policeCost = 0;
   static criminalCost = 0;
+  static econForCrime = 6;
 
   static bankAdjBank = false;
+  static vpOnCivic = 1;
   static infOnCivic = 0;
   static preShiftCount = 2;  // plus 1 at start of turn
   static maxCivics = 4;
+  static auctionMerge = 0;
   static auctionSlots = 4;
   static reserveSlots = 1;
   static resiPerPlayer = 10

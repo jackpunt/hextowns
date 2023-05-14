@@ -7,12 +7,13 @@ import { Planner } from "./plan-proxy";
 import { Player } from "./player";
 import { GameStats, TableStats } from "./stats";
 import { LogWriter } from "./stream-writer";
-import { CostIncCounter, NumCounter, Table } from "./table";
 import { PlayerColor, PlayerColorRecord, TP, criminalColor, otherColor, playerColorRecord, playerColorRecordF, playerColors, playerColorsC } from "./table-params";
 import { AuctionBonus, AuctionTile, Busi, Resi, Tile, TownRules, TownStart } from "./tile";
 import { NC } from "./choosers";
 import { H } from "./hex-intfs";
 import { Container, DisplayObject, Text } from "@thegraid/easeljs-module";
+import { CostIncCounter } from "./counters";
+import { Table } from "./table";
 
 class HexEvent {}
 class Move{
@@ -59,7 +60,7 @@ export class GamePlay0 {
     const type = Object.keys(this.marketSource).find((type: 'Busi' | 'Resi') => fromHex == this.getMarketSource(type).hex) as 'Busi' | 'Resi';
     return this.getMarketSource(type);
   }
-  recycleHex: Hex2;
+  recycleHex: Hex2;   // set by Table.layoutTable()
 
   logWriterLine0() {
     let time = stime('').substring(6,15)
@@ -216,12 +217,14 @@ export class GamePlay0 {
   /** show player color and cost. */
   readonly costIncHexCounters = new Map<Hex,CostIncCounter>()
   costNdxFromHex(hex: Hex) {
-    return this.costIncHexCounters.get(hex)?.ndx; // Criminal/Police: ndx, no counter
+    return this.costIncHexCounters.get(hex)?.ndx ?? 0; // Criminal/Police: ndx, no counter
   }
 
-  /** must supply tile.hex OR ndx */
+  /** Influence Required; must supply tile.hex OR ndx */
   getInfR(tile: Tile | undefined, ndx = this.costNdxFromHex(tile.hex)) {
-    let incr = this.costInc[this.curPlayer.nCivics][ndx]
+    let incr = this.costInc[this.curPlayer.nCivics][ndx], nmi = 2 * TP.auctionMerge;
+    let aIndex = this.auctionTiles.indexOf(tile as AuctionTile); // -1 if not from Auction
+    if (aIndex >= 0 && aIndex < nmi) ++incr;
     // assert: !tile.hex.isOnMap (esp: tile.hex == tile.homeHex)
     let infR = (tile?.cost ?? 0) + incr; // Influence required.
     if (tile instanceof AuctionTile) infR += tile.bonusCount;
@@ -235,8 +238,8 @@ export class GamePlay0 {
     if (this.preGame) return false;
     if (!(!tile.hex.isOnMap && (toHex.isOnMap || toReserve))) return false;
     // curPlayer && NOT FROM Map && TO [Map or Reserve]
-    let bribR = 0, [infR, coinR] = this.getInfR(tile);
-    if (!toReserve) {
+    let bribR = 0, [infR, coinR] = this.getInfR(tile); // assert coinR >= 0
+    if (!toReserve && infR > 0) {
       // bribes can be used to reduce the influence required to deploy:
       const infT = toHex.getInfT(this.curPlayer.color)
       bribR = infR - infT;        // add'l influence needed, expect <= 0
@@ -247,7 +250,7 @@ export class GamePlay0 {
         return true;
       }
     }
-    if (coinR > this.curPlayer.coins) {
+    if (coinR > 0 && coinR > this.curPlayer.coins) {    // QQQ: can you but a 0-cost tile with < 0 coins? [Yes!? so can buy a AT for free]
       const failText = `Coins required ${coinR} [${infR}] > ${this.curPlayer.coins}`
       console.log(stime(this, `.failToPayCost:`), failText, toHex.Aname)
       this.logText(failText);
@@ -344,7 +347,7 @@ export class GamePlay0 {
   }
 
   placeCriminal(hex: Hex) {
-    return this.placeMeep0(Criminal.source.hex.meep, hex);
+    return this.placeMeep0(Criminal.source.hexMeep, hex);
   }
 }
 
@@ -405,25 +408,32 @@ export class GamePlay extends GamePlay0 {
   startTurn() {
   }
 
-  autoCrime(dice = this.dice) {
+  // mercenaries rally to your cause against the enemy (no cost, follow your orders.)
+  autoCrime() {
     // no autoCrime until all Players have 3 VPs.
-    if (this.allPlayers.find(plyr => plyr.econs < 3)) return; // poverty
-    let meep = this.table.crimeHex.meep as Criminal;
+    if (this.allPlayers.find(plyr => plyr.econs < TP.econForCrime)) return; // poverty
+    const meep = Criminal.source.hexMeep;
     if (!meep) return;               // no Criminals available
-    let targetHex = this.autoCrimeTarget(meep);
-    this.placeMeep(meep, targetHex, true); // meep.player == undefined --> no failToPayCost()
-    meep.player = this.crimePlayer;  // autoCrime: not owned by curPlayer
+    const targetHex = this.autoCrimeTarget(meep);
+    meep.autoCrime = true;
+    this.placeMeep(meep, targetHex, false); // meep.player == undefined --> no failToPayCost()
+    // meep.player = this.crimePlayer;  // autoCrime: not owned by curPlayer
+    this.logText(`AutoCrime: ${meep.Aname}@${targetHex.Aname}`)
+    this.processAttacks(meep.player.color);
   }
 
   autoCrimeTarget(meep: Criminal) {
     // Gang up on a weak Tile:
-    let hexes = this.hexMap.filterEachHex(hex => !hex.occupied && meep.isLegalTarget(hex) && hex.getInfT(this.curPlayer.color) < 1)
+    let hexes = this.hexMap.filterEachHex(hex => !hex.occupied && meep.isLegalTarget(hex));
+    //  && hex.getInfT(this.curPlayer.color) < 1 ?? to avoid playing into jeopardy
     let pColor = this.curPlayer.otherPlayer.color
     hexes.sort((a, b) => a.getInfT(pColor) - b.getInfT(pColor))
     let infs = hexes.map(hex => hex.getInfT(pColor));
-    let minInf = hexes[0] ? hexes[0].getInfT(pColor) : 0;
+    let minInf = hexes[0]?.getInfT(pColor) ?? 0;
     let hexes1 = hexes.filter(hex => hex.getInfT(pColor) == minInf);
     if (hexes1.length > 0) hexes = hexes1;
+    // TODO: select placement with max attacks
+    // place meep, propagateIncr, check getInfT('c') > getInfT(pColor), remove(meep)
     let hexes2 = hexes.filter(hex => hex.findLinkHex(hex => hex.meep instanceof Criminal));
     if (hexes2.length > 0) hexes = hexes2;
     return hexes[Math.floor(Math.random() * hexes.length)];
@@ -435,16 +445,29 @@ export class GamePlay extends GamePlay0 {
     this.markedAttacks.forEach((hex: Hex2) => {
       const attacks = this.whichAttacks(hex);
       attacks?.forEach(pc => hex.markCapture(pc));
-    }
-      );
+    });
   }
   clearAttackMarks() {
     this.markedAttacks.forEach((hex: Hex2) => hex.unmarkCapture());
   }
 
+  processAttacks(color: PlayerColor) {
+    this.hexMap.forEachHex(hex => {
+      if (hex.tile?.player && hex.getInfT(hex.tile?.player?.color) < hex.getInfT(color)) {
+        // TODO: until next 'click': show flames on hex & show Tile in 'purgatory'.
+        this.clearAttackMarks();
+        hex.tile.recycle();  // remove tile, allocate points; no change to infP!
+        this.showAttackMarks();
+        return true;
+      }
+      return false;
+    });
+  }
+
+  // do we may need to unMove meeples in the proper order? lest we get 2 meeps on a hex? (apparently not)
   unMove() {
     this.curPlayer.meeples.forEach(meep => {
-      if (meep.hex?.isOnMap && meep.startHex) {
+      if (meep.hex?.isOnMap && meep.startHex && meep.startHex !== meep.hex ) {
         this.placeMeep(meep, meep.startHex); // unMove update influence; Note: no unMove for Hire! (sendHome)
         meep.faceUp()
       }
@@ -628,11 +651,13 @@ export class GamePlay extends GamePlay0 {
 
   // TODO: use setNextPlayerNdx() and include in GamePlay0 ?
   override setNextPlayer(plyr = this.otherPlayer()) {
+    this.preGame || this.curPlayer.totalVpCounter.incValue(this.curPlayer.vps);
     this.beforeNxtPlayer();
     this.table.buttonsForPlayer[this.curPlayerNdx].visible = false;
     super.setNextPlayer(plyr)
-    this.table.auctionCont.shift();
-    this.logText(this.table.auctionCont.tileNames);
+    this.table.auctionCont.shift();   // QQQ? shift before nextPlayer? also: set Bonus on last Tile? or curPlayer choose Tile?
+    Player.updateCounters();
+    this.logText(this.table.auctionCont.tileNames(this.curPlayerNdx));
     this.table.buttonsForPlayer[this.curPlayerNdx].visible = true;
     this.table.showNextPlayer() // get to nextPlayer, waitPaused when Player tries to make a move.?
     this.hexMap.update()

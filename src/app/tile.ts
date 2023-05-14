@@ -368,7 +368,7 @@ export class Tile extends Tile0 {
   // Leader --> homeHex, Police/Criminal --> UnitSource.
   /** Post-condition: !tile.hex.isOnMap; tile.hex may be undefined [UnitSource] */
   recycle() {
-    this.isCapture();
+    this.doRecycle();
     this.sendHome();
   }
 
@@ -378,37 +378,42 @@ export class Tile extends Tile0 {
   }
 
   // TODO: belongs to GamePlay
-  isCapture() {
-    let cp = GamePlay.gamePlay.curPlayer
-    let info = { name: this.Aname, fromHex: this.hex?.Aname, cp: cp.colorn, caps: cp.captures, tile: this }
+  doRecycle() {
+    const cp = GamePlay.gamePlay.curPlayer
+    const loc = this.hex?.isOnMap ? 'onMap' : 'offMap';
+    let verb = (this instanceof Meeple) ? 'dismissed' : 'demolished';
+    const info = { name: this.Aname, fromHex: this.hex?.Aname, cp: cp.colorn, caps: cp.captures, tile: this }
     if (this.hex?.isOnMap) {
       if (this.player !== cp) {
         cp.captures++;
-        console.log(stime(this, `.isCapture[onMap]: captured`), info);
-        return true;
+        verb = 'captured';
       } else {
-        let verb = (this instanceof Meeple) ? 'dismiss' : 'demolish'
         cp.coins -= this.econ;  // dismiss Meeple, claw-back salary.
-        console.log(stime(this, `.isCapture[onMap]: ${verb}:`), info);
-        return false
       }
-    } else {
-      let verb = (this instanceof Meeple) ? 'dismiss' : 'demolish'
-      console.log(stime(this, `.isCapture[offMap]: ${verb}:`), info);
-      return false
     }
+    console.log(stime(this, `.doRecycle[${loc}]: ${verb}`), info);
+    GamePlay.gamePlay.logText(`${cp.Aname} ${verb} ${this.Aname}@${this.hex.Aname}`);
   }
 
-  // highlight legal targets, record targetHex when meeple is over a legal target hex.
+  /**
+   * Augment Table.dragFunc0().
+   *
+   * Highlight legal targets, record ctx.targetHex when meeple is over a legal target hex.
+   */
   dragFunc0(hex: Hex2, ctx: DragContext) {
     let isCapture = (hex == GamePlay.gamePlay.recycleHex); // dev/test: use manual capture.
     ctx.targetHex = (isCapture || this.isLegalTarget(hex)) ? hex : ctx.originHex;
     ctx.targetHex.map.showMark(ctx.targetHex);
   }
 
+  /** entry point from Table.dropFunc; delegate to this.dropFunc() */
   dropFunc0(hex: Hex2, ctx: DragContext) {
     this.dropFunc(ctx.targetHex, ctx)
     ctx.targetHex.map.showMark(undefined)
+  }
+
+  canBeMovedBy(player: Player, ctx: DragContext) {
+    return (ctx.lastShift || this.player === undefined || this.player === player);
   }
 
   /** override as necessary. */
@@ -451,12 +456,6 @@ export class Civic extends Tile {
     player.civicTiles.push(this);
   }
 
-  override get infP() {
-    let meep = this.hex.meep;
-    let leaderInf = (meep instanceof Leader) && meep.civicTile === this ? TP.infOnCivic : 0;
-    return super.infP + leaderInf;
-  }
-
   // also paint the InfRays
   override paint(pColor?: PlayerColor, colorn?: string): void {
     super.paint(pColor);
@@ -476,6 +475,7 @@ export class Civic extends Tile {
   }
   override dropFunc(targetHex: Hex2, ctx: DragContext): void {
       super.dropFunc(targetHex, ctx);
+      // placing a Civic changes the cost of Auction Tiles:
       (GamePlay.gamePlay as GamePlay).showPlayerPrices();
   }
 }
@@ -598,6 +598,14 @@ export class AuctionTile extends Tile {
   indexInAuction() {
     return GamePlay.gamePlay.auctionTiles.indexOf(this);
   }
+  override canBeMovedBy(player: Player, ctx: DragContext): boolean {
+    if (!super.canBeMovedBy(player, ctx)) return false;
+    // exclude opponent's [unowned] private auction Tiles:
+    const opi = player.otherPlayer.index, nm = this.table.auctionCont.nm
+    const oppAuctionTiles = this.table.gamePlay.auctionTiles.slice(opi * nm, opi + nm)
+    const isOppAuction = oppAuctionTiles.includes(this as AuctionTile);
+    return !isOppAuction;
+  }
 
   override addBonus(type: AuctionBonus): BonusMark {
     if (GamePlay.gamePlay.auctionTiles.includes(this)) {
@@ -619,12 +627,30 @@ export class AuctionTile extends Tile {
     return false
   }
 
+  flipOwner(player: Player, gamePlay = GamePlay.gamePlay) {
+    gamePlay.logText(`Flip ${this.Aname}@${this.hex.Aname} to ${player.colorn}`)
+    this.player = player;  // Flip ownership
+    this.paint(player.color);
+    Player.updateCounters();
+    // Assert: AuctionTile.inf == 0; [unless we make an InfBonus]
+    // Assert: Civic Tile does not get flipped.
+    // Therefore: Flip does not change the propagated influence
+    if (this.infP > 0) debugger; // propagateDecr(ex-color), propagateIncr(new-color)
+    gamePlay.hexMap.update();
+  }
+
   // AuctionTile
   override dropFunc(targetHex: Hex2, ctx: DragContext) {
-    if ((targetHex == ctx.originHex)) return super.dropFunc(targetHex, ctx);
-
     let gamePlay = GamePlay.gamePlay;
     let player = gamePlay.curPlayer, pIndex = player.index;
+
+    if ((targetHex == ctx.originHex)) {
+      if (targetHex.isOnMap && targetHex.getInfT(player.color) > targetHex.getInfT(this.player.color)) {
+        this.flipOwner(player, gamePlay);
+      }
+      return super.dropFunc(targetHex, ctx);
+    }
+
     let info = [ctx.targetHex.Aname, this.Aname, this.bonus];
     let reserveTiles = gamePlay.reserveTiles[pIndex];
     let reserveHexes = gamePlay.reserveHexes[pIndex];

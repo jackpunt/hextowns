@@ -1,4 +1,4 @@
-import { C, F, S } from "@thegraid/common-lib";
+import { C, F, S, stime } from "@thegraid/common-lib";
 import { ValueCounter } from "@thegraid/easeljs-lib";
 import { Shape, Text } from "@thegraid/easeljs-module";
 import { GamePlay } from "./game-play";
@@ -161,10 +161,15 @@ export class Leader extends Meeple {
     new Chancellor(new University(p))   // Rook: Chariot, Rector, Count
   }
 
-  civicTile: Civic;     // the special tile for this Meeple/Leader
+  civicTile: Civic;               // Leader deploys to civicTile & extra VP when on civicTile
+
+  // VP bonus when Leader is on CivicTile
+  override get vp()   { return super.vp   + (this.civicTile !== this.hex.tile ? 0 : TP.vpOnCivic); }
+  // InfP bonus when Leader is on CivicTile [if enabled by TP.infOnCivic]
+  override get infP() { return super.infP + (this.civicTile !== this.hex.tile ? 0 : TP.infOnCivic); }
 
   constructor(tile: Civic, abbrev: string) {
-    super(`${abbrev}:${tile.player.index}`, tile.player, 1, 1, TP.leaderCost, TP.leaderEcon);
+    super(`${abbrev}:${tile.player.index}`, tile.player, 1, 0, TP.leaderCost, TP.leaderEcon);
     this.civicTile = tile;
     const mark = this.addBonus('star');
     this.addChildAt(mark, 1); // move bonus-star just above MeepleShape
@@ -183,7 +188,7 @@ export class Leader extends Meeple {
 
   override isLegalTarget(hex: Hex) { // Leader
     if (!super.isLegalTarget(hex)) return false;
-    if (!this.hex.isOnMap && (hex !== this.civicTile.hex)) return false; // deploy ONLY to civicTile ???
+    if (!this.hex.isOnMap && (hex !== this.civicTile.hex)) return false; // deploy ONLY to civicTile.
     return true
   }
 
@@ -262,6 +267,14 @@ class UnitSource<T extends Meeple> extends TileSource<T> {
 
 }
 
+class CriminalSource extends UnitSource<Criminal> {
+  override availUnit(unit: Criminal): void {
+    super.availUnit(unit);
+    unit.autoCrime = false;
+  }
+  get hexMeep() { return this.hex.meep as Criminal; }
+}
+
 export class Police extends Meeple {
   static source: UnitSource<Police>[] = [];
 
@@ -311,17 +324,22 @@ export class Police extends Meeple {
  * They swarm and destroy civil and economic resources:
  * if negative influence exceeds positive influence on hex, meep or tile is removed.
  *
- * Not owned by any Player, are played against the opposition.
+ * Owned & Operated by Player, to destroy Tiles of the opposition.
  */
 export class Criminal extends Meeple {
   static index = 0; // vs static override serial
-  static source: UnitSource<Criminal>;
+  static source: CriminalSource;
 
   static makeSource(hex: Hex2, n = 0) {
-    let source = Criminal.source = new UnitSource(Criminal, undefined, hex)
+    let source = Criminal.source = new CriminalSource(Criminal, undefined, hex)
+    console.log(stime(this, `.makeSource:`), source, Criminal.source);
     for (let i = 0; i < n; i++) new Criminal(i + 1).homeHex = hex;
     source.nextUnit(); // moveTo(source.hex)
   }
+
+  autoCrime = false;  // set true for zero-econ for this unit.
+
+  override get econ(): number { return this.autoCrime ? 0 : super.econ; }
 
   constructor(serial = ++Criminal.index) {
     super(`Barb-${serial}`, undefined, 1, 0, TP.criminalCost, TP.criminalEcon)
@@ -356,17 +374,24 @@ export class Criminal extends Meeple {
     return toHex;
   }
 
+  override canBeMovedBy(player: Player, ctx: DragContext): boolean {
+    // TODO: allow to player move some autoCrime criminals
+    if (!super.canBeMovedBy(player, ctx)) return false;
+    return true;
+  }
+
   override isLegalTarget(hex: Hex): boolean { // Criminal
     if (!super.isLegalTarget(hex)) return false;
     let curPlayer = GamePlay.gamePlay.curPlayer
-    if (this.player && this.player !== curPlayer) return false;  // may not move Criminals placed by opponent.
     // must NOT be on or adj to curPlayer Tile:
     if (hex.tile?.player == curPlayer) return false;
-    //if (hex.neighbors.find(hex => hex.tile?.player == curPlayer)) return false;
     if (hex.findLinkHex(hex => { return (hex.tile?.player == curPlayer); })) return false;
-    // must be on or adj to otherPlayer Tile:
+    // must be on or adj to otherPlayer Tile OR aligned Criminal:
     if (hex.tile?.player && hex.tile.player !== curPlayer) return true;
-    if (hex.findLinkHex(hex => hex.tile?.player && hex.tile.player !== curPlayer)) return true;
+    if (hex.findLinkHex(hex =>
+      (hex.tile?.player && hex.tile.player !== curPlayer) ||
+      ((hex.meep instanceof Criminal) && hex.meep.player === curPlayer))
+      ) return true;
     return false;
   }
 

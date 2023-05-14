@@ -42,13 +42,13 @@ export class InfMark extends Shape {
     return g
   }
   /** 2 Graphics, one is used by each InfMark */
-  static infG = playerColorRecord(undefined as unknown as Graphics, undefined as unknown as Graphics)
   static setInfGraphics(): PlayerColorRecord<Graphics> {
     return InfMark.infG = playerColorRecordF<Graphics>(sc => InfMark.gColor(sc, InfMark.infG[sc]))
   }
+  static infG = playerColorRecordF<Graphics>(sc => InfMark.gColor(sc))
   /** @param ds show Influence on Axis */
   constructor(sc: PlayerColor, ds: HexAxis, x: number, y: number) {
-    super(InfMark.infG[sc] || InfMark.setInfGraphics()[sc])
+    super(InfMark.infG[sc])
     this.mouseEnabled = false
     this.rotation = H.dirRot[ds]
     this.x = x; this.y = y
@@ -189,16 +189,13 @@ export class Hex {
   getInf(color: PlayerColor, dn: InfDir) { return this.inf[color] ? (this.inf[color][dn] ?? 0) : 0 }
   setInf(color: PlayerColor, dn: InfDir, inf: number) { return this.inf[color][dn] = inf }
 
-  get tileInf() { return this.tile?.infP ?? 0; }
-  get meepInf() { return this.meep?.infP ?? 0; }
-
-  // presence of Tile and/or Meeple provides influence to adjacent cells
-  // that propagates along the axies, decrementing on empty un-occupied cells,
-  // boosting on occupied cells.
+  // Presence of Tile and/or Meeple may provide influence to adjacent cells
+  // that propagates along the axies, decrementing on non-presence cells,
+  // boosting on presence/occupied cells.
   /** influence from presence of Tile/Meeple. */
   getInfP(color: PlayerColor) {
-    const tileInf = this.tile?.infColor == color ? this.tileInf : 0;
-    const meepInf =  this.meep?.infColor == color ? this.meepInf : 0;
+    const tileInf = this.tile?.infColor == color ? this.tile.infP : 0;
+    const meepInf = this.meep?.infColor == color ? this.meep.infP : 0;
     return tileInf + meepInf;
   }
   /** Total external inf on this Hex. */
@@ -353,7 +350,6 @@ export class Hex2 extends Hex {
       meep.x = this.x; meep.y = this.y;
       cont.addChild(meep)
       // then put tile under meep
-      if (this.tile) cont.addChildAt(this.tile, cont.getChildIndex(meep) - 1)
     }
   }
 
@@ -542,35 +538,12 @@ export class HexMap extends Array<Array<Hex>> implements HexM {
   rcLinear(row: number, col: number): number { return col + row * (1 + (this.maxCol || 0) - (this.minCol||0)) }
 
   //
-  //                         |
-  //         2        .      |  1
-  //            .            |
-  //      .                  |
-  //  -----------------------+
-  //         sqrt3
-  //
-  //                         |
-  //         1        .      |  .5
-  //            .            |
-  //      .                  |
-  //  -----------------------+
-  //         sqrt3/2
-  //
-  //                         |
-  //      2/sqrt3     .      |  1 / sqrt3
-  //            .            |
-  //      .                  |
-  //  -----------------------+
-  //
-  //         1
-  //
-  //                         |
-  //      1/sqrt3     .      |  .5 / sqrt3
-  //            .            |
-  //      .                  |
-  //  -----------------------+
-  //         .5
-  //
+  //                         |    //                         |    //                         |
+  //         2        .      |  1 //         1        .      | .5 //         2/sqrt3  .      |  1/sqrt3
+  //            .            |    //            .            |    //            .            |
+  //      .                  |    //      .                  |    //      .                  |
+  //  -----------------------+    //  -----------------------+    //  -----------------------+
+  //         sqrt3                //         sqrt3/2              //         1
   //
 
   readonly radius = TP.hexRad
