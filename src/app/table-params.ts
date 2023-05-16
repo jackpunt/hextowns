@@ -22,7 +22,7 @@ export class TP {
   static policeEcon = -2;
   static criminalEcon = -3;
   // Meeples: pay with econ; no inf cost, place in Civic/PStation, or crime zone.
-  static leaderCost = 0;
+  static leaderCost = 0; // increased by [bonus('star') + costInc] == 1 + -leaderEcon
   static policeCost = 0;
   static criminalCost = 0;
   static econForCrime = 6;

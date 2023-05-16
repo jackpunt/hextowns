@@ -42,7 +42,8 @@ export class NumCounter extends ValueCounterBox {
     shape.y += 4;
     return shape;
   }
-  // override setValue(value: number){
+  // breaks the setting of value?!
+  // override setValue(value: number) {
   //   super.setValue(value)
   // }
   override getValue(): number {

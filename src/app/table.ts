@@ -353,7 +353,7 @@ export class Table extends EventDispatcher  {
       p.allLeaders.forEach((meep, i) => {
         const homeHex = meep.civicTile.moveTo(meep.moveTo(leaderHexes[i])) as Hex2;
         meep.homeHex = meep.civicTile.homeHex = homeHex;
-        this.addCostCounter(homeHex, `${meep.Aname}-c`, 0, p); // leaderHex[plyr]
+        this.addCostCounter(homeHex, `${meep.Aname}-c`, 1, p); // leaderHex[plyr]
       })
       Police.makeSource(p, academyHex, TP.policePerPlayer);
     })
@@ -557,6 +557,9 @@ export class Table extends EventDispatcher  {
       this.logText(`Not your tile: ${tile.Aname}`)
       this.stopDragging();
     } else {
+      // mark legal targets for tile; [ignoring Busi/Resi balance]
+      this.hexMap.forEachHex(hex => (hex.isLegal = tile.isLegalTarget(hex)));
+      this.hexMap.update();
       tile.dragStart(hex, ctx)
     }
   }
@@ -568,6 +571,7 @@ export class Table extends EventDispatcher  {
 
   dropFunc(tile: Tile, info: DragInfo) {
     tile.dropFunc0(this.hexUnderObj(tile), this.dragContext)
+    this.hexMap.forEachHex(hex => (hex.isLegal = false))
     this.dragContext.lastShift = undefined;
     this.dragContext.tile = undefined; // mark not dragging
   }

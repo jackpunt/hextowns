@@ -188,7 +188,7 @@ export class GamePlay0 {
     const [nBusi, nResi, fBusi, fResi] = this.playerBalance(player, ivec);
     const hiBusi = nBusi > (nResi + fResi);
     const loBusi = nResi > 2 * (nBusi + fBusi);
-    const fail = hiBusi || loBusi;
+    const fail = (hiBusi && (tile.nR + tile.fR) === 0) || (loBusi && (tile.nB + tile.fB === 0));
     if (fail) {
       const failText =  hiBusi ? 'need Residential' : 'need Business';
       console.log(stime(this, `.balanceFail: ${failText} ${tile.Aname}`), [nBusi, nResi, fBusi, fResi], tile);
@@ -229,10 +229,17 @@ export class GamePlay0 {
     return [infR, coinR];
   }
 
-  failToPayCost(tile: Tile, toHex: Hex) {
+  logFailure(type: string, reqd: number, avail: number, toHex: Hex) {
+    const failText = `${type} required: ${reqd} > ${avail}`;
+    console.log(stime(this, `.failToPayCost:`), failText, toHex.Aname);
+    this.logText(failText);
+  }
+
+  failToPayCost(tile: Tile, toHex: Hex, commit = true) {
     const toReserve = this.reserveHexes[this.curPlayerNdx].includes(toHex);
-    if (tile.hex == toHex) return false;  // no payment; recompute influence
+    if (tile.hex === toHex) return false;  // no payment; recompute influence
     if (this.preGame) return false;
+    // Can't fail if not going onto the Map:
     if (!(!tile.hex.isOnMap && (toHex.isOnMap || toReserve))) return false;
     // curPlayer && NOT FROM Map && TO [Map or Reserve]
     let bribR = 0, [infR, coinR] = this.getInfR(tile); // assert coinR >= 0
@@ -241,23 +248,21 @@ export class GamePlay0 {
       const infT = toHex.getInfT(this.curPlayer.color)
       bribR = infR - infT;        // add'l influence needed, expect <= 0
       if (bribR > this.curPlayer.bribs) {
-        const failText = `Influence required: ${infR} > ${infT}`;
-        console.log(stime(this, `.failToPayCost:`), failText, toHex.Aname);
-        this.logText(failText);
+        if (commit) this.logFailure('Influence', infR, infT, toHex);
         return true;
       }
     }
     if (coinR > 0 && coinR > this.curPlayer.coins) {    // QQQ: can you but a 0-cost tile with < 0 coins? [Yes!? so can buy a AT for free]
-      const failText = `Coins required ${coinR} [${infR}] > ${this.curPlayer.coins}`
-      console.log(stime(this, `.failToPayCost:`), failText, toHex.Aname)
-      this.logText(failText);
+      if (commit) this.logFailure('Coins', coinR, this.curPlayer.coins, toHex);
       return true;
     }
-    // fail == false; commit to purchase:
-    if (bribR > 0) {
-      this.curPlayer.bribs -= bribR;
+    if (commit) {
+      // fail == false; commit to purchase:
+      if (bribR > 0) {
+        this.curPlayer.bribs -= bribR;
+      }
+      this.curPlayer.coins -= coinR;
     }
-    this.curPlayer.coins -= coinR;
     return false;
   }
 
@@ -417,7 +422,7 @@ export class GamePlay extends GamePlay0 {
     this.placeMeep(meep, targetHex, false); // meep.player == undefined --> no failToPayCost()
     // meep.player = this.crimePlayer;  // autoCrime: not owned by curPlayer
     this.logText(`AutoCrime: ${meep.Aname}@${targetHex.Aname}`)
-    this.processAttacks(meep.player.color);
+    this.processAttacks(meep.infColor, meep.player.color);
   }
 
   autoCrimeTarget(meep: Criminal) {
@@ -449,9 +454,11 @@ export class GamePlay extends GamePlay0 {
     this.markedAttacks.forEach((hex: Hex2) => hex.unmarkCapture());
   }
 
-  processAttacks(color: PlayerColor) {
+  /** attacks *against* color */
+  processAttacks(attacker: PlayerColor, protectee?: PlayerColor) {
     this.hexMap.forEachHex(hex => {
-      if (hex.tile?.player && hex.getInfT(hex.tile?.player?.color) < hex.getInfT(color)) {
+      const tColor = hex.tile?.player?.color;
+      if ((!!tColor && (tColor !== protectee)) && hex.getInfT(tColor) < hex.getInfT(attacker)) {
         // TODO: until next 'click': show flames on hex & show Tile in 'purgatory'.
         this.clearAttackMarks();
         hex.tile.recycle();  // remove tile, allocate points; no change to infP!

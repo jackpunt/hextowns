@@ -131,11 +131,17 @@ export class Meeple extends Tile {
     return hexMap.hexUnderPoint(pt.x, pt.y)
   }
 
+  isOnLine(hex: Hex) {
+    return H.infDirs.find(dir => this.hex.hexesInDir(dir).includes(hex)) ? true : false;
+  }
+
   override isLegalTarget(hex: Hex) {  // Meeple
     if (!hex) return false;
     if (hex.meep) return false;    // no move onto meeple
-    // no move onto other player's Tile: WHY NOT? ... allow Police to invade opponent's territory.
-    // if (hex.tile?.player && hex.tile.player !== this.player) return false;
+    if (this.table.gamePlay.failToPayCost(this, hex, false)) return false;
+    // only move in line, to hex with influence:
+    let onLine = this.isOnLine(hex), noInf = hex.getInfT(this.infColor) === 0;
+    if (this.hex.isOnMap && (!onLine || noInf)) return false;
     return hex.isOnMap;
   }
 
@@ -357,19 +363,23 @@ export class Criminal extends Meeple {
   }
 
   override moveTo(hex: Hex) {
-    let source = Criminal.source
-    let fromHex = this.hex;
-    let toHex = super.moveTo(hex);
-    let fromSrc = (fromHex == source.hex), toSrc = (toHex == source.hex);
+    const source = Criminal.source
+    const fromHex = this.hex;
+    const toHex = super.moveTo(hex);
+    const fromSrc = (fromHex == source.hex), toSrc = (toHex == source.hex);
+    const gamePlay = GamePlay.gamePlay, curPlayer = gamePlay.curPlayer;
     if (toSrc) {   // birth or recycle
       this.player = undefined;
       this.paint()
       this.updateCache()
     } else if (fromSrc) { // Assert: isOnMap from isLegalTarget
-      this.player = GamePlay.gamePlay.curPlayer; // no hex for recycle... (prev curPlayer for autoCrime)
+      this.player = curPlayer; // no hex for recycle... (prev curPlayer for autoCrime)
       this.paint()
       this.updateCache()
       source.nextUnit()   // Criminal: shift; moveTo(source.hex); update source counter
+    }
+    if (toHex === gamePlay.recycleHex && this.player !== curPlayer) {
+      curPlayer.coins -= this.econ;   // capturing player gets this Criminals salary (0 if autoCrime)
     }
     return toHex;
   }
@@ -385,7 +395,7 @@ export class Criminal extends Meeple {
     let plyr = this.player ?? GamePlay.gamePlay.curPlayer; // owner or soon-to-be owner
     // must NOT be on or adj to plyr's Tile:
     if (hex.tile?.player == plyr) return false;
-    if (hex.findLinkHex(hex => { return (hex.tile?.player == plyr); })) return false;
+    if (hex.findLinkHex(hex => hex.tile?.player == plyr)) return false;
     // must be on or adj to otherPlayer Tile OR aligned Criminal:
     if (hex.tile?.player && hex.tile.player !== plyr) return true;
     if (hex.findLinkHex(hex =>

@@ -83,7 +83,7 @@ export class Player {
   }
   vpCounter: NumCounter;
   get vps() {
-    let vp = 0;
+    let vp = this.captures;
     this.gamePlay.hexMap.forEachHex(hex => {
       const dv = (hex.meep instanceof Criminal) ? 0 :
         (((hex.tile?.player == this && hex.tile.vp) +

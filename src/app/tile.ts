@@ -293,7 +293,7 @@ export class Tile extends Tile0 {
   }
 
   infText: Text
-  setInfText(text: string) {
+  setInfText(text = '') {
     this.infText.text = text;
     this.updateCache()
   }
@@ -363,11 +363,11 @@ export class Tile extends Tile0 {
   /**
    * Augment Table.dragFunc0().
    *
-   * Highlight legal targets, record ctx.targetHex when meeple is over a legal target hex.
+   * isLegal already set; record ctx.targetHex when meeple is over a legal target hex.
    */
   dragFunc0(hex: Hex2, ctx: DragContext) {
     let isCapture = (hex == GamePlay.gamePlay.recycleHex); // dev/test: use manual capture.
-    ctx.targetHex = (isCapture || this.isLegalTarget(hex)) ? hex : ctx.originHex;
+    ctx.targetHex = (isCapture || hex?.isLegal || this.isLegalTarget(hex)) ? hex : ctx.originHex;
     ctx.targetHex.map.showMark(ctx.targetHex);
   }
 
@@ -383,7 +383,7 @@ export class Tile extends Tile0 {
 
   /** override as necessary. */
   dragStart(hex: Hex2, ctx: DragContext) {
-    // when lifting a Tile from map, remove its influence?
+    // when lifting a Tile from map, remove its influence? [no]
   }
 
   /** state of shiftKey has changed during drag */
@@ -395,7 +395,9 @@ export class Tile extends Tile0 {
    */
   isLegalTarget(hex: Hex) {
     if (!hex) return false;
-    if (hex.tile) return false;
+    if (hex.tile) return false; // note: from AuctionHexes to Reserve overrides this.
+    if (hex.meep && (hex.meep.player !== this.table.gamePlay.curPlayer)) return false;
+    if (this.table.gamePlay.failToPayCost(this, hex, false)) return false;
     // if (hex.isLegalTarget)
     // TODO: when auto-capture is working, re-assert no dragging.
     // if ((this.hex as Hex2).isOnMap) return false;
@@ -431,7 +433,6 @@ export class Civic extends Tile {
   override isLegalTarget(hex: Hex) { // Civic
     if (!super.isLegalTarget(hex)) return false;
     if (!hex.isOnMap) return false;
-    // if insufficient influence(hex) return false;
     return true;
   }
 
@@ -556,6 +557,7 @@ export class AuctionTile extends Tile {
     console.log(stime(this, `.recycle: to tileBag`), this.Aname, this.player?.colorn, this)
     this.player = undefined;
     this.x = this.y = 0;
+    this.setInfText();
     AuctionTile.tileBag.unshift(this)
     this.table.auctionCont.tileCounter.setValue(AuctionTile.tileBag.length);
     this.table.hexMap.update();
@@ -581,15 +583,17 @@ export class AuctionTile extends Tile {
 
 
   override isLegalTarget(hex: Hex): boolean { // AuctionTile
-    if (!hex) return false;
+    if (!super.isLegalTarget(hex)) return false;
     const gamePlay = GamePlay.gamePlay;
-    let curPlayer = gamePlay.curPlayer, curNdx = curPlayer.index;
-    if (hex.isOnMap && !hex.tile && (!hex.meep || hex.meep.player == curPlayer)) return true;
-    if (gamePlay.reserveHexes[curNdx].includes(hex as Hex2)) return true;
-    // TODO: during dev/testing: allow return to auction, using shift key:
-    if (gamePlay.reserveHexes[curNdx].includes(this.hex as Hex2)
+    // cannot place on Tile or other's meep:
+    if (hex.isOnMap) return !(hex.tile || (hex.meep && hex.meep.player !== gamePlay.curPlayer));
+    const reserveHexes = gamePlay.reserveHexes[gamePlay.curPlayerNdx];
+    // AuctionTile can go toReserve:
+    if (reserveHexes.includes(hex)) return true;
+    // TODO: during dev/testing: if fromReserve, allow return to auctionHexes
+    if (reserveHexes.includes(this.hex)
       && this.table.auctionCont.hexes.includes(hex as Hex2)) return true;
-    return false
+    return true
   }
 
   flipOwner(player: Player, gamePlay = GamePlay.gamePlay) {

@@ -270,6 +270,12 @@ export class Hex {
     return Object.keys(this.links).find((dir: InfDir) => pred(this.links[dir], dir, this));
   }
 
+  hexesInDir(dir: InfDir, rv: Hex[] = []) {
+    let hex: Hex = this;
+    while (!!(hex = hex.links[dir])) rv.push(hex);
+    return rv;
+  }
+
   nextHex(ds: HexDir, ns: number = 1) {
     let hex: Hex = this, nhex: Hex
     while (!!(nhex = hex.links[ds]) && ns-- > 0) { hex = nhex }
@@ -389,6 +395,7 @@ export class Hex2 extends Hex {
   }
 
   readonly legalMark: LegalMark;
+  override get isLegal() { return this._isLegal; }
   override set isLegal(v: boolean) {
     super.isLegal = v;
     this.legalMark.visible = v;
