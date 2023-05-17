@@ -31,7 +31,7 @@ export class TP {
   static anyPlayerAdj = true;
   static vpOnCivic = 1;
   static infOnCivic = 0;
-  static preShiftCount = 2;  // plus 1 at start of turn
+  static preShiftCount = 1;  // plus 1 at start of turn
   static maxCivics = 4;
   static auctionMerge = 0;
   static auctionSlots = 4;

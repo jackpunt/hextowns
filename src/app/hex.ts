@@ -2,9 +2,10 @@ import { C, F, RC, S } from "@thegraid/easeljs-lib";
 import { Container, DisplayObject, Graphics, Point, Shape, Text } from "@thegraid/easeljs-module";
 import { EwDir, H, HexAxis, HexDir, InfDir, NsDir } from "./hex-intfs";
 import { Meeple } from "./meeple";
-import { CapMark, HexShape, LegalMark } from "./shapes";
+import { CapMark, HexShape, LegalMark, MeepCapMark } from "./shapes";
 import { PlayerColor, PlayerColorRecord, TP, playerColorRecord, playerColorRecordF, playerColorsC } from "./table-params";
 import { Tile } from "./tile";
+import { Player } from "./player";
 
 export const S_Resign = 'Hex@Resign'
 export const S_Skip = 'Hex@skip '
@@ -150,8 +151,9 @@ export class Hex {
   set isLegal(v: boolean) { this._isLegal = v; }
 
   readonly map: HexMap;  // Note: this.parent == this.map.hexCont [cached]
-  readonly row: number
-  readonly col: number
+  readonly row: number;
+  readonly col: number;
+  /** influence of color passing through this hex; see also getInfT() */
   readonly inf = playerColorRecord<INF>({},{},{})
   /** Link to neighbor in each H.dirs direction [NE, E, SE, SW, W, NW] */
   readonly links: LINKS = {}
@@ -180,8 +182,8 @@ export class Hex {
   // boosting on presence/occupied cells.
   /** influence from presence of Tile/Meeple. */
   getInfP(color: PlayerColor) {
-    const tileInf = this.tile?.infColor == color ? this.tile.infP : 0;
-    const meepInf = this.meep?.infColor == color ? this.meep.infP : 0;
+    const tileInf = this.tile?.infColor === color ? this.tile.infP : 0;
+    const meepInf = this.meep?.infColor === color ? this.meep.infP : 0;
     return tileInf + meepInf;
   }
   /** Total external inf on this Hex. */
@@ -206,7 +208,7 @@ export class Hex {
    * @param inf is influence *passed-in* to Hex; *next* gets [inf+infP or inc-1]
    * @param test after hex.setInf(inf) and hex.propagateIncr(nxt), apply test(hex); [a visitor]
    */
-  propagateIncr(color: PlayerColor, dn: InfDir, inf: number, test?: (hex: Hex) => void) {
+  propagateIncr(color: PlayerColor, dn: InfDir, inf: number, test: ((hex: Hex) => void) = (hex) => hex.assessThreats()) {
     let infP = this.getInfP(color), inf0 = this.getInf(color, dn);
     this.setInf(color, dn, inf)
     let nxt = infP > 0 ? inf + infP : inf - 1;
@@ -220,7 +222,7 @@ export class Hex {
    * @param inf for hex, without infP
    * @param test after hex.setInf(infn) and hex.propagateDecr(nxt), apply test(hex)
    */
-  propagateDecr(color: PlayerColor, dn: InfDir, inf: number, tileInf: number, test?: (hex: Hex) => void) {
+  propagateDecr(color: PlayerColor, dn: InfDir, inf: number, tileInf: number, test: ((hex: Hex) => void) = (hex) => hex.assessThreats()) {
     // if *this* has inf, then next may also have propagated inf.
     let infP = this.getInfP(color)
     let inf0 = this.getInf(color, dn) + infP + tileInf; // original, largest inf
@@ -230,32 +232,9 @@ export class Hex {
     if (test) test(this);
   }
 
-  /** true if hex influence by 1 or more Axies of color */
-  isThreat(color: PlayerColor) {
-    return !!Object.values(this.inf[color]).find(inf => (inf > 0))
-  }
-  isAttack2(color: PlayerColor) {
-    let attacks = 0, infs = this.inf[color], adds = {}
-    H.axis.forEach(ds => adds[ds] = 0)
-    return !!Object.entries(infs).find(([dn, inf]) =>
-      (inf > 0) && (++adds[H.dnToAxis[dn]] == 1) && (++attacks >= 2)
-    )
-  }
-  /** @return true if Hex is influenced on 2 or more Axies of color */
-  isAttack1(color: PlayerColor): boolean {
-    let attacks = new Set<HexAxis>(), infs = this.inf[color]
-    let dirMap = TP.parallelAttack ? H.dnToAxis2 : H.dnToAxis;
-    return !!Object.entries(infs).find(([dn, inf]) =>
-      (inf > 0) && (attacks.add(dirMap[dn]).size >= 2)
-    )
-  }
-  isAttack(color: PlayerColor) {
-    return this.getInfT(color) <= this.getInfT('c');
-  }
-  /** @return true if Hex is occupied by tile/meep, and is attacked */
-  isCapture(color: PlayerColor): Tile {
-    // QQQ: do Criminals first kill hex.tile or hex.meep?? pro'ly the tile, as it typically has lower infP
-    return this.isAttack(color) ? (this.tile || this.meep) : undefined;
+  assessThreats() {
+    this.tile?.assessThreats();    // playerColorsC.forEach(pc => this.assessThreat(pc));
+    this.meep?.assessThreats();
   }
 
   /** convert LINKS object to Array */
@@ -417,18 +396,13 @@ export class Hex2 extends Hex {
     if (infMark) { infMark.visible = show; }
   }
 
-  readonly capMarks: PlayerColorRecord<CapMark> = playerColorRecord(); // shown on this.map.markCont
+  override assessThreats(): void {
+    super.assessThreats();
+    playerColorsC.forEach(pc => {
+      this.tile?.setCapMark(pc, CapMark);
+      this.meep?.setCapMark(pc, MeepCapMark);
+    });
 
-  /** make and show CapMark(s) on this Hex2 */
-  markCapture(pc: PlayerColor) {
-    if (this.capMarks[pc] === undefined) {
-      this.capMarks[pc] = new CapMark(this, pc);
-    } else {
-      this.capMarks[pc].paint(TP.colorScheme[pc]);
-    }
-  }
-   unmarkCapture() {
-    playerColorsC.forEach(pc => this.capMarks[pc] && (this.capMarks[pc].visible = false))
   }
 
   /** set hexShape using color: draw border and fill
@@ -616,6 +590,15 @@ export class HexMap extends Array<Array<Hex>> implements HexM {
     this.link(hex)   // link to existing neighbors
     return hex
   }
+  /** find first Hex matching the given predicate function */
+  findHex<K extends Hex>(fn: (hex: K) => boolean): K {
+    for (let hexRow of this) {
+      if (hexRow === undefined) continue
+      const found = hexRow.find((hex: K) => hex && fn(hex)) as K
+      if (found !== undefined) return found
+    }
+    return undefined;
+  }
   /** Array.forEach does not use negative indices: ASSERT [row,col] is non-negative (so 'of' works) */
   forEachHex<K extends Hex>(fn: (hex: K) => void) {
     // minRow generally [0 or 1] always <= 5, so not worth it
@@ -624,16 +607,6 @@ export class HexMap extends Array<Array<Hex>> implements HexM {
       // beginning and end of this AND ir may be undefined
       if (ir !== undefined) for (let hex of ir) { hex !== undefined && fn(hex as K) }
     }
-  }
-  /** find first Hex matching the given predicate function */
-  findHex<K extends Hex>(fn: (hex: K) => boolean): K {
-    let found: K
-    for (let ir of this) {
-      if (ir === undefined) continue
-      found = ir.find((hex: K) => hex && fn(hex)) as K
-      if (found !== undefined) return found
-    }
-    return found // undefined
   }
   /** return array of results of mapping fn over each Hex */
   mapEachHex<K extends Hex,T>(fn: (hex: K) => T): T[] {

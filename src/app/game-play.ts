@@ -220,10 +220,10 @@ export class GamePlay0 {
 
   /** Influence Required; must supply tile.hex OR ndx */
   getInfR(tile: Tile | undefined, ndx = this.costNdxFromHex(tile.hex), plyr = this.curPlayer) {
-    let incr = this.costInc[plyr.nCivics][ndx] ?? 0; // ndx out-of-range --> incr = 0
     // assert: !tile.hex.isOnMap (esp fromHex: tile.hex == tile.homeHex)
-    let infR = (tile?.cost ?? 0) + incr; // Influence required.
-    if (tile instanceof AuctionTile) infR += tile.bonusCount;
+    // Influence required:
+    let infR = (tile?.cost ?? 0) + (tile?.bonusCount ?? 0) + (this.costInc[plyr.nCivics][ndx] ?? 0);
+    // if (tile instanceof AuctionTile)
     let coinR = infR + ((tile?.econ ?? 0) < 0 ? -tile.econ : 0);  // Salary is required when recruited.
     if (Number.isNaN(coinR)) debugger;
     return [infR, coinR];
@@ -294,23 +294,42 @@ export class GamePlay0 {
       tile.hex = fromHex;        // briefly, until moveTo(toHex)
     }
     if (toHex == this.recycleHex) {
-      tile.recycle();      // return to homeHex, Dev/Test: capture or dismiss
+      this.recycleTile(tile);    // Score capture; log; return to homeHex
       this.logText(`Recycle ${tile.Aname} from ${fromHex.Aname}`)
     } else {
       tile.moveTo(toHex);  // placeTile(tile, hex) --> moveTo(hex)
       if (toHex !== fromHex) this.logText(`Place ${tile.Aname}@${toHex.Aname}`)
       if (toHex.isOnMap) {
-        if (!tile.player) tile.player = this.curPlayer; // for Market tiles; not for auto-Criminals
+        if (!tile.player) tile.player = this.curPlayer; // for Market tiles; also for [auto] Criminals
         this.incrInfluence(tile.hex, infColor);
       }
     }
     Player.updateCounters();
   }
 
+  recycleTile(tile: Tile) {
+    if (!tile) return;
+    const cp = this.curPlayer
+    const loc = tile.hex?.isOnMap ? 'onMap' : 'offMap';
+    let verb = (tile instanceof Meeple) ? 'dismissed' : 'demolished';
+    const info = { name: tile.Aname, fromHex: tile.hex?.Aname, cp: cp.colorn, caps: cp.captures, tile }
+    if (tile.hex?.isOnMap) {
+      if (tile.player !== cp) {
+        cp.captures++;
+        verb = 'captured';
+      } else {
+        cp.coins -= tile.econ;  // dismiss Meeple, claw-back salary.
+      }
+    }
+    console.log(stime(this, `.recycleTile[${loc}]: ${verb}`), info);
+    this.logText(`${cp.Aname} ${verb} ${tile.Aname}@${tile.hex.Aname}`);
+    tile.sendHome();
+  }
+
   /** from auctionTiles to reservedTiles */
   reserveAction(tile: AuctionTile, rIndex: number) {
     let pIndex = this.curPlayerNdx;
-    this.reserveTiles[pIndex][rIndex]?.recycle();   // if another Tile in reserve slot, recycle it.
+    this.recycleTile(this.reserveTiles[pIndex][rIndex]);   // if another Tile in reserve slot, recycle it.
     this.reserveTiles[pIndex][rIndex] = tile;
     tile.player = this.curPlayer;
     return true;
@@ -410,21 +429,6 @@ export class GamePlay extends GamePlay0 {
   startTurn() {
   }
 
-  // mercenaries rally to your cause against the enemy (no cost, follow your orders.)
-  // TODO: allow 'curPlayer' to place one of their [autoCrime] Criminals
-  autoCrime() {
-    // no autoCrime until all Players have 3 VPs.
-    if (this.allPlayers.find(plyr => plyr.econs < TP.econForCrime)) return; // poverty
-    const meep = Criminal.source.hexMeep;   // TODO: use per-player Criminal source
-    if (!meep) return;               // no Criminals available
-    const targetHex = this.autoCrimeTarget(meep);
-    meep.autoCrime = true;
-    this.placeMeep(meep, targetHex, false); // meep.player == undefined --> no failToPayCost()
-    // meep.player = this.crimePlayer;  // autoCrime: not owned by curPlayer
-    this.logText(`AutoCrime: ${meep.Aname}@${targetHex.Aname}`)
-    this.processAttacks(meep.infColor, meep.player.color);
-  }
-
   autoCrimeTarget(meep: Criminal) {
     // Gang up on a weak Tile:
     let hexes = this.hexMap.filterEachHex(hex => !hex.occupied && meep.isLegalTarget(hex));
@@ -442,31 +446,36 @@ export class GamePlay extends GamePlay0 {
     return hexes[Math.floor(Math.random() * hexes.length)];
   }
 
-  markedAttacks: Hex[] = [];
-  showAttackMarks() {
-    this.markedAttacks = this.allAttacks();
-    this.markedAttacks.forEach((hex: Hex2) => {
-      const attacks = this.whichAttacks(hex);
-      attacks?.forEach(pc => hex.markCapture(pc));
-    });
-  }
-  clearAttackMarks() {
-    this.markedAttacks.forEach((hex: Hex2) => hex.unmarkCapture());
+  // mercenaries rally to your cause against the enemy (no cost, follow your orders.)
+  // TODO: allow 'curPlayer' to place one of their [autoCrime] Criminals
+  autoCrime() {
+    // no autoCrime until all Players have 3 VPs.
+    if (this.allPlayers.find(plyr => plyr.econs < TP.econForCrime)) return; // poverty
+    const meep = Criminal.source.hexMeep;   // TODO: use per-player Criminal source
+    if (!meep) return;               // no Criminals available
+    const targetHex = this.autoCrimeTarget(meep);
+    meep.autoCrime = true;           // no econ charge to curPlayer
+    this.placeMeep(meep, targetHex, true); // meep.player == undefined --> no failToPayCost()
+    // meep.player = this.crimePlayer;  // autoCrime: not owned by curPlayer
+    this.logText(`AutoCrime: ${meep.Aname}@${targetHex.Aname}`)
+    this.processAttacks(meep.infColor);
   }
 
   /** attacks *against* color */
-  processAttacks(attacker: PlayerColor, protectee?: PlayerColor) {
-    this.hexMap.forEachHex(hex => {
-      const tColor = hex.tile?.player?.color;
-      if ((!!tColor && (tColor !== protectee)) && hex.getInfT(tColor) < hex.getInfT(attacker)) {
-        // TODO: until next 'click': show flames on hex & show Tile in 'purgatory'.
-        this.clearAttackMarks();
-        hex.tile.recycle();  // remove tile, allocate points; no change to infP!
-        this.showAttackMarks();
+  processAttacks(attacker: PlayerColor) {
+    // TODO: until next 'click': show flames on hex & show Tile in 'purgatory'.
+    // loop to check again after capturing (cascade)
+    while (this.hexMap.findHex(hex => {
+      if (hex.tile?.isThreat[attacker]) {
+        this.recycleTile(hex.tile);  // remove tile, allocate points; no change to infP!
+        return true;
+      }
+      if (hex.meep?.isThreat[attacker]) {
+        this.recycleTile(hex.meep);  // remove tile, allocate points; no change to infP!
         return true;
       }
       return false;
-    });
+    }));
   }
 
   // do we may need to unMove meeples in the proper order? lest we get 2 meeps on a hex? (apparently not)
@@ -577,10 +586,7 @@ export class GamePlay extends GamePlay0 {
   override placeEither(tile: Tile, toHex: Hex): void {
     const info = { tile, fromHex: tile.hex, toHex, hexInf: toHex.infStr };
     if (toHex !== tile.hex) console.log(stime(this, `.placeEither:`), info);
-
-    this.clearAttackMarks();
     super.placeEither(tile, toHex);
-    this.showAttackMarks();
   }
 
   /**

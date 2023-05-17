@@ -310,11 +310,11 @@ export class Table extends EventDispatcher  {
       this.addCostCounter(hex, `CostInc${hexi}`, ndx, repaint); // auctionHex
     });
 
-    for (let i = 0; i < TP.preShiftCount; i++) {
-      playerColors.forEach((pc, i) => {
-        this.auctionCont.shift(i) // Also shift in gamePlay.startTurn()
-      })
-    }
+    playerColors.forEach((pc, pNdx) => {
+      for (let i = 0; i < TP.preShiftCount; i++) { // typically: preShiftCount = min(1, nMerge)
+        this.auctionCont.shift(pNdx) // Also shift in gamePlay.startTurn()
+      }
+    });
 
     // TODO: Criminal.source[plyr], just like Police
     const crimeHex = this.addCostCounter(topRowHex(`Barbs`, 4), undefined, -1, true);  // no counter, no incr, repaint for curPlayer
@@ -428,7 +428,7 @@ export class Table extends EventDispatcher  {
       counter.attachToContainer(counterCont, pt);
       counter.mouseEnabled = true;
       counter.setLabel(`${name}s`, { x: 0, y: fSize / 2 - 5 }, 12);
-      if (incr) counter.on(S.click, (evt: MouseEvent) => counter.incValue(evt.nativeEvent.ctrlKey ? -1 : 1));
+      if (incr) counter.on(S.click, (evt: MouseEvent) => counter.incValue((evt.nativeEvent.ctrlKey ? -1 : 1) * (evt.nativeEvent.shiftKey ? 10 : 1)));
       player[cname] = counter;
       return counter
     };
@@ -761,17 +761,18 @@ class AuctionCont {
     // put tile in slot-n (move previous tile to n+1)
     let shift1 = (tile: AuctionTile, n: number) => {
       if (!!tiles[n]) {
-        if (n < this.maxndx)
+        if (n < this.maxndx) {
           shift1(tiles[n], (this.nm > 0 && n == this.nm - 1) ? 2 * this.nm : n + 1);
-        else
-          tiles[n].recycle();   // tile.hex = auction[= maxndx] --> tileBag
-          tiles[n] = undefined
+        } else {
+          this.table.gamePlay.recycleTile(tiles[n]);   // tile.hex = auction[= maxndx] --> tileBag
+        }
+        tiles[n] = undefined
       }
       // ASSERT: tiles[n] is undefined
       tiles[n] = tile;
       tile.moveTo(hexes[n])
     }
-    shift1(tile, pIndex * this.nm)
+    shift1(tile, pIndex * this.nm);  // [0, this.nm][pIndex]
     this.tileCounter.stage && this.tileCounter.setValue(AuctionTile.tileBag.length)
     console.log(stime(this, `.shift`), tiles)
     this.table.gamePlay.showPlayerPrices();

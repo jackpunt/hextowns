@@ -3,6 +3,7 @@ import { Graphics, Shape } from "@thegraid/easeljs-module";
 import { Hex, Hex2 } from "./hex";
 import { H, HexDir } from "./hex-intfs";
 import { PlayerColor, TP, playerColorRecord } from "./table-params";
+import { Meeple } from "./meeple";
 
 export class C1 {
   static GREY = 'grey';
@@ -61,24 +62,29 @@ export class TileShape extends HexShape {
   }
 }
 
-/** CapMark indicates if hex has been captured. */
+/** CapMark indicates if hex can be or has been captured. */
 export class CapMark extends Shape {
   static capSize = TP.hexRad/4   // depends on HexMap.height
   static xyOffset = playerColorRecord<XY>({ x: -.3, y: -.5 }, { x: .3, y: -.5 }, { x: 0, y: .3 })
-  constructor(hex: Hex2, pc: PlayerColor, vis = true) {
+  constructor(pc: PlayerColor, vis = true, xy = CapMark.xyOffset[pc], rad = TP.hexRad) {
     super()
-    let parent = hex.mapCont.markCont;
-    this.paint(TP.colorScheme[pc]);
-    let { x, y } = CapMark.xyOffset[pc];
-    hex.cont.parent.localToLocal(hex.x + x * TP.hexRad, hex.y + y * TP.hexRad, parent, this);
     this.visible = vis;
     this.mouseEnabled = false;
-    parent.addChild(this)
+    this.paint(TP.colorScheme[pc]);
+    this.x = xy.x * rad;
+    this.y = xy.y * rad;
   }
   // for each Player: hex.tile
   paint(color = Hex.capColor, vis = true) {
     this.graphics.c().f(color).dp(0, 0, CapMark.capSize, 6, 0, 30);
     this.visible = vis;
+  }
+}
+export class MeepCapMark extends CapMark {
+  static override xyOffset = playerColorRecord<XY>({ x: -.6, y: .5 }, { x: .6, y: .5 }, { x: 0, y: 1.5 })
+
+  constructor(pc: PlayerColor, vis = true, xy = MeepCapMark.xyOffset[pc], rad = Meeple.radius) {
+    super(pc, vis, xy, rad)
   }
 }
 

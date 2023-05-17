@@ -5,9 +5,9 @@ import { Hex, Hex2, HexMap } from "./hex";
 import { H } from "./hex-intfs";
 import { Meeple } from "./meeple";
 import { Player } from "./player";
-import { C1, PaintableShape, TileShape } from "./shapes";
+import { C1, CapMark, PaintableShape, TileShape } from "./shapes";
 import { DragContext, Table } from "./table";
-import { PlayerColor, TP } from "./table-params";
+import { PlayerColor, PlayerColorRecord, TP, playerColorRecord, playerColorsC } from "./table-params";
 
 /** lines showing influence of a Tile. */
 export class InfRays extends Container {
@@ -129,7 +129,7 @@ class TileLoader {
   imageMap = new Map<string, HTMLImageElement>()
   imageArgs = {
     root: 'assets/images/',
-    fnames: ['Resi', 'Busi', 'Pstation', 'Bank', 'Lake', 'Recycle', 'TownStart', 'TownHall', 'Temple', ...this.Uname],
+    fnames: ['Resi', 'Busi', 'Pstation', 'Bank', 'Lake', 'Recycle', 'TownStart', 'Courthouse', 'TownHall', 'Temple', ...this.Uname],
     ext: 'png',
   };
 
@@ -237,7 +237,7 @@ export class Tile extends Tile0 {
     if (hex !== undefined) hex.tile = this;
   }
 
-  get table() { return (GamePlay.gamePlay as GamePlay).table; }
+  get table() { return (GamePlay.gamePlay as GamePlay).table as Table; }
 
   homeHex: Hex = undefined;
 
@@ -298,6 +298,28 @@ export class Tile extends Tile0 {
     this.updateCache()
   }
 
+  isThreat: PlayerColorRecord<boolean> = playerColorRecord(false, false, false);
+  assessThreat(atkr: PlayerColor) {
+    this.isThreat[atkr] = this.infColor && (this.hex.getInfT(this.infColor) < this.hex.getInfT(atkr));
+  }
+  assessThreats() {
+    playerColorsC.forEach(pc => this.assessThreat(pc) )
+  }
+  capMarks: PlayerColorRecord<CapMark> = playerColorRecord()
+
+  setCapMark(pc: PlayerColor, capMark = CapMark) {
+    const vis = this.isThreat[pc];
+    let mark = this.capMarks[pc]
+    if (vis && !mark) {
+      mark = this.capMarks[pc] = new capMark(pc);
+      this.addChild(mark);
+    }
+    if (mark) {
+      mark.visible = vis;
+      this.updateCache()
+    };
+  }
+
   addNameText(name = this.Aname, y0 = TP.hexRad / 2) {
     let nameText = new Text(name, F.fontSpec(Tile.textSize))
     nameText.textAlign = 'center'
@@ -325,39 +347,13 @@ export class Tile extends Tile0 {
     return hex;
   }
 
-  // Tile: AuctionTile, Civic, Meeple
-  // isFromMap --> capture Opp Tile/Meeple OR dismiss Own Meeple
-  // isFromAuction --> to tileBag
-  // isFromReserve --> to tileBag
-  // Meeple:
-  // Leader --> homeHex, Police/Criminal --> UnitSource.
-  /** Post-condition: !tile.hex.isOnMap; tile.hex may be undefined [UnitSource] */
-  recycle() {
-    this.doRecycle();
-    this.sendHome();
-  }
-
-  /** after recycle or capture. */
+  /**
+   * After recycle or capture.
+   * Post-condition: !tile.hex.isOnMap; tile.hex may be undefined [UnitSource]
+   */
   sendHome() {
     this.moveTo(this.homeHex) // override for AucionTile.tileBag & UnitSource<Meeple>
-  }
-
-  // TODO: belongs to GamePlay
-  doRecycle() {
-    const cp = GamePlay.gamePlay.curPlayer
-    const loc = this.hex?.isOnMap ? 'onMap' : 'offMap';
-    let verb = (this instanceof Meeple) ? 'dismissed' : 'demolished';
-    const info = { name: this.Aname, fromHex: this.hex?.Aname, cp: cp.colorn, caps: cp.captures, tile: this }
-    if (this.hex?.isOnMap) {
-      if (this.player !== cp) {
-        cp.captures++;
-        verb = 'captured';
-      } else {
-        cp.coins -= this.econ;  // dismiss Meeple, claw-back salary.
-      }
-    }
-    console.log(stime(this, `.doRecycle[${loc}]: ${verb}`), info);
-    GamePlay.gamePlay.logText(`${cp.Aname} ${verb} ${this.Aname}@${this.hex.Aname}`);
+    Object.values(this.capMarks).forEach(cm => cm.visible = false);
   }
 
   /**
@@ -366,8 +362,8 @@ export class Tile extends Tile0 {
    * isLegal already set; record ctx.targetHex when meeple is over a legal target hex.
    */
   dragFunc0(hex: Hex2, ctx: DragContext) {
-    let isCapture = (hex == GamePlay.gamePlay.recycleHex); // dev/test: use manual capture.
-    ctx.targetHex = (isCapture || hex?.isLegal || this.isLegalTarget(hex)) ? hex : ctx.originHex;
+    let isRecycle = (hex === GamePlay.gamePlay.recycleHex); // dev/test: use manual capture.
+    ctx.targetHex = (isRecycle || hex?.isLegal || this.isLegalTarget(hex)) ? hex : ctx.originHex;
     ctx.targetHex.map.showMark(ctx.targetHex);
   }
 
@@ -436,8 +432,8 @@ export class Civic extends Tile {
     return true;
   }
 
-  override recycle() {   // Civic - put under Leader
-    super.recycle();
+  override sendHome() {   // Civic - put under Leader
+    super.sendHome();
     this.table.hexMap.mapCont.tileCont.addChildAt(this, 1); // under meeple
   }
   override dropFunc(targetHex: Hex2, ctx: DragContext): void {
@@ -484,7 +480,7 @@ export class TownStart extends Civic {
 
 export class Courthouse extends Civic {
   constructor(player: Player) {
-    super(player, 'TH', 'TownHall')
+    super(player, 'CH', 'Courthouse')
   }
 }
 
@@ -499,7 +495,7 @@ export class University extends Civic {
 export class Church extends Civic {
   override get fR() { return 1; } // Church
   constructor(player: Player) {
-    super(player, 'C', 'Temple')
+    super(player, 'T', 'Temple')
   }
 }
 

@@ -14,7 +14,7 @@ class MeepleShape extends Shape implements PaintableShape {
   static fillColor = 'rgba(225,225,225,.7)';
   static overColor = 'rgba(120,210,120,.5)';
 
-  constructor(public player: Player, public radius = TP.hexRad * .4, public y0 = radius * 5 / 6) {
+  constructor(public player: Player, public radius = TP.hexRad * .4, public y0 = Meeple.radius) {
     super()
     this.paint();
     this.overShape = this.makeOverlay();
@@ -42,6 +42,8 @@ class MeepleShape extends Shape implements PaintableShape {
 type MeepleInf = -1 | 0 | 1;
 export class Meeple extends Tile {
   static allMeeples: Meeple[] = [];
+  static radius = TP.hexRad * .4;
+  static y0 = Meeple.radius * 5 / 6;
 
   readonly colorValues = C.nameToRgba("blue"); // with alpha component
   get y0() { return (this.childShape as MeepleShape).y0; }
@@ -164,8 +166,8 @@ export class Leader extends Meeple {
   static makeLeaders(p: Player, nPolice = 10) {
     new Mayor(new TownStart(p))   // King
     new Priest(new Church(p))     // Bishop
-    new Judge(new Courthouse(p))  // Queen
     new Chancellor(new University(p))   // Rook: Chariot, Rector, Count
+    new Judge(new Courthouse(p))  // Queen
   }
 
   civicTile: Civic;               // Leader deploys to civicTile & extra VP when on civicTile
@@ -175,7 +177,7 @@ export class Leader extends Meeple {
   // InfP bonus when Leader is on CivicTile [if enabled by TP.infOnCivic]
   override get infP() { return super.infP + (this.civicTile !== this.hex.tile ? 0 : TP.infOnCivic); }
 
-  constructor(tile: Civic, abbrev: string) {
+  constructor(tile: Civic, abbrev: string) {  // Leader(name, player, inf, vp, cost, econ)
     super(`${abbrev}:${tile.player.index}`, tile.player, 1, 0, TP.leaderCost, TP.leaderEcon);
     this.civicTile = tile;
     const mark = this.addBonus('star');
