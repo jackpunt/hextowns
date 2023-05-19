@@ -7,13 +7,13 @@ import { Planner } from "./plan-proxy";
 import { Player } from "./player";
 import { GameStats, TableStats } from "./stats";
 import { LogWriter } from "./stream-writer";
-import { PlayerColor, PlayerColorRecord, TP, criminalColor, otherColor, playerColorRecord, playerColorRecordF, playerColors, playerColorsC } from "./table-params";
-import { AuctionBonus, AuctionTile, Busi, Resi, Tile, TownRules, TownStart } from "./tile";
+import { PlayerColor, PlayerColorRecord, TP, otherColor, playerColorRecord, playerColors, } from "./table-params";
+import { AuctionBonus, AuctionTile, BonusTile, Busi, Resi, Tile, TownRules } from "./tile";
 import { NC } from "./choosers";
 import { H } from "./hex-intfs";
-import { Container, DisplayObject, Text } from "@thegraid/easeljs-module";
+import { Container, Text } from "@thegraid/easeljs-module";
 import { CostIncCounter } from "./counters";
-import { Table } from "./table";
+import { AuctionShifter, Table } from "./table";
 
 class HexEvent {}
 class Move{
@@ -51,16 +51,19 @@ export class GamePlay0 {
   readonly gStats: GameStats             // 'readonly' (set once by clone constructor)
   readonly redoMoves = []
   readonly auctionTiles: AuctionTile[] = []     // per game
-  readonly reserveTiles: AuctionTile[][] = [[],[]];      // per player; 2-players, 2-Tiles
-  readonly reserveHexes: Hex[][] = [[], []];   // target Hexes for reserving a Tile.
+  shifter: AuctionShifter;
+  get auctionHexes() { return this.shifter.hexes; }
+
+  readonly reserveTiles: AuctionTile[][] = [[],[]];   // per player; 2-players, TP.reserveTiles
+  readonly reserveHexes: Hex[][] = [[], []];          // target Hexes for reserving a Tile.
   readonly marketSource: { Busi?: TileSource<Busi>, Resi?: TileSource<Resi>} = {};  // per Busi/Resi type
+
   getMarketSource(type: 'Busi' | 'Resi' ) { return this.marketSource[type] as TileSource<AuctionTile>; }
   /** return the market that sourced tile, or undefined if not from market. */
   fromMarket(fromHex: Hex) {
     const type = Object.keys(this.marketSource).find((type: 'Busi' | 'Resi') => fromHex == this.getMarketSource(type).hex) as 'Busi' | 'Resi';
     return this.getMarketSource(type);
   }
-  recycleHex: Hex2;   // set by Table.layoutTable()
 
   logWriterLine0() {
     let time = stime('').substring(6,15)
@@ -75,7 +78,6 @@ export class GamePlay0 {
     logWriter.writeLine(line0)
     return logWriter;
   }
-  crimePlayer: Player;
 
   constructor() {
     GamePlay.gamePlay = this;
@@ -92,14 +94,58 @@ export class GamePlay0 {
     this.crimePlayer = new Player(2, 'c', this);
     Player.allPlayers.length = 2;
 
-    this.auctionTiles = new Array<AuctionTile>(TP.auctionSlots);   // expect to have 1 Tile child (or none)
+    this.auctionTiles = new Array<AuctionTile>(TP.auctionSlots + TP.auctionMerge);
     this.reserveTiles = [[],[]];
+    this.dice = new Dice();
+    this.shifter = new AuctionShifter(this.auctionTiles);
+    AuctionTile.fillBag(this.shifter.tileBag);              // put R/B/PS/L into draw bag.
+    TownRules.inst.fillRulesBag();
   }
 
+  recycleHex: Hex ;         // set by Table.layoutTable()
+  crimePlayer: Player;
   turnNumber: number = 0    // = history.lenth + 1 [by this.setNextPlayer]
   curPlayerNdx: number = 0  // curPlayer defined in GamePlay extends GamePlay0
   curPlayer: Player;
   preGame = true;
+
+  dice: Dice;
+
+  /**
+   * While curPlayer = *last* player.
+   * [so autoCrime() -> meep.player = curPlayer]
+   *
+   * - Shift Auction
+   * - Roll 2xD6, enable effects.
+   * - - 1+1: add Star
+   * - - 2+2: add Action
+   * - - 3+3: add Coin
+   * - - 6+4-6: add Criminal
+   */
+  rollDiceForBonus() {
+    let dice = this.dice.roll();
+    dice.sort(); // ascending
+    console.log(stime(this, `.startTurn: Dice =`), dice)
+    if (dice[0] == 1 && dice[1] == 1) { this.addBonus('actn'); }
+    if (dice[0] == 2 && dice[1] == 2) { this.addBonus('star'); }
+    if (dice[0] == 3 && dice[1] == 3) { this.addBonus('brib'); }
+    if (dice[0] == 4 && dice[1] == 4) { this.addBonus('econ'); }
+    if (dice[0] != dice[1] && !dice.find(v => v < 4)) {
+      this.autoCrime(); // 4-[5,6], 5-[4,6], 6-[4,5] 6/36 => 16.7%
+    }
+    this.hexMap.update()
+  }
+
+  /** allow curPlayer to place a Criminal [on empty hex] for free. */
+  autoCrime() {
+  }
+
+  /** add Bonus to [first] AuctionTile */
+  addBonus(type: AuctionBonus, tile?: AuctionTile) {
+    if (!tile) tile = this.auctionTiles[this.curPlayerNdx * TP.auctionMerge]
+    tile.addBonus(type);
+    this.hexMap.update()
+  }
 
   playerByColor: PlayerColorRecord<Player>
   otherPlayer(plyr: Player = this.curPlayer) { return this.playerByColor[otherColor(plyr.color)]}
@@ -110,6 +156,33 @@ export class GamePlay0 {
 
   logText(line: string) {
     (this instanceof GamePlay) && this.table.logText(line);
+  }
+  permute(stack: any[]) {
+    for (let i = 0, len = stack.length; i < len; i++) {
+      let ndx: number = Math.floor(Math.random() * (len - i)) + i
+      let tmp = stack[i];
+      stack[i] = stack[ndx]
+      stack[ndx] = tmp;
+    }
+    return stack;
+  }
+
+  addBonusTiles() {
+    const tiles = (this.permute(['brib', 'star', 'econ', 'actn']) as AuctionBonus[]).map(type => new BonusTile(type));
+    let hex = this.hexMap.centerHex as Hex;
+    tiles.forEach(tile => {
+      hex = hex.nextHex('SW');
+      hex.tile = tile;
+    });
+  }
+  shiftAuction() {
+    this.shifter.shift();   // QQQ? shift before nextPlayer? also: set Bonus on last Tile? or curPlayer choose Tile?
+  }
+
+  /** when Player has completed their Action & maybe a hire. */
+  endTurn() {
+    this.shiftAuction();
+    this.rollDiceForBonus();
   }
 
   setNextPlayer(plyr: Player): void {
@@ -147,22 +220,6 @@ export class GamePlay0 {
       //let inc = hex.links[H.dirRev[dn]]?.getInf(color, dn) || 0
       hex.propagateDecr(infColor, dn, inf, tileInf)       // because no-stone, hex gets (inf - 1)
     })
-  }
-
-  whichAttacks(hex: Hex) {
-    const tInf = playerColorRecordF(tc => hex.getInfT(tc));
-    const occ = hex.occupied; // if there are any Tiles, are they 'under' attack?
-    return playerColorsC.filter(pc => !!occ?.find(t => t && tInf[t.infColor] < tInf[pc]))
-  }
-
-  isAttack(hex: Hex) {
-    const tInf = playerColorRecordF(tc => hex.getInfT(tc));
-    const occ = hex.occupied; // if there are any Tiles, are they 'under' attack?
-    return !!occ && !!playerColorsC.find(pc => !!occ?.find(t => t && tInf[t.infColor] < tInf[pc]))
-  }
-
-  allAttacks() {
-    return this.hexMap.filterEachHex(hex => this.isAttack(hex))
   }
 
   playerBalanceString(player: Player, ivec = [0, 0, 0, 0]) {
@@ -306,23 +363,26 @@ export class GamePlay0 {
     }
     Player.updateCounters();
   }
+  logDisposition(tile: Tile, verb = (tile instanceof Meeple) ? 'dismissed' : 'demolished') {
+    const cp = this.curPlayer
+    const loc = tile.hex?.isOnMap ? 'onMap' : 'offMap';
+    const info = { name: tile.Aname, fromHex: tile.hex?.Aname, cp: cp.colorn, caps: cp.captures, tile }
+    console.log(stime(this, `.recycleTile[${loc}]: ${verb}`), info);
+    this.logText(`${cp.Aname} ${verb} ${tile.Aname}@${tile.hex.Aname}`);
+  }
 
   recycleTile(tile: Tile) {
     if (!tile) return;
-    const cp = this.curPlayer
-    const loc = tile.hex?.isOnMap ? 'onMap' : 'offMap';
-    let verb = (tile instanceof Meeple) ? 'dismissed' : 'demolished';
-    const info = { name: tile.Aname, fromHex: tile.hex?.Aname, cp: cp.colorn, caps: cp.captures, tile }
+    let verb = undefined;
     if (tile.hex?.isOnMap) {
-      if (tile.player !== cp) {
-        cp.captures++;
+      if (tile.player !== this.curPlayer) {
+        this.curPlayer.captures++;
         verb = 'captured';
       } else {
-        cp.coins -= tile.econ;  // dismiss Meeple, claw-back salary.
+        this.curPlayer.coins -= tile.econ;  // dismiss Meeple, claw-back salary.
       }
     }
-    console.log(stime(this, `.recycleTile[${loc}]: ${verb}`), info);
-    this.logText(`${cp.Aname} ${verb} ${tile.Aname}@${tile.hex.Aname}`);
+    this.logDisposition(tile, verb);
     tile.sendHome();
   }
 
@@ -390,43 +450,11 @@ export class GamePlay extends GamePlay0 {
   /** GamePlay is the GUI-augmented extension of GamePlay0; uses Table */
   constructor(table: Table, public gameSetup: GameSetup) {
     super()            // hexMap, history, gStats...
-    AuctionTile.fillBag()                         // put R/B/PS/L into draw bag.
-    TownRules.inst.fillRulesBag();
     // Players have: civics & meeples & TownSpec
     // setTable(table)
     this.table = table
     this.gStats = new TableStats(this, table) // upgrade to TableStats
     if (this.table.stage.canvas) this.bindKeys()
-    this.dice = new Dice();
-  }
-  dice: Dice;
-
-  /**
-   * While curPlayer = *last* player.
-   * [so autoCrime() -> meep.player = curPlayer]
-   *
-   * - Shift Auction
-   * - Roll 2xD6, enable effects.
-   * - - 1+1: add Star
-   * - - 2+2: add Action
-   * - - 3+3: add Coin
-   * - - 6+4-6: add Criminal
-   */
-  beforeNxtPlayer() {
-    let dice = this.dice.roll();
-    dice.sort(); // ascending
-    console.log(stime(this, `.startTurn: Dice =`), dice)
-    if (dice[0] == 1 && dice[1] == 1) { this.addBonus('actn'); }
-    if (dice[0] == 2 && dice[1] == 2) { this.addBonus('star'); }
-    if (dice[0] == 3 && dice[1] == 3) { this.addBonus('brib'); }
-    if (dice[0] == 4 && dice[1] == 4) { this.addBonus('econ'); }
-    if (dice[0] != dice[1] && !dice.find(v => v < 4)) {
-      this.autoCrime(); // 4-[5,6], 5-[4,6], 6-[4,5] 6/36 => 16.7%
-    }
-    this.hexMap.update()
-  }
-
-  startTurn() {
   }
 
   autoCrimeTarget(meep: Criminal) {
@@ -448,13 +476,13 @@ export class GamePlay extends GamePlay0 {
 
   // mercenaries rally to your cause against the enemy (no cost, follow your orders.)
   // TODO: allow 'curPlayer' to place one of their [autoCrime] Criminals
-  autoCrime() {
+  override autoCrime() {
     // no autoCrime until all Players have 3 VPs.
     if (this.allPlayers.find(plyr => plyr.econs < TP.econForCrime)) return; // poverty
     const meep = Criminal.source.hexMeep;   // TODO: use per-player Criminal source
     if (!meep) return;               // no Criminals available
-    const targetHex = this.autoCrimeTarget(meep);
     meep.autoCrime = true;           // no econ charge to curPlayer
+    const targetHex = this.autoCrimeTarget(meep);
     this.placeMeep(meep, targetHex, true); // meep.player == undefined --> no failToPayCost()
     // meep.player = this.crimePlayer;  // autoCrime: not owned by curPlayer
     this.logText(`AutoCrime: ${meep.Aname}@${targetHex.Aname}`)
@@ -488,10 +516,6 @@ export class GamePlay extends GamePlay0 {
     })
   }
 
-  addBonus(type?: AuctionBonus, tile = this.auctionTiles[this.curPlayerNdx * this.table.auctionCont.nm]) {
-    tile.addBonus(type);
-    this.hexMap.update()
-  }
 
   bindKeys() {
     let table = this.table
@@ -518,7 +542,7 @@ export class GamePlay extends GamePlay0 {
     //KeyBinder.keyBinder.setKey('S', { thisArg: this, func: this.skipMove })
     KeyBinder.keyBinder.setKey('M-K', { thisArg: this, func: this.resignMove })// S-M-k
     KeyBinder.keyBinder.setKey('Escape', {thisArg: table, func: table.stopDragging}) // Escape
-    KeyBinder.keyBinder.setKey('C-a', { thisArg: table, func: () => { table.shiftAuction()} })  // C-a new Tile
+    KeyBinder.keyBinder.setKey('C-a', { thisArg: this, func: () => { this.shiftAuction()} })  // C-a new Tile
     KeyBinder.keyBinder.setKey('C-s', { thisArg: this.gameSetup, func: () => { this.gameSetup.restart() } })// C-s START
     KeyBinder.keyBinder.setKey('C-c', { thisArg: this, func: this.stopPlayer })// C-c Stop Planner
     KeyBinder.keyBinder.setKey('m', { thisArg: this, func: this.makeMove, argVal: true })
@@ -530,7 +554,7 @@ export class GamePlay extends GamePlay0 {
     KeyBinder.keyBinder.setKey('u', { thisArg: this, func: this.unMove })
     KeyBinder.keyBinder.setKey('i', { thisArg: this, func: () => {table.showInf = !table.showInf; this.hexMap.update() } })
     KeyBinder.keyBinder.setKey('M-C', { thisArg: this, func: this.autoCrime })// S-M-C
-    KeyBinder.keyBinder.setKey('S-?', { thisArg: this, func: () => console.log(stime(this, `.inTheBag:`), AuctionTile.inTheBag()) })
+    KeyBinder.keyBinder.setKey('S-?', { thisArg: this, func: () => console.log(stime(this, `.inTheBag:`), this.shifter.tileBag.inTheBag()) })
 
     // diagnostics:
     //KeyBinder.keyBinder.setKey('x', { thisArg: this, func: () => {this.table.enableHexInspector(); }})
@@ -660,15 +684,27 @@ export class GamePlay extends GamePlay0 {
     this.table.stopDragging() // drop on nextHex (no Move)
   }
 
+  /** for KeyBinding test */
+  override shiftAuction() {
+    super.shiftAuction();
+    this.paintForPlayer();
+    this.showAuctionPrices();
+    this.hexMap.update();
+  }
+
+  override endTurn(): void {
+    this.preGame || this.curPlayer.totalVpCounter.incValue(this.curPlayer.vps);
+    this.table.buttonsForPlayer[this.curPlayerNdx].visible = false;
+    super.endTurn();   // shift(), roll()
+  }
+
   // TODO: use setNextPlayerNdx() and include in GamePlay0 ?
   override setNextPlayer(plyr = this.otherPlayer()) {
-    this.preGame || this.curPlayer.totalVpCounter.incValue(this.curPlayer.vps);
-    this.beforeNxtPlayer();
-    this.table.buttonsForPlayer[this.curPlayerNdx].visible = false;
-    super.setNextPlayer(plyr)
-    this.table.auctionCont.shift();   // QQQ? shift before nextPlayer? also: set Bonus on last Tile? or curPlayer choose Tile?
+    super.setNextPlayer(plyr);
+    this.paintForPlayer();
+    this.showAuctionPrices();
     Player.updateCounters();
-    this.logText(this.table.auctionCont.tileNames(this.curPlayerNdx));
+    this.logText(this.shifter.tileNames(this.curPlayerNdx));
     this.table.buttonsForPlayer[this.curPlayerNdx].visible = true;
     this.table.showNextPlayer() // get to nextPlayer, waitPaused when Player tries to make a move.?
     this.hexMap.update()
@@ -676,18 +712,26 @@ export class GamePlay extends GamePlay0 {
     this.makeMove()
   }
 
-  showPlayerPrices() {
+  /** After setNextPlayer() */
+  startTurn() {
+  }
+
+  paintForPlayer() {
     this.costIncHexCounters.forEach(cic => {
       let plyr = (cic.repaint instanceof Player) ? cic.repaint : this.curPlayer;
       if (cic.repaint !== false) {
-        {
-          cic.hex.tile?.paint(plyr.color); //
-          cic.hex.meep?.paint(plyr.color); // flipping criminals!
-        }
+        cic.hex.tile?.paint(plyr.color); //
+        cic.hex.meep?.paint(plyr.color); // flipping criminals!
       }
+    })
+  }
+
+  showAuctionPrices() {
+    this.costIncHexCounters.forEach(cic => {
+      let plyr = (cic.repaint instanceof Player) ? cic.repaint : this.curPlayer;
       let [infR] = this.getInfR(cic.hex.tile, cic.ndx, plyr);
       cic.setValue(infR);
-    })
+    });
   }
 
   /** dropFunc | eval_sendMove -- indicating new Move attempt */

@@ -40,6 +40,7 @@ export class TP {
   static busiPerPlayer = 10;
   static lakePerPlayer = 3;
   static bankPerPlayer = 3;
+  static inBusiResiMarket = 4;
   static criminalPrePlayer = 3;
   static policePerPlayer = 3;
   static psPerPlayer = 3;

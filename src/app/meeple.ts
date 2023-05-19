@@ -94,14 +94,14 @@ export class Meeple extends Tile {
     this.overShape.visible = false;
     this.startHex = this.hex;
     this.updateCache()
-    this.table.hexMap.update()
+    GamePlay.gamePlay.hexMap.update();
   }
 
   /** when moved, show grey overlay */
   faceDown() {
     this.overShape.visible = true;
     this.updateCache()
-    this.table.hexMap.update()
+    GamePlay.gamePlay.hexMap.update();
   }
 
   override moveTo(hex: Hex): Hex {
@@ -140,7 +140,7 @@ export class Meeple extends Tile {
   override isLegalTarget(hex: Hex) {  // Meeple
     if (!hex) return false;
     if (hex.meep) return false;    // no move onto meeple
-    if (this.table.gamePlay.failToPayCost(this, hex, false)) return false;
+    if (GamePlay.gamePlay.failToPayCost(this, hex, false)) return false;
     // only move in line, to hex with influence:
     let onLine = this.isOnLine(hex), noInf = hex.getInfT(this.infColor) === 0;
     if (this.hex.isOnMap && (!onLine || noInf)) return false;
@@ -316,7 +316,7 @@ export class Police extends Meeple {
   override isLegalTarget(hex: Hex) { // Police
     if (!super.isLegalTarget(hex)) return false;
     let sourceHex = Police.source[this.player.index].hex;
-    if (this.hex == sourceHex && !(hex.tile instanceof PS)) return false;
+    if (this.hex === sourceHex && !((hex.tile instanceof PS) && hex.tile.player === this.player)) return false;
     return true;
   }
 
