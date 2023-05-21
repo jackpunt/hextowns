@@ -41,7 +41,7 @@ export class TP {
   static lakePerPlayer = 3;
   static bankPerPlayer = 3;
   static inBusiResiMarket = 4;
-  static criminalPrePlayer = 3;
+  static criminalPerPlayer = 3;
   static policePerPlayer = 3;
   static psPerPlayer = 3;
   // 35 in Bag + 4 Civic Tiles per player.

@@ -45,6 +45,8 @@ class TextLog extends Container {
   }
 
   lines: Text[];
+  lastLine = '';
+  nReps = 0;
 
   height(n = this.lines.length) {
     return (this.size + this.lead) * n;
@@ -67,9 +69,15 @@ class TextLog extends Container {
 
   log(line: string) {
     console.log(stime(this, ` ${this.Aname}.log:`), line);
-    this.removeChild(this.lines.shift());
-    this.lines.push(this.addChild(this.newText(line)));
-    this.spaceLines();
+    if (line === this.lastLine) {
+      this.lines[this.lines.length - 1].text = `[${++this.nReps}] ${line}`;
+    } else {
+      this.removeChild(this.lines.shift());
+      this.lines.push(this.addChild(this.newText(line)));
+      this.spaceLines();
+      this.lastLine = line;
+      this.nReps = 0;
+    }
     this.stage?.update();
   }
 }
@@ -309,10 +317,6 @@ export class Table extends EventDispatcher  {
       }
     });
 
-    // TODO: Criminal.source[plyr], just like Police
-    const crimeHex = this.addCostCounter(topRowHex(`Barbs`, 4), undefined, -1, true);  // no counter, no incr, repaint for curPlayer
-    Criminal.makeSource(crimeHex, TP.criminalPrePlayer * this.gamePlay.allPlayers.length);
-
     [Busi, Resi].forEach((type, ndx) => {
       let hex = topRowHex(type.name, 4 + ndx, 0); // Busi/Resi-MarketHex
       let source = gamePlay.marketSource[type.name] = new TileSource<AuctionTile>(type, undefined, hex);
@@ -329,18 +333,15 @@ export class Table extends EventDispatcher  {
     Player.allPlayers.forEach((p, pIndex) => {
       this.layoutButtonsAndCounters(p);
       p.makePlayerBits();
-      let colf1 = (ndx: number) => (pIndex == 0 ? ndx - 1 : 14 - ndx);
-      let colf2 = (ndx: number) => (pIndex == 0 ? ndx - 1 : 15 - ndx);
-      let leaderHexes = p.allLeaders.map((meep, ndx) => topRowHex(meep.Aname, colf1(ndx), -1, 0))
-      let academyHex = topRowHex(`Academy:${pIndex}`, colf2(1), 0, 0)
-      this.addCostCounter(academyHex, undefined, -1, false); // academyHex[plyr]: no Counter, no incr, no repaint
+      const colf1 = (ndx: number) => (pIndex == 0 ? ndx - 1 : 14 - ndx);
+      const colf2 = (ndx: number) => (pIndex == 0 ? ndx - 1 : 15 - ndx);
       this.reserveHexes[pIndex] = [];
       for (let i = 0; i < TP.reserveSlots; i++) {
-        let rhex = topRowHex(`Reserve:${pIndex}-${i}`, colf2(3), 0);
+        const rhex = topRowHex(`Reserve:${pIndex}-${i}`, colf2(3), 0);
         this.addCostCounter(rhex, `rCost-${i}`, 1, false); // reserveHexes[plyr]
         this.reserveHexes[pIndex].push(rhex);
       }
-
+      const leaderHexes = p.allLeaders.map((meep, ndx) => topRowHex(meep.Aname, colf1(ndx), -1, 0))
       // place [civic/leader, academy/police] meepleHex on Table/Hex (but not on Map)
       this.leaderHexes[pIndex] = leaderHexes;
       p.allLeaders.forEach((meep, i) => {
@@ -348,8 +349,16 @@ export class Table extends EventDispatcher  {
         meep.homeHex = meep.civicTile.homeHex = homeHex;
         this.addCostCounter(homeHex, `${meep.Aname}-c`, 1, p); // leaderHex[plyr]
       })
+
+      const academyHex = topRowHex(`Academy:${pIndex}`, colf2(1), 0, 0)
+      this.addCostCounter(academyHex, undefined, -1, false); // academyHex[plyr]: no Counter, no incr, no repaint
       Police.makeSource(p, academyHex, TP.policePerPlayer);
-    })
+
+      // TODO: Criminal.source[plyr], just like Police
+      const crimeHex = topRowHex(`Barbs:${pIndex}`, colf2(2), 0, 0)
+      this.addCostCounter(crimeHex, undefined, -1, false);
+      Criminal.makeSource(p, crimeHex, TP.criminalPerPlayer);
+    });
     this.hexMap.update();
     {
       let parent = this.scaleCont
@@ -552,9 +561,11 @@ export class Table extends EventDispatcher  {
       console.log(stime(this, `.dragStart: Not your tile: ${tile.Aname}`), 'ctx=',{...ctx});
       this.logText(`Not your tile: ${tile.Aname}`)
       this.stopDragging();
+    } else if (this.gamePlay.failToBalance(tile, this.gamePlay.curPlayer)) {
+      this.stopDragging()
     } else {
-      // mark legal targets for tile; [ignoring Busi/Resi balance]
-      this.hexMap.forEachHex(hex => (hex.isLegal = tile.isLegalTarget(hex)));
+      // mark legal targets for tile; SHIFT for all hexes, if payCost
+      this.hexMap.forEachHex(hex => (hex.isLegal = tile.isLegalTarget(hex) || ctx.lastShift));
       this.hexMap.update();
       tile.dragStart(hex, ctx)
     }

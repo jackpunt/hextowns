@@ -2,13 +2,13 @@ import { C, CycleChoice, DropdownStyle, makeStage, ParamGUI, ParamItem, stime } 
 import { Container, Stage } from "@thegraid/easeljs-module";
 import { EBC, PidChoice } from "./choosers";
 import { GamePlay } from "./game-play";
-import { StatsPanel, TableStats } from "./stats";
-import { Table } from "./table";
-import { TP } from "./table-params";
-import { Tile } from "./tile";
+import { InfMark } from "./hex";
 import { Meeple } from "./meeple";
 import { Player } from "./player";
-import { InfMark } from "./hex";
+import { StatsPanel, TableStats } from "./stats";
+import { Table } from "./table";
+import { criminalColor, TP } from "./table-params";
+import { Tile } from "./tile";
 
 /** show " R" for " N" */
 stime.anno = (obj: string | { constructor: { name: string; }; }) => {
@@ -144,7 +144,7 @@ export class GameSetup {
     }
     gui.spec("colorScheme").onChange = (item: ParamItem) => {
       gui.setValue(item)
-      Tile.allTiles.forEach(tile => tile.paint(tile.infColor || this.gamePlay?.curPlayer?.color))
+      Tile.allTiles.forEach(tile => tile.paint(tile.player?.color || criminalColor)); // all Tiles have a player?
       this.gamePlay.paintForPlayer();  // re-paint ActionCont tiles
       Meeple.allMeeples.forEach(meep => meep.setInfRays());
       InfMark.setInfGraphics();

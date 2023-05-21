@@ -136,7 +136,7 @@ export class GamePlay0 {
     this.hexMap.update()
   }
 
-  /** allow curPlayer to place a Criminal [on empty hex] for free. */
+  /** allow curPlayer to place a Criminal [on empty hex] for free. Override in GamePlay. */
   autoCrime() {
   }
 
@@ -243,11 +243,11 @@ export class GamePlay0 {
     // tile on map during Test/Dev, OR: when demolishing...
     const ivec = tile.hex.isOnMap ? [0, 0, 0, 0] : [tile.nB, tile.nR, tile.fB, tile.fR];
     const [nBusi, nResi, fBusi, fResi] = this.playerBalance(player, ivec);
-    const hiBusi = nBusi > (nResi + fResi);
-    const loBusi = nResi > 2 * (nBusi + fBusi);
-    const fail = (hiBusi && (tile.nR + tile.fR) === 0) || (loBusi && (tile.nB + tile.fB === 0));
+    const noBusi = nBusi > 1 * (nResi + fResi);
+    const noResi = nResi > 2 * (nBusi + fBusi);
+    const fail = (noBusi && (tile.nB > 0)) || (noResi && (tile.nR > 0));
     if (fail) {
-      const failText =  hiBusi ? 'need Residential' : 'need Business';
+      const failText =  noBusi ? 'Need Residential' : 'Need Business';
       console.log(stime(this, `.balanceFail: ${failText} ${tile.Aname}`), [nBusi, nResi, fBusi, fResi], tile);
       this.logText(failText);
     }
@@ -428,7 +428,7 @@ export class GamePlay0 {
   }
 
   placeCriminal(hex: Hex) {
-    return this.placeMeep0(Criminal.source.hexMeep, hex);
+    return this.placeMeep0(Criminal.source[this.curPlayerNdx].hexMeep, hex);
   }
 }
 
@@ -476,10 +476,10 @@ export class GamePlay extends GamePlay0 {
 
   // mercenaries rally to your cause against the enemy (no cost, follow your orders.)
   // TODO: allow 'curPlayer' to place one of their [autoCrime] Criminals
-  override autoCrime() {
+  override autoCrime(force = false) {
     // no autoCrime until all Players have 3 VPs.
-    if (this.allPlayers.find(plyr => plyr.econs < TP.econForCrime)) return; // poverty
-    const meep = Criminal.source.hexMeep;   // TODO: use per-player Criminal source
+    if (!force && this.allPlayers.find(plyr => plyr.econs < TP.econForCrime)) return; // poverty
+    const meep = Criminal.source[this.curPlayerNdx].hexMeep;   // TODO: use per-player Criminal source
     if (!meep) return;               // no Criminals available
     meep.autoCrime = true;           // no econ charge to curPlayer
     const targetHex = this.autoCrimeTarget(meep);
@@ -553,7 +553,7 @@ export class GamePlay extends GamePlay0 {
     KeyBinder.keyBinder.setKey('v', { thisArg: this, func: this.autoPlay, argVal: 1})
     KeyBinder.keyBinder.setKey('u', { thisArg: this, func: this.unMove })
     KeyBinder.keyBinder.setKey('i', { thisArg: this, func: () => {table.showInf = !table.showInf; this.hexMap.update() } })
-    KeyBinder.keyBinder.setKey('M-C', { thisArg: this, func: this.autoCrime })// S-M-C
+    KeyBinder.keyBinder.setKey('M-C', { thisArg: this, func: this.autoCrime, argVal: true })// S-M-C (force)
     KeyBinder.keyBinder.setKey('S-?', { thisArg: this, func: () => console.log(stime(this, `.inTheBag:`), this.shifter.tileBag.inTheBag()) })
 
     // diagnostics:

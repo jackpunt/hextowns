@@ -6,29 +6,28 @@ import { Hex, Hex2, HexMap } from "./hex";
 import { H } from "./hex-intfs";
 import { Player } from "./player";
 import { DragContext } from "./table";
-import { TP } from "./table-params";
+import { PlayerColor, TP, criminalColor } from "./table-params";
 import { Church, Civic, Courthouse, InfRays, PS, Tile, TownStart, University } from "./tile";
 import { PaintableShape, C1 } from "./shapes";
 
 class MeepleShape extends Shape implements PaintableShape {
   static fillColor = 'rgba(225,225,225,.7)';
-  static overColor = 'rgba(120,210,120,.5)';
+  static overColor = 'rgba(120,210,120,.5)'; // transparent light green
 
   constructor(public player: Player, public radius = TP.hexRad * .4, public y0 = Meeple.radius) {
     super()
     this.paint();
     this.overShape = this.makeOverlay();
   }
-  /** stroke a ring of colorn, r=radius-1, width=2; fill disk with (~WHITE,.8) */
-  paint(colorn = this.player?.colorn || C1.grey) {
-    let x0 = 0, y0 = this.y0, r = this.radius;
-    let g = this.graphics.c().ss(2)
-    g.s(colorn).dc(x0, y0, r - 1)                 // ring
+  /** stroke a ring of colorn, stroke-width = 2, r = radius-2; fill disk with (~WHITE,.7) */
+  paint(colorn = this.player?.colorn ?? C1.grey) {
+    const x0 = 0, y0 = this.y0, r = this.radius, ss = 2, rs = 1;
+    const g = this.graphics.c().ss(ss).s(colorn).dc(x0, y0, r - rs);
     g.f(MeepleShape.fillColor).dc(x0, y0, r - 1)  // disk
     this.setBounds(x0 - r, y0 - r, 2 * r, 2 * r)
     return g
   }
-  overShape: Shape;
+  overShape: Shape;  // visible when Meeple is 'faceDown' after a move.
   makeOverlay() {
     let {x, y, width: w, height: h} = this.getBounds();
     const over = new Shape();
@@ -65,12 +64,12 @@ export class Meeple extends Tile {
   ) {
     super(player, Aname, inf, vp, cost, econ);
     this.addChild(this.overShape);
-    this.player = player
+    this.player = player;
     let { x, y, width, height } = this.childShape.getBounds();
-    this.nameText.visible = true
+    this.nameText.visible = true;
     this.nameText.y = y + height/2 - Tile.textSize/2;
     this.cache(x, y, width, height);
-    this.paint()
+    this.paint();
     Meeple.allMeeples.push(this);
   }
 
@@ -230,8 +229,8 @@ export class Priest extends Leader {
 export class TileSource<T extends Tile> {
   readonly Aname: string
   private readonly allUnits: T[] = new Array<T>();
-  private available?: T[];
-  readonly counter?: ValueCounter;
+  private readonly available: T[] = new Array<T>();
+  readonly counter?: ValueCounter;   // counter of available units.
 
   availUnit(unit: T) {
     if (!this.available.includes(unit)) {
@@ -239,10 +238,13 @@ export class TileSource<T extends Tile> {
       unit.hex = undefined;
       unit.visible = false;
     }
-    this.updateCounter()
+    this.updateCounter();
   }
 
-  newUnit(unit: T) { this.allUnits.push(unit); this.availUnit(unit); }
+  newUnit(unit: T) {
+      this.allUnits.push(unit);
+      this.availUnit(unit);
+    }
 
   /** move next unit to source.hex, make visible */
   nextUnit() {
@@ -264,12 +266,11 @@ export class TileSource<T extends Tile> {
   }
 
   constructor(type: new (...args: any) => T, public readonly player: Player, public readonly hex: Hex2) {
-    this.Aname = `${type.name}-Source`
-    this.available = this.allUnits.slice();
+    this.Aname = `${type.name}-Source`;
     this.counter = new ValueCounter(`${type.name}:${player?.index || 'any'}`, this.available.length, `lightblue`, TP.hexRad / 2);
-    let cont = GamePlay.gamePlay.hexMap.mapCont.counterCont;
-    let xy = hex.cont.localToLocal(0, -TP.hexRad/H.sqrt3, cont)
-    this.counter.attachToContainer(cont, xy)
+    const cont = GamePlay.gamePlay.hexMap.mapCont.counterCont;
+    const xy = hex.cont.localToLocal(0, -TP.hexRad / H.sqrt3, cont);
+    this.counter.attachToContainer(cont, xy);
   }
 }
 class UnitSource<T extends Meeple> extends TileSource<T> {
@@ -280,6 +281,7 @@ class CriminalSource extends UnitSource<Criminal> {
   override availUnit(unit: Criminal): void {
     super.availUnit(unit);
     unit.autoCrime = false;
+    unit.paint();
   }
   get hexMeep() { return this.hex.meep as Criminal; }
 }
@@ -287,16 +289,24 @@ class CriminalSource extends UnitSource<Criminal> {
 export class Police extends Meeple {
   static source: UnitSource<Police>[] = [];
 
-  static makeSource(player: Player, hex: Hex2, n = 0) {
-    let source = Police.source[player.index] = new UnitSource(Police, player, hex)
-    for (let i = 0; i < n; i++) new Police(player, i + 1).homeHex = hex // dubious: (i+1) -- use serial?
+  static makeSource(player: Player, hex: Hex2, n = TP.policePerPlayer) {
+    const source = Police.source[player.index] = new UnitSource(Police, player, hex)
+    for (let i = 0; i < n; i++) new Police(player, i + 1).homeHex = hex;
     source.nextUnit();  // unit.moveTo(source.hex)
   }
 
   // Police
   constructor(player: Player, index: number) {
-    super(`P:${player.index}-${index}`, player, 1, 0, TP.policeCost, TP.policeEcon);
+    super(`P-${index}`, player, 1, 0, TP.policeCost, TP.policeEcon);
     Police.source[player.index].newUnit(this);
+  }
+
+  override paint(pColor = this.player?.color ?? criminalColor) {
+    const [ss, rs] = [4, 4];
+    const r = (this.childShape as MeepleShape).radius, colorn = TP.colorScheme[pColor];
+    const g = this.childShape.paint(colorn); // [2, 1]
+    g.ss(ss).s(C.briteGold).dc(0, this.y0, r - rs) // stroke a colored ring inside black ring
+    this.updateCache();
   }
 
   override moveTo(hex: Hex) {
@@ -321,7 +331,7 @@ export class Police extends Meeple {
   }
 
   override sendHome(): void {
-    let source = Police.source[GamePlay.gamePlay.curPlayer.index]
+    let source = Police.source[this.player.index]
     source.availUnit(this);
     if (!source.hex.meep) source.nextUnit();
   }
@@ -336,12 +346,11 @@ export class Police extends Meeple {
  * Owned & Operated by Player, to destroy Tiles of the opposition.
  */
 export class Criminal extends Meeple {
-  static index = 0; // vs static override serial
-  static source: CriminalSource;
+  static source: CriminalSource[] = [];
 
-  static makeSource(hex: Hex2, n = 0) {
-    let source = Criminal.source = new CriminalSource(Criminal, undefined, hex)
-    for (let i = 0; i < n; i++) new Criminal(i + 1).homeHex = hex;
+  static makeSource(player: Player, hex: Hex2, n = TP.criminalPerPlayer) {
+    const source = Criminal.source[player.index] = new CriminalSource(Criminal, player, hex)
+    for (let i = 0; i < n; i++) new Criminal(player, i + 1).homeHex = hex;
     source.nextUnit(); // moveTo(source.hex)
   }
 
@@ -349,39 +358,39 @@ export class Criminal extends Meeple {
 
   override get econ(): number { return this.autoCrime ? 0 : super.econ; }
 
-  constructor(serial = ++Criminal.index) {
-    super(`Barb-${serial}`, undefined, 1, 0, TP.criminalCost, TP.criminalEcon)
-    Criminal.source.newUnit(this);
+  constructor(player: Player, serial: number) {
+    super(`C-${serial}`, player, 1, 0, TP.criminalCost, TP.criminalEcon)
+    Criminal.source[player.index].newUnit(this);
   }
 
-  override get infColor(): "b" | "w" | "c" { return 'c'; }
+  override get infColor(): PlayerColor { return criminalColor; }
 
-  override paint(pColor = this.player?.color || 'c') {
-    let r = (this.childShape as MeepleShape).radius, colorn = TP.colorScheme[pColor];
-    let g = this.childShape.paint(C.BLACK);
-    if (colorn)
-      g.ss(3).s(colorn).dc(0, this.y0, r - 2) // stroke a colored ring inside black ring
-    this.updateCache()
+  override paint(pColor = this.player?.color ?? criminalColor) {
+    const [ss, rs] = this.autoCrime ? [4, 4]: [2, 3] ;
+    const r = (this.childShape as MeepleShape).radius, colorn = TP.colorScheme[pColor];
+    const g = this.childShape.paint(colorn);   // [2, 1]
+    g.ss(ss).s(C.black).dc(0, this.y0, r - rs) // stroke a colored ring inside black ring
+    this.updateCache();
   }
 
   override moveTo(hex: Hex) {
-    const source = Criminal.source
+    const source = Criminal.source[this.player.index];
     const fromHex = this.hex;
     const toHex = super.moveTo(hex);
     const fromSrc = (fromHex == source.hex), toSrc = (toHex == source.hex);
     const gamePlay = GamePlay.gamePlay, curPlayer = gamePlay.curPlayer;
-    if (toSrc) {   // birth or recycle
-      this.player = undefined;
-      this.paint()
-      this.updateCache()
+    if (toSrc && fromSrc) {
+      // nothing
+    } else if (toSrc) {   // birth or recycle
+      // nothing
     } else if (fromSrc) { // Assert: isOnMap from isLegalTarget
-      this.player = curPlayer; // no hex for recycle... (prev curPlayer for autoCrime)
-      this.paint()
-      this.updateCache()
+      if (this.autoCrime) {
+        this.paint();
+      }
       source.nextUnit()   // Criminal: shift; moveTo(source.hex); update source counter
     }
     if (toHex === gamePlay.recycleHex && this.player !== curPlayer) {
-      curPlayer.coins -= this.econ;   // capturing player gets this Criminals salary (0 if autoCrime)
+      curPlayer.coins -= this.econ;   // capturing player gets this Criminal's salary (0 if autoCrime)
     }
     return toHex;
   }
@@ -408,7 +417,7 @@ export class Criminal extends Meeple {
   }
 
   override sendHome(): void {
-    let source = Criminal.source
+    const source = Criminal.source[this.player.index];
     source.availUnit(this);
     if (!source.hex.meep) source.nextUnit();
   }
