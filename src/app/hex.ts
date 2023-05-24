@@ -5,7 +5,6 @@ import { Meeple } from "./meeple";
 import { CapMark, HexShape, LegalMark, MeepCapMark } from "./shapes";
 import { PlayerColor, PlayerColorRecord, TP, playerColorRecord, playerColorRecordF, playerColorsC } from "./table-params";
 import { Tile } from "./tile";
-import { Player } from "./player";
 
 export const S_Resign = 'Hex@Resign'
 export const S_Skip = 'Hex@skip '
@@ -116,11 +115,11 @@ export class Hex {
     }
   }
 
-  _tile: Tile; // Tile?
+  _tile: Tile;
   get tile() { return this._tile; }
   set tile(tile: Tile) { this._tile = tile; }
 
-  _meep: Meeple;     // Meeple?
+  _meep: Meeple;
   get meep() { return this._meep; }
   set meep(meep: Meeple) { this._meep = meep }
 
@@ -293,7 +292,7 @@ export class Hex2 extends Hex {
     this._district = d    // cannot use super.district = d [causes recursion, IIRC]
     this.distText.text = `${d}`
   }
-  readonly radius: number;   // determines width & height
+  readonly radius = TP.hexRad;   // determines width & height
   hexShape: HexShape   // shown on this.cont: colored hexagon
   distColor: string // district color of hexShape (paintHexShape)
   distText: Text    // shown on this.cont
@@ -334,10 +333,7 @@ export class Hex2 extends Hex {
   constructor(map: HexMap, row: number, col: number, name?: string) {
     super(map, row, col, name);
     map.mapCont.hexCont.addChild(this.cont)
-    this.radius = TP.hexRad;
-
-    //if (row === undefined || col === undefined) return // args not supplied: nextHex
-    let { x, y, w, h } = this.xywh(this.radius, undefined, this.row || 0, this.col || 0); // include margin space between hexes
+    let { x, y, w, h } = this.xywh(this.radius, undefined, row, col); // include margin space between hexes
     this.x += x
     this.y += y
     // initialize cache bounds:
@@ -359,7 +355,7 @@ export class Hex2 extends Hex {
     this.distText = new Text(``, F.fontSpec(20));
     this.distText.textAlign = 'center'; this.distText.y = tdy + 46 // yc + 26+20
     this.cont.addChild(this.distText)
-    this.legalMark = new LegalMark(this);
+    this.legalMark.setOnHex(this);
     this.showText(true); // & this.cache()
   }
 
@@ -373,7 +369,7 @@ export class Hex2 extends Hex {
     this.cont.updateCache()
   }
 
-  readonly legalMark: LegalMark;
+  readonly legalMark = new LegalMark();
   override get isLegal() { return this._isLegal; }
   override set isLegal(v: boolean) {
     super.isLegal = v;

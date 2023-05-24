@@ -2,7 +2,7 @@ import { C, stime } from "@thegraid/common-lib"
 import { GamePlay, GamePlay0 } from "./game-play"
 import { Hex, Hex2 } from "./hex"
 import { HexDir } from "./hex-intfs"
-import { Criminal, Leader, Meeple, Police } from "./meeple"
+import { Criminal, Debt, Leader, Meeple, Police } from "./meeple"
 import { IPlanner, newPlanner } from "./plan-proxy"
 import { PlayerColor, TP, otherColor, playerColors } from "./table-params"
 import { AuctionTile, Civic, Tile, TownRules, TownStart } from "./tile"
@@ -15,12 +15,12 @@ export class Player {
 
 
   /** econ, expense, vp */
-  static updateCounters() {
+  static updateCounters(curPlayer?: Player) {
     Player.allPlayers.forEach(player => {
       player.econCounter.updateValue(player.econs)
       player.expenseCounter.updateValue(player.expenses)
       player.vpCounter.updateValue(player.vps)
-      player.totalVpCounter.updateValue(player.totalVps)
+      if (player && player !== curPlayer) player.totalVpCounter.updateValue(player.totalVps)
       player.balanceText.text = GamePlay.gamePlay.playerBalanceString(player);
     })
     GamePlay.gamePlay.hexMap.update()
@@ -36,6 +36,7 @@ export class Player {
   // Player's B, M, P, D, Police & Criminals-claimed
   get meeples() { return Meeple.allMeeples.filter(meep => meep.player == this) };
   // Resi/Busi/PS/Lake/Civics in play on Map
+  get debts() { return Tile.allTiles.filter(t => (t instanceof Debt) && t.tile?.player === this) as Debt[] }
   get tiles() { return Tile.allTiles.filter(t => !(t instanceof Meeple) && t.player == this) }
   get allLeaders() { return this.meeples.filter(m => m instanceof Leader && m.player == this) as Leader[] }
   get allPolice() { return this.meeples.filter(m => m instanceof Police && m.player == this) as Police[] }
@@ -77,6 +78,9 @@ export class Player {
       if (hex.meep?.player == this) {
         expense += hex.meep.econ     // meeples have negative econ
         // console.log(stime(this, `.expense`), hex.tile.Aname, hex.Aname, hex.tile.econ, expense);
+      }
+      if (hex.tile?.debt && hex.tile.player === this) {
+        expense -= 1;                // interest on debt
       }
     })
     return expense
@@ -158,7 +162,16 @@ export class Player {
   newTurn() {
     // faceUp and record start location:
     this.meeples.forEach(meep => meep.hex?.isOnMap ? meep.faceUp() : meep.startHex = undefined)
-    this.coins += (this.econs + this.expenses)
+    this.coins += (this.econs + this.expenses);
+    this.debts.forEach(d => {
+      this.coins -= 2;  // P & I == 2
+      d.balance -= 1;   // pay down principle
+      if (d.balance == 0) {
+        const tile = d.tile;
+        this.gamePlay.recycleTile(d);
+        tile.updateCache();
+      }
+    });
     if (this.coins >= 0) this.actions += 1;
   }
   stopMove() {

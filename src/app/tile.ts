@@ -4,6 +4,7 @@ import { Bitmap, Container, DisplayObject, EventDispatcher, MouseEvent, Shape, T
 import { GamePlay } from "./game-play";
 import { Hex, Hex2, HexMap } from "./hex";
 import { H } from "./hex-intfs";
+import { Debt } from "./meeple";
 import { Player } from "./player";
 import { C1, CapMark, PaintableShape, TileShape } from "./shapes";
 import { DragContext } from "./table";
@@ -159,7 +160,7 @@ class Tile0 extends Container {
   }
 
   get radius() { return TP.hexRad};
-  readonly childShape: PaintableShape = this.makeShape();
+  readonly baseShape: PaintableShape = this.makeShape();
 
   /** Default is TileShape; a HexShape with translucent disk.
    * add more graphics with paint(colorn)
@@ -177,10 +178,13 @@ class Tile0 extends Container {
   }
 
   lastColor: PlayerColor;
-  /** paint with PlayerColor; updateCache() */
+  /** paint with PlayerColor; updateCache()
+   * @param pColor the 'short' PlayerColor
+   * @param colorn the actual color (default = TP.colorScheme[pColor])
+   */
   paint(pColor = this.lastColor, colorn = pColor ? TP.colorScheme[pColor] : C1.grey) {
     this.lastColor = pColor;
-    this.childShape.paint(colorn); // recache childShape
+    this.baseShape.paint(colorn); // recache baseShape
     this.updateCache()
   }
 
@@ -244,11 +248,16 @@ export class Tile extends Tile0 {
     if (hex !== undefined) hex.tile = this;
   }
 
+  loanLimit = 0;
+  _debt: Debt;
+  get debt() { return this._debt; }
+  set debt(debt: Debt) { this._debt = debt; } // Hmm... if (debt === undefined) recycleTile(_debt) ?
+
   homeHex: Hex = undefined;
 
   get infP() { return this.inf }
 
-  get vp() { return this._vp + (this.bonus.star ? 1 : 0); } // override in Lake
+  get vp() { return this.debt ? 0 : this._vp + (this.bonus.star ? 1 : 0); } // override in Lake
   get econ() { return this._econ + (this.bonus.econ ? 1 : 0); } // override in Bank
 
   // Tile
@@ -263,11 +272,11 @@ export class Tile extends Tile0 {
   ) {
     super()
     this.player = player;
-    let radius = this.radius
     Tile.allTiles.push(this);
     if (!Aname) this.Aname = `${className(this)}-${Tile.serial++}`;
-    this.cache(-radius, -radius, 2 * radius, 2 * radius)
-    this.addChild(this.childShape)       // index = 0
+    const rad = this.radius;
+    this.cache(-rad, -rad, 2 * rad, 2 * rad);
+    this.addChild(this.baseShape)       // index = 0
     this.nameText = this.addNameText()   // index = 1
     this.infText = this.addNameText('', TP.hexRad)
     if (inf > 0) this.setInfRays(inf)
@@ -318,9 +327,9 @@ export class Tile extends Tile0 {
     let mark = this.capMarks[pc]
     if (vis && !mark) {
       mark = this.capMarks[pc] = new capMark(pc);
-      this.addChild(mark);
     }
     if (mark) {
+      this.addChild(mark);
       mark.visible = vis;
       this.updateCache()
     };
@@ -358,6 +367,7 @@ export class Tile extends Tile0 {
     this.removeBonus();
     this.x = this.y = 0;
     this.setInfText();
+    this.debt?.sendHome(); // sets this.debt = undefined;
   }
 
   /**
@@ -377,7 +387,7 @@ export class Tile extends Tile0 {
    */
   dragFunc0(hex: Hex2, ctx: DragContext) {
     let isRecycle = (hex === GamePlay.gamePlay.recycleHex); // dev/test: use manual capture.
-    ctx.targetHex = (isRecycle || hex?.isLegal || this.isLegalTarget(hex)) ? hex : ctx.originHex;
+    ctx.targetHex = hex?.isLegal ? hex : ctx.originHex;
     ctx.targetHex.map.showMark(ctx.targetHex);
   }
 
@@ -393,8 +403,7 @@ export class Tile extends Tile0 {
 
   /** override as necessary. */
   dragStart(hex: Hex2, ctx: DragContext) {
-    // when lifting a Tile from map, remove its influence? [no]
-    // but do hide the CapMarks
+    // when lifting a Tile from map, hide the CapMarks
     this.clearThreats();
   }
 
@@ -407,7 +416,10 @@ export class Tile extends Tile0 {
    */
   isLegalTarget(hex: Hex) {
     if (!hex) return false;
-    if (hex.tile && !(hex.tile instanceof BonusTile)) return false; // note: from AuctionHexes to Reserve overrides this.
+    if (hex.tile
+      && !(hex.tile instanceof BonusTile)
+      && !(GamePlay.gamePlay.reserveHexesP.includes(hex))
+    ) return false; // note: from AuctionHexes to Reserve overrides this.
     if (hex.meep && (hex.meep.player !== GamePlay.gamePlay.curPlayer)) return false;
     if (GamePlay.gamePlay.failToPayCost(this, hex, false)) return false;
     // if (hex.isLegalTarget)
@@ -425,6 +437,9 @@ export class Tile extends Tile0 {
     GamePlay.gamePlay.placeTile(this, targetHex);
   }
 }
+
+/** Marker class */
+export class NoDragTile extends Tile {}
 
 /**
  * Tiles placed on map (preGame) when replaced by another AuctionTile,
@@ -449,6 +464,7 @@ export class Civic extends Tile {
   constructor(player: Player, type: string, image: string, inf = 1, vp = 1, cost = 1, econ = 1) {
     super(player, `${type}:${player.index}`, inf, vp, cost, econ);
     this.player = player;
+    this.loanLimit = 10;
     this.addImageBitmap(image);
     this.addBonus('star').y += this.radius / 12;
     player.civicTiles.push(this);
@@ -462,6 +478,7 @@ export class Civic extends Tile {
 
   override isLegalTarget(hex: Hex) { // Civic
     if (!super.isLegalTarget(hex)) return false;
+    if (this.hex.isOnMap && hex == GamePlay.gamePlay.recycleHex) return true;
     if (!hex.isOnMap) return false;
     return true;
   }
@@ -641,22 +658,29 @@ export class AuctionTile extends Tile {
   }
 
 
-  override isLegalTarget(hex: Hex): boolean { // AuctionTile
-    if (!super.isLegalTarget(hex)) return false;
+  override isLegalTarget(toHex: Hex): boolean { // AuctionTile
+    if (!super.isLegalTarget(toHex)) return false; // allows dropping on occupied reserveHexes
     const gamePlay = GamePlay.gamePlay;
-    // cannot place on Tile or other's meep:
-    if (hex.isOnMap) return !(hex.tile && !(hex.tile instanceof BonusTile) || (hex.meep && hex.meep.player !== gamePlay.curPlayer));
-    const reserveHexes = gamePlay.reserveHexes[gamePlay.curPlayerNdx];
-    // AuctionTile can go toReserve:
-    if (reserveHexes.includes(hex)) return true;
-    // TODO: during dev/testing: if fromReserve, allow return to auctionHexes
-    if (reserveHexes.includes(this.hex)
-      && GamePlay.gamePlay.auctionHexes.includes(hex as Hex2)) return true;
+    if (!toHex.isOnMap) {
+      if (gamePlay.recycleHex === toHex) return true; // && this.hex.isOnMap (OH! recycle from AuctionHexes)
+      const reserveHexes = gamePlay.reserveHexesP;
+      // AuctionTile can go toReserve:
+      if (reserveHexes.includes(toHex)) return true;
+      // TODO: during dev/testing: if fromReserve, allow return to auctionHexes
+      if (reserveHexes.includes(this.hex)
+        && gamePlay.auctionHexes.includes(toHex as Hex2)) return true;
+      return false;
+    }
+    // cannot place on Tile (unless BonusTile) or other's meep (AuctionTile can go under out meep)
+    if (toHex.tile && !(toHex.tile instanceof BonusTile)) return false;
+    if (toHex.meep && toHex.meep.player !== gamePlay.curPlayer) return false;
+    if (gamePlay.failToBalance(this)) return false;
     return true
   }
 
   flipOwner(player: Player, gamePlay = GamePlay.gamePlay) {
     gamePlay.logText(`Flip ${this.Aname}@${this.hex.Aname} to ${player.colorn}`)
+    this.debt?.sendHome(); // foreclose any mortgage
     this.player = player;  // Flip ownership
     this.paint(player.color);
     Player.updateCounters();
@@ -679,7 +703,7 @@ export class AuctionTile extends Tile {
       return super.dropFunc(targetHex, ctx);
     }
 
-    const targetTile = targetHex.tile; // generally undefined; except for BonusTile
+    const targetTile = targetHex.tile; // generally undefined; except BonusTile (or ReserveHexes.tile)
     let info = [ctx.targetHex.Aname, this.Aname, this.bonus];
     let reserveTiles = gamePlay.reserveTiles[pIndex];
     let reserveHexes = gamePlay.reserveHexes[pIndex];
@@ -746,7 +770,8 @@ export class Resi extends AuctionTile {
   override get nR() { return 1; } // Resi
   constructor(player?: Player, Aname?: string, inf = 0, vp = 1, cost = 1, econ = 1) {
     super(player, Aname, inf, vp, cost, econ);
-    this.addImageBitmap('Resi')
+    this.addImageBitmap('Resi');
+    this.loanLimit = 6;
   }
 }
 
@@ -754,7 +779,8 @@ export class Busi extends AuctionTile {
   override get nB() { return 1; } // Busi
   constructor(player?: Player, Aname?: string, inf = 0, vp = 1, cost = 1, econ = 1) {
     super(player, Aname, inf, vp, cost, econ);
-    this.addImageBitmap('Busi')
+    this.addImageBitmap('Busi');
+    this.loanLimit = 7;
   }
 }
 export class PS extends AuctionTile {
@@ -807,6 +833,7 @@ export class Bank extends AdjBonusTile {
   override get nB() { return 1; }
   constructor(player?: Player, Aname?: string, inf = 0, vp = 0, cost = 1, econ = 0) {
     super('Bank', Bank.isAdj, true, player, Aname, inf, vp, cost, econ);
+    this.loanLimit = 8;
   }
   override get econ() { return super.econ + this.bonusTiles }
 }

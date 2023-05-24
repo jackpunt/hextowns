@@ -2,12 +2,12 @@ import { F, json } from "@thegraid/common-lib";
 import { KeyBinder, S, Undo, stime } from "@thegraid/easeljs-lib";
 import { GameSetup } from "./game-setup";
 import { Hex, Hex2, HexMap, IHex } from "./hex";
-import { Criminal, Leader, Meeple, Police, TileSource } from "./meeple";
+import { Criminal, Debt, DebtSource, Leader, Meeple, Police, TileSource } from "./meeple";
 import { Planner } from "./plan-proxy";
 import { Player } from "./player";
 import { GameStats, TableStats } from "./stats";
 import { LogWriter } from "./stream-writer";
-import { PlayerColor, PlayerColorRecord, TP, otherColor, playerColorRecord, playerColors, } from "./table-params";
+import { PlayerColor, PlayerColorRecord, TP, criminalColor, otherColor, playerColorRecord, playerColors, } from "./table-params";
 import { AuctionBonus, AuctionTile, BonusTile, Busi, Resi, Tile, TownRules } from "./tile";
 import { NC } from "./choosers";
 import { H } from "./hex-intfs";
@@ -56,8 +56,9 @@ export class GamePlay0 {
 
   readonly reserveTiles: AuctionTile[][] = [[],[]];   // per player; 2-players, TP.reserveTiles
   readonly reserveHexes: Hex[][] = [[], []];          // target Hexes for reserving a Tile.
-  readonly marketSource: { Busi?: TileSource<Busi>, Resi?: TileSource<Resi>} = {};  // per Busi/Resi type
+  get reserveHexesP() { return this.reserveHexes[this.curPlayerNdx]; }
 
+  readonly marketSource: { Busi?: TileSource<Busi>, Resi?: TileSource<Resi>} = {};  // per Busi/Resi type
   getMarketSource(type: 'Busi' | 'Resi' ) { return this.marketSource[type] as TileSource<AuctionTile>; }
   /** return the market that sourced tile, or undefined if not from market. */
   fromMarket(fromHex: Hex) {
@@ -91,8 +92,8 @@ export class GamePlay0 {
     this.curPlayerNdx = 0;
     this.curPlayer = Player.allPlayers[this.curPlayerNdx];
 
-    this.crimePlayer = new Player(2, 'c', this);
-    Player.allPlayers.length = 2;
+    this.crimePlayer = new Player(2, criminalColor, this);
+    Player.allPlayers.length = playerColors.length; // 2
 
     this.auctionTiles = new Array<AuctionTile>(TP.auctionSlots + TP.auctionMerge);
     this.reserveTiles = [[],[]];
@@ -102,7 +103,9 @@ export class GamePlay0 {
     TownRules.inst.fillRulesBag();
   }
 
-  recycleHex: Hex ;         // set by Table.layoutTable()
+  recycleHex: Hex;          // set by Table.layoutTable()
+  debtHex: Hex;             // set by Table.layoutTable()
+
   crimePlayer: Player;
   turnNumber: number = 0    // = history.lenth + 1 [by this.setNextPlayer]
   curPlayerNdx: number = 0  // curPlayer defined in GamePlay extends GamePlay0
@@ -239,7 +242,9 @@ export class GamePlay0 {
     return [nBusi, nResi, fBusi, fResi];
   }
 
-  failToBalance(tile: Tile, player: Player) {
+  failTurn = undefined;  // Don't repeat "Need Busi/Resi" message this turn.
+  failToBalance(tile: Tile) {
+    const player = this.curPlayer;
     // tile on map during Test/Dev, OR: when demolishing...
     const ivec = tile.hex.isOnMap ? [0, 0, 0, 0] : [tile.nB, tile.nR, tile.fB, tile.fR];
     const [nBusi, nResi, fBusi, fResi] = this.playerBalance(player, ivec);
@@ -248,8 +253,12 @@ export class GamePlay0 {
     const fail = (noBusi && (tile.nB > 0)) || (noResi && (tile.nR > 0));
     if (fail) {
       const failText =  noBusi ? 'Need Residential' : 'Need Business';
-      console.log(stime(this, `.balanceFail: ${failText} ${tile.Aname}`), [nBusi, nResi, fBusi, fResi], tile);
-      this.logText(failText);
+      const failTurn = `${this.turnNumber}:${failText}`;
+      if (this.failTurn != failTurn) {
+        this.failTurn = failTurn;
+        console.log(stime(this, `.failToBalance: ${failText} ${tile.Aname}`), [nBusi, nResi, fBusi, fResi], tile);
+        this.logText(failText);
+      }
     }
     return fail;
   }
@@ -335,7 +344,8 @@ export class GamePlay0 {
   // from tile.dropFunc()
   /** Tile.dropFunc() --> place Tile (to Map, reserve, ~>auction; not Recycle) */
   placeTile(tile: Tile, toHex: Hex) {
-    if (toHex.isOnMap && this.failToBalance(tile, this.curPlayer) || this.failToPayCost(tile, toHex)) {
+    if (toHex.isOnMap && this.failToBalance(tile) || this.failToPayCost(tile, toHex)) {
+      // unlikely, now that we check in dragStart...
       tile.moveTo(tile.hex); // abort; return to fromHex
       return;
     }
@@ -345,7 +355,7 @@ export class GamePlay0 {
   placeEither(tile: Tile, toHex: Hex) {
     // update influence on map:
     const fromHex = tile.hex, infColor = tile.infColor || this.curPlayer.color;
-    if (fromHex.isOnMap) {
+    if (fromHex.isOnMap && (tile.inf !== 0)) {
       tile.hex = undefined;      // hex.tile OR hex.meep = undefined; remove tile's infP
       this.decrInfluence(fromHex, tile.inf, infColor);
       tile.hex = fromHex;        // briefly, until moveTo(toHex)
@@ -363,7 +373,7 @@ export class GamePlay0 {
     }
     Player.updateCounters();
   }
-  logDisposition(tile: Tile, verb = (tile instanceof Meeple) ? 'dismissed' : 'demolished') {
+  logDisposition(tile: Tile, verb = (tile instanceof Meeple) ? 'dismissed' : (tile instanceof Debt) ? 'paid-off' : 'demolished') {
     const cp = this.curPlayer
     const loc = tile.hex?.isOnMap ? 'onMap' : 'offMap';
     const info = { name: tile.Aname, fromHex: tile.hex?.Aname, cp: cp.colorn, caps: cp.captures, tile }
@@ -378,12 +388,12 @@ export class GamePlay0 {
       if (tile.player !== this.curPlayer) {
         this.curPlayer.captures++;
         verb = 'captured';
-      } else {
+      } else if (tile instanceof Meeple) {
         this.curPlayer.coins -= tile.econ;  // dismiss Meeple, claw-back salary.
       }
     }
     this.logDisposition(tile, verb);
-    tile.sendHome();
+    tile.sendHome();  // recycleTile
   }
 
   /** from auctionTiles to reservedTiles */
@@ -703,7 +713,7 @@ export class GamePlay extends GamePlay0 {
     super.setNextPlayer(plyr);
     this.paintForPlayer();
     this.showAuctionPrices();
-    Player.updateCounters();
+    Player.updateCounters(plyr); // beginning of round...
     this.logText(this.shifter.tileNames(this.curPlayerNdx));
     this.table.buttonsForPlayer[this.curPlayerNdx].visible = true;
     this.table.showNextPlayer() // get to nextPlayer, waitPaused when Player tries to make a move.?

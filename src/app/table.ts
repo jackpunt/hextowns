@@ -4,12 +4,12 @@ import { GamePlay } from "./game-play";
 import { Hex, Hex2, HexMap, IHex } from "./hex";
 import { H, XYWH } from "./hex-intfs";
 //import { TablePlanner } from "./planner";
-import { Criminal, Police, TileSource } from "./meeple";
+import { Criminal, Debt, DebtSource, Police, TileSource } from "./meeple";
 import { Player } from "./player";
 import { StatsPanel } from "./stats";
 //import { StatsPanel } from "./stats";
 import { PlayerColor, playerColor0, playerColor1, playerColors, TP } from "./table-params";
-import { AuctionTile, Busi, Resi, Tile, TileBag } from "./tile";
+import { AuctionTile, Busi, NoDragTile, Resi, Tile, TileBag } from "./tile";
 import { ButtonBox, CostIncCounter, NumCounter, PerRoundCounter } from "./counters";
 
 
@@ -255,9 +255,7 @@ export class Table extends EventDispatcher  {
   layoutTable(gamePlay: GamePlay) {
     this.gamePlay = gamePlay
     const hexMap = this.hexMap = gamePlay.hexMap
-
     hexMap.addToMapCont();               // addToMapCont; make Hex2
-    //InfMark.setInfGraphics();
     hexMap.makeAllDistricts();           // typically: (4,2)
 
     const mapCont = hexMap.mapCont, hexCont = mapCont.hexCont; // local reference
@@ -285,24 +283,22 @@ export class Table extends EventDispatcher  {
     }
 
     const topRowHex = (name: string, col: number, row = -1, dy = 0) => {
-      const sy = (-.4 + .3 * row) * rowh // [-.7, -.4]
+      const sy = (-.4 + .3 * row) * rowh // {-1: -.7, 0: -.4}
       const hex = makeHex2(row, col, name)
       this.homeRowHexes.push(hex);
-      //hex.x += dx
       hex.y += (sy + dy)
+      hex.legalMark.setOnHex(hex);
       return hex
     }
 
-    this.gamePlay.recycleHex = this.makeRecycleHex(hexMap, 5, -.5)
-
     const col0 = 7, row0 = 0, nm = TP.auctionMerge;
-    const splitRow = (name: string, ndx: number, row = -1, dy = 0) => {
-      return ndx < nm ? topRowHex(name, col0 + ndx, row0, -TP.hexRad * 2) :
-        ndx < 2 * nm ? topRowHex(name, col0 + ndx - nm, row0) :
-          topRowHex(name, col0 + ndx - nm, row0, -rowh * .65);
+    const splitRowHex = (name: string, ndx: number) => {
+      return ndx < nm ? topRowHex(name, col0 + ndx, row0, -TP.hexRad * 2) : // shift UP 2 when split
+        ndx < 2 * nm ? topRowHex(name, col0 + ndx - nm, row0) :             // stay DOWN when split
+          topRowHex(name, col0 + ndx - nm, row0, -rowh * .65);              // shift to middle, not split
     }
     const auctionTiles = this.gamePlay.auctionTiles, tileBag = this.gamePlay.shifter.tileBag;
-    const shifter = this.gamePlay.shifter = new AuctionShifter2(auctionTiles, this, splitRow);
+    const shifter = this.gamePlay.shifter = new AuctionShifter2(auctionTiles, this, splitRowHex);
     shifter.tileBag.push(...tileBag); tileBag.length = 0; // pour bag into new shifter.
 
     shifter.hexes.forEach((hex, hexi) => {
@@ -350,22 +346,27 @@ export class Table extends EventDispatcher  {
         this.addCostCounter(homeHex, `${meep.Aname}-c`, 1, p); // leaderHex[plyr]
       })
 
-      const academyHex = topRowHex(`Academy:${pIndex}`, colf2(1), 0, 0)
+      const academyHex = topRowHex(`Academy:${pIndex}`, colf2(1), 0)
       this.addCostCounter(academyHex, undefined, -1, false); // academyHex[plyr]: no Counter, no incr, no repaint
       Police.makeSource(p, academyHex, TP.policePerPlayer);
 
       // TODO: Criminal.source[plyr], just like Police
-      const crimeHex = topRowHex(`Barbs:${pIndex}`, colf2(2), 0, 0)
+      const crimeHex = topRowHex(`Barbs:${pIndex}`, colf2(2), 0)
       this.addCostCounter(crimeHex, undefined, -1, false);
       Criminal.makeSource(p, crimeHex, TP.criminalPerPlayer);
     });
+
+    this.gamePlay.recycleHex = this.makeRecycleHex(hexMap, 5, -.5);
+    this.gamePlay.debtHex = this.makeDebtHex(hexMap, 5, 13.5);
+
     this.hexMap.update();
     {
+      // postition turnLog & turnText
       let parent = this.scaleCont
       let rhex = this.hexMap.getCornerHex('W') as Hex2;
       let rhpt = rhex.cont.parent.localToLocal(rhex.x - 8 * this.hexMap.colWidth, rhex.y, parent)
       this.turnLog.x = rhpt.x; this.turnLog.y = rhpt.y;
-      this.textLog.x = rhpt.x; this.textLog.y = rhpt.y + this.turnLog.height(3);
+      this.textLog.x = rhpt.x; this.textLog.y = rhpt.y + this.turnLog.height(Player.allPlayers.length + 1);
 
       parent.addChild(this.turnLog, this.textLog);
       parent.stage.update()
@@ -377,14 +378,30 @@ export class Table extends EventDispatcher  {
   }
 
   makeRecycleHex(hexMap: HexMap, row: number, col: number) {
-    let name = 'Recycle', tile = new Tile(undefined, name)
-    let image = tile.addImageBitmap(name); // scale to hexMap.
+    const name = 'Recycle', tile = new Tile(undefined, name)
+    const image = tile.addImageBitmap(name); // scale to hexMap.
     image.y = -TP.hexRad/2; // recenter
-    let hex = new Hex2(hexMap, row, col, name);
+    const hex = new Hex2(hexMap, row, col, name);
     hex.rcText.visible = hex.distText.visible = false;
     hex.setHexColor(C.WHITE);
     hex.cont.addChild(image);
     hex.cont.updateCache();
+    return hex;
+  }
+
+  makeDebtHex(hexMap: HexMap, row: number, col: number) {
+    const hex = new Hex2(hexMap, row, col, 'Debt');
+    const debtTile = new NoDragTile(undefined, 'debt');
+    debtTile.paint(undefined, C.debtRust);
+    debtTile.moveTo(hex);
+    // Note: debtTile is not draggable, but its children are!
+
+    hex.rcText.visible = hex.distText.visible = false;
+    hex.setHexColor(C.grey);
+    hex.cont.updateCache();
+
+    const availDebt = 30;
+    Debt.makeSource(hex, availDebt);
     return hex;
   }
 
@@ -505,7 +522,7 @@ export class Table extends EventDispatcher  {
       dragger.makeDragable(tile, this, this.dragFunc, this.dropFunc);
       dragger.clickToDrag(tile, true); // also enable clickToDrag;
     })
-    this.hexMap.forEachHex(hex => hex.isLegal = false); // redundant?
+    this.forEachTargetHex(hex => hex.isLegal = false); // redundant?
 
     this.gamePlay.addBonusTiles();
 
@@ -527,7 +544,7 @@ export class Table extends EventDispatcher  {
 
   dragContext: DragContext;
   dragFunc(tile: Tile, info: DragInfo) {
-    let hex = this.hexUnderObj(tile)
+    const hex = this.hexUnderObj(tile)
     let ctx = this.dragContext;
 
     if (info?.first) {
@@ -538,7 +555,7 @@ export class Table extends EventDispatcher  {
         lastShift: info.event?.nativeEvent?.shiftKey,
         info: info,
       }
-      this.dragStart(tile, hex, ctx);
+      this.dragStart(tile, hex, ctx);     // mark isLegal
       if (!ctx.tile) return; // stopDragging() was invoked
     }
     this.checkShift(hex, ctx)
@@ -555,35 +572,48 @@ export class Table extends EventDispatcher  {
     }
   }
 
+  forEachTargetHex(fn: (hex: Hex2) => void) {
+    for (let hex of this.homeRowHexes) { hex !== undefined && fn(hex) };
+    this.hexMap.forEachHex(fn);
+    fn(this.gamePlay.recycleHex as Hex2);
+    fn(this.gamePlay.debtHex as Hex2);
+  }
+
   dragStart(tile: Tile, hex: Hex2, ctx: DragContext) {
+    if (tile instanceof NoDragTile) {
+      this.stopDragging();
+    } else
     // press SHIFT to capture [recycle] opponent's Criminals or Tiles
     if (!tile.canBeMovedBy(this.gamePlay.curPlayer, ctx)) {
       console.log(stime(this, `.dragStart: Not your tile: ${tile.Aname}`), 'ctx=',{...ctx});
       this.logText(`Not your tile: ${tile.Aname}`)
       this.stopDragging();
-    } else if (this.gamePlay.failToBalance(tile, this.gamePlay.curPlayer)) {
-      this.stopDragging()
     } else {
       // mark legal targets for tile; SHIFT for all hexes, if payCost
-      this.hexMap.forEachHex(hex => (hex.isLegal = tile.isLegalTarget(hex) || ctx.lastShift));
+      let nLegal = 0;    // hexMap & homeRowHexes & recycleHex & debtHex
+      this.forEachTargetHex(hex => nLegal += (hex.isLegal = tile.isLegalTarget(hex)) ? 1 : 0);
       this.hexMap.update();
-      tile.dragStart(hex, ctx)
+      if (nLegal == 0) {
+        this.logText(`No placement for ${tile.Aname}`)
+        this.stopDragging();
+      }
+      else tile.dragStart(hex, ctx)
     }
   }
 
   /** state of shiftKey has changed during drag */
   dragShift(tile: Tile, shiftKey: boolean, ctx: DragContext) {
-    tile.dragShift(shiftKey, ctx)
+    tile?.dragShift(shiftKey, ctx);
   }
 
   dropFunc(tile: Tile, info: DragInfo) {
     tile.dropFunc0(this.hexUnderObj(tile), this.dragContext)
-    this.hexMap.forEachHex(hex => (hex.isLegal = false))
+    this.forEachTargetHex(hex => (hex.isLegal = false))
     this.dragContext.lastShift = undefined;
     this.dragContext.tile = undefined; // mark not dragging
   }
 
-  isDragging() { return this.dragContext.tile !== undefined }
+  isDragging() { return this.dragContext?.tile !== undefined }
 
   /** Force this.dragger to drop the current drag object on given target Hex */
   stopDragging(target: Hex2 = this.dragContext.originHex) {
@@ -593,28 +623,28 @@ export class Table extends EventDispatcher  {
     this.dragger.stopDrag(); // ---> dropFunc(this.dragContext.tile, info)
   }
 
-  /** attach nextHex.stone to mouse-drag */
-  dragStone() {
+  /** attach supplied target to mouse-drag (default was CityMap.nextHex) */
+  dragStone(target?: DisplayObject) {
     if (this.isDragging()) {
       this.stopDragging(this.dragContext.targetHex) // drop and make move
-    } else {
-      this.dragger.dragTarget(undefined, { x: TP.hexRad / 2, y: TP.hexRad / 2 })
+    } else if (target) {
+      this.dragger.dragTarget(target, { x: TP.hexRad / 2, y: TP.hexRad / 2 })
     }
   }
 
-  logCurPlayer(curPlayer: Player) {
+  logCurPlayer(plyr: Player) {
     const history = this.gamePlay.history
     const tn = this.gamePlay.turnNumber
     const dice = this.gamePlay.dice.text.text;
     const lm = history[0]
     const prev = lm ? `${lm.Aname}${lm.ind}#${tn-1}` : ""
     const board = !!this.hexMap.allStones[0] && lm?.board // TODO: hexMap.allStones>0 but history.len == 0
-    const robo = curPlayer.useRobo ? AT.ansiText(['red','bold'],"robo") : "----"
-    const info = { turn: `#${tn}`, plyr: curPlayer.Aname, coins: curPlayer.coins, econs: curPlayer.econs, prev, gamePlay: this.gamePlay, board }
+    const robo = plyr.useRobo ? AT.ansiText(['red','bold'],"robo") : "----";
+    const coins = plyr.coins, econs = plyr.econs, vps = plyr.vps, tvps = plyr.totalVps, vpr = plyr.vpsPerRound.toFixed(1);
+    const info = { turn: `#${tn}`, plyr: plyr.Aname, coins, econs, vps, tvps, vpr, prev, gamePlay: this.gamePlay, board }
     console.log(stime(this, `.logCurPlayer --${robo}--`), info);
-    const inc = curPlayer.econs + curPlayer.expenses;
-    const vpr = curPlayer.vpsPerRound.toFixed(1);
-    this.logTurn(`#${tn}: ${curPlayer.Aname} ${dice} \$${curPlayer.coins} ${inc >= 0 ? '+' : '-'}${inc} vp: ${curPlayer.vps} vp/r: ${vpr}`);
+    const inc = plyr.econs + plyr.expenses;
+    this.logTurn(`#${tn}: ${plyr.Aname} ${dice} \$${plyr.coins} ${inc >= 0 ? '+' : '-'}${inc} vp: ${plyr.vps} vp/r: ${vpr}`);
   }
   showRedoUndoCount() {
     this.undoText.text = `${this.gamePlay.undoRecs.length}`

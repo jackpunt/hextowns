@@ -144,7 +144,7 @@ export class GameSetup {
     }
     gui.spec("colorScheme").onChange = (item: ParamItem) => {
       gui.setValue(item)
-      Tile.allTiles.forEach(tile => tile.paint(tile.player?.color || criminalColor)); // all Tiles have a player?
+      Tile.allTiles.forEach(tile => tile.paint(tile.player?.color)); // all Tiles have a player?
       this.gamePlay.paintForPlayer();  // re-paint ActionCont tiles
       Meeple.allMeeples.forEach(meep => meep.setInfRays());
       InfMark.setInfGraphics();

@@ -10,7 +10,7 @@ export function otherColor(color: PlayerColor): PlayerColor { return color === p
 
 /** PlayerColerRecord<T> maps from PlayerColor -> T */
 export type PlayerColorRecord<T> = Record<PlayerColor, T>
-export function playerColorRecord<T>(b: T = undefined, w: T = undefined, c: T = undefined): PlayerColorRecord<T> { return { 'b': b, 'w': w, 'c': c} };
+export function playerColorRecord<T>(b: T = undefined, w: T = undefined, c: T = undefined): PlayerColorRecord<T> { return { b, w, c } };
 export function playerColorRecordF<T>(f: (sc: PlayerColor) => T) { return playerColorRecord(f(playerColor0), f(playerColor1), f(playerColor2)) }
 
 export function buildURL(scheme = 'wss', host = TP.ghost, domain = TP.gdomain, port = TP.gport, path = ''): string {
@@ -41,8 +41,8 @@ export class TP {
   static lakePerPlayer = 3;
   static bankPerPlayer = 3;
   static inBusiResiMarket = 4;
-  static criminalPerPlayer = 3;
-  static policePerPlayer = 3;
+  static criminalPerPlayer = 5;
+  static policePerPlayer = 5;
   static psPerPlayer = 3;
   // 35 in Bag + 4 Civic Tiles per player.
   static textLogLines = 6;

@@ -89,11 +89,10 @@ export class MeepCapMark extends CapMark {
 }
 
 export class LegalMark extends Shape {
-  constructor(hex: Hex2) {
-    super();
+  setOnHex(hex: Hex2) {
     let parent = hex.mapCont.markCont;
+    this.mouseEnabled = false;
     this.graphics.f(C.legalGreen).dc(0, 0, TP.hexRad/2);
-    //this.paint(C.legalGreen);
     hex.cont.parent.localToLocal(hex.x, hex.y, parent, this);
     this.mouseEnabled = false;
     this.visible = false;

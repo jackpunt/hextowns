@@ -53,6 +53,13 @@ export class NumCounter extends ValueCounterBox {
     this.updateValue(this.getValue() + incr);
   }
 }
+
+export class NoZeroCounter extends NumCounter {
+  protected override setBoxWithValue(value: string | number): void {
+    super.setBoxWithValue(value || '');
+  }
+}
+
 export class DecimalCounter extends NumCounter {
   decimal = 0;
   constructor(name: string, initValue?: string | number, color?: string, fontSize?: number, fontName?: string) {
@@ -66,7 +73,7 @@ export class DecimalCounter extends NumCounter {
 
 export class PerRoundCounter extends DecimalCounter {
   override decimal = 1;
-  get perRound() { return (this.value as number) / Math.max(1, Math.ceil(GamePlay.gamePlay.turnNumber * .5)); }
+  get perRound() { return (this.value as number) / Math.max(1, Math.floor(GamePlay.gamePlay.turnNumber / 2)); }
   override setBoxWithValue(value: number): void {
     super.setBoxWithValue(this.perRound);
   }
