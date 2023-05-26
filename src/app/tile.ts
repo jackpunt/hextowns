@@ -367,6 +367,7 @@ export class Tile extends Tile0 {
     this.removeBonus();
     this.x = this.y = 0;
     this.setInfText();
+    this.setInfRays(0);
     this.debt?.sendHome(); // sets this.debt = undefined;
   }
 
@@ -386,15 +387,14 @@ export class Tile extends Tile0 {
    * isLegal already set; record ctx.targetHex when meeple is over a legal target hex.
    */
   dragFunc0(hex: Hex2, ctx: DragContext) {
-    let isRecycle = (hex === GamePlay.gamePlay.recycleHex); // dev/test: use manual capture.
     ctx.targetHex = hex?.isLegal ? hex : ctx.originHex;
     ctx.targetHex.map.showMark(ctx.targetHex);
   }
 
   /** entry point from Table.dropFunc; delegate to this.dropFunc() */
   dropFunc0(hex: Hex2, ctx: DragContext) {
-    this.dropFunc(ctx.targetHex, ctx)
-    ctx.targetHex.map.showMark(undefined)
+    this.dropFunc(ctx.targetHex, ctx);
+    ctx.targetHex.map.showMark(undefined);
   }
 
   canBeMovedBy(player: Player, ctx: DragContext) {
@@ -403,8 +403,7 @@ export class Tile extends Tile0 {
 
   /** override as necessary. */
   dragStart(hex: Hex2, ctx: DragContext) {
-    // when lifting a Tile from map, hide the CapMarks
-    this.clearThreats();
+    this.clearThreats();  // when lifting a Tile from map, hide the CapMarks
   }
 
   /** state of shiftKey has changed during drag */
@@ -425,6 +424,10 @@ export class Tile extends Tile0 {
     // if (hex.isLegalTarget)
     // TODO: when auto-capture is working, re-assert no dragging.
     // if ((this.hex as Hex2).isOnMap) return false;
+    return true;
+  }
+
+  isLegalRecycle(ctx: DragContext) {
     return true;
   }
 
@@ -477,8 +480,8 @@ export class Civic extends Tile {
   }
 
   override isLegalTarget(hex: Hex) { // Civic
-    if (!super.isLegalTarget(hex)) return false;
-    if (this.hex.isOnMap && hex == GamePlay.gamePlay.recycleHex) return true;
+    if (!super.isLegalTarget(hex)) return false; // check cost & influence (& balance)
+    if (hex == GamePlay.gamePlay.recycleHex) return true;
     if (!hex.isOnMap) return false;
     return true;
   }
@@ -666,9 +669,9 @@ export class AuctionTile extends Tile {
       const reserveHexes = gamePlay.reserveHexesP;
       // AuctionTile can go toReserve:
       if (reserveHexes.includes(toHex)) return true;
-      // TODO: during dev/testing: if fromReserve, allow return to auctionHexes
-      if (reserveHexes.includes(this.hex)
-        && gamePlay.auctionHexes.includes(toHex as Hex2)) return true;
+      // TODO: during dev/testing: allow return to auctionHexes, if fromReserve
+      if (gamePlay.auctionHexes.includes(toHex as Hex2)
+        && reserveHexes.includes(this.hex)) return true;
       return false;
     }
     // cannot place on Tile (unless BonusTile) or other's meep (AuctionTile can go under out meep)

@@ -1,4 +1,4 @@
-import { C, F, S } from "@thegraid/common-lib";
+import { C, F, S, stime } from "@thegraid/common-lib";
 import { ValueCounter } from "@thegraid/easeljs-lib";
 import { Shape, Text } from "@thegraid/easeljs-module";
 import { NoZeroCounter } from "./counters";
@@ -441,6 +441,7 @@ export class DebtSource extends TileSource<Debt> {
  */
 export class Debt extends Tile {
   static source: DebtSource;
+  static debtRust = C.nameToRgbaString(C.debtRust, .8);
 
   static makeSource(hex: Hex2, n = 30) {
     const source = Debt.source = new DebtSource(hex)
@@ -470,7 +471,7 @@ export class Debt extends Tile {
     return shape;
   }
   override paint(pColor?: PlayerColor, colorn?: string): void {
-    super.paint(pColor, C.debtRust); // TODO: override paint() --> solid hexagon (also: with Counter)
+    super.paint(pColor, Debt.debtRust); // TODO: override paint() --> solid hexagon (also: with Counter)
   }
   override textVis(vis?: boolean): void {
     super.textVis(vis);
@@ -503,8 +504,22 @@ export class Debt extends Tile {
     super.dragStart(hex, ctx);
   }
 
+  override dragFunc0(hex: Hex2, ctx: DragContext): void {
+    const v = hex?.tile?.loanLimit;
+    this.balance = v ?? 0;
+    super.dragFunc0(hex, ctx);
+  }
+
+  override dropFunc(targetHex: Hex2, ctx: DragContext): void {
+    this.balance = 0;
+    super.dropFunc(targetHex, ctx);
+  }
+
+  override isLegalRecycle(ctx: DragContext) {
+    return this.hex.isOnMap;
+  }
+
   override isLegalTarget(hex: Hex): boolean {
-    if (hex === GamePlay.gamePlay.recycleHex) return this.hex.isOnMap;
     if (!hex.isOnMap) return false;
     if (this.balance > 0) return false;
     if (hex?.tile?.player !== GamePlay.gamePlay.curPlayer) return false;
@@ -538,6 +553,7 @@ export class Debt extends Tile {
     let source = Debt.source; //[this.player.index]
     if (this.tile) {
       this.tile.player.coins -= this.balance;
+      console.log(stime(this, `.sendHome: ${this.tile.player} foreclosed:`), this.balance);
     }
     this.balance = 0;
     this.tile = undefined;

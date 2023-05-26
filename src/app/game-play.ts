@@ -13,7 +13,7 @@ import { NC } from "./choosers";
 import { H } from "./hex-intfs";
 import { Container, Text } from "@thegraid/easeljs-module";
 import { CostIncCounter } from "./counters";
-import { AuctionShifter, Table } from "./table";
+import { AuctionShifter, DragContext, Table } from "./table";
 
 class HexEvent {}
 class Move{
@@ -195,6 +195,7 @@ export class GamePlay0 {
     this.curPlayerNdx = plyr.index
     this.curPlayer.actions = 0;
     this.curPlayer.newTurn();
+    this.hexMap.forEachHex(hex => hex.assessThreats()); // try ensure threats are correctly marked
   }
 
   /** Planner may override with alternative impl. */
@@ -308,7 +309,8 @@ export class GamePlay0 {
     // Can't fail if not going onto the Map:
     if (!(!tile.hex.isOnMap && (toHex.isOnMap || toReserve))) return false;
     // curPlayer && NOT FROM Map && TO [Map or Reserve]
-    let bribR = 0, [infR, coinR] = this.getInfR(tile); // assert coinR >= 0
+    const [infR, coinR] = this.getInfR(tile); // assert coinR >= 0
+    let bribR = 0;
     if (!toReserve && infR > 0) {
       // bribes can be used to reduce the influence required to deploy:
       const infT = toHex.getInfT(this.curPlayer.color)
@@ -330,6 +332,10 @@ export class GamePlay0 {
       this.curPlayer.coins -= coinR;
     }
     return false;
+  }
+
+  setIsLegalRecycle(tile: Tile, ctx: DragContext) {
+    return this.recycleHex.isLegal = true;
   }
 
   /** Meeple.dropFunc() --> place Meeple (to Map, reserve; not Recycle) */

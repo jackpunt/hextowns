@@ -572,11 +572,11 @@ export class Table extends EventDispatcher  {
     }
   }
 
-  forEachTargetHex(fn: (hex: Hex2) => void) {
+  forEachTargetHex(fn: (hex: Hex2) => void, inclRecycle = true) {
     for (let hex of this.homeRowHexes) { hex !== undefined && fn(hex) };
     this.hexMap.forEachHex(fn);
-    fn(this.gamePlay.recycleHex as Hex2);
     fn(this.gamePlay.debtHex as Hex2);
+    if (inclRecycle) fn(this.gamePlay.recycleHex as Hex2);
   }
 
   dragStart(tile: Tile, hex: Hex2, ctx: DragContext) {
@@ -591,11 +591,16 @@ export class Table extends EventDispatcher  {
     } else {
       // mark legal targets for tile; SHIFT for all hexes, if payCost
       let nLegal = 0;    // hexMap & homeRowHexes & recycleHex & debtHex
-      this.forEachTargetHex(hex => nLegal += (hex.isLegal = tile.isLegalTarget(hex)) ? 1 : 0);
+      this.forEachTargetHex(hex => nLegal += (hex.isLegal = tile.isLegalTarget(hex)) ? 1 : 0, false);
+      const isRecycle = this.gamePlay.setIsLegalRecycle(tile, ctx) ? true : false;
       this.hexMap.update();
       if (nLegal == 0) {
-        this.logText(`No placement for ${tile.Aname}`)
-        this.stopDragging();
+        const [infR, coinR] = this.gamePlay.getInfR(tile);
+        this.logText(`No placement for ${tile.Aname} infR=${infR} coinR=${coinR}`)
+        if (!isRecycle) {
+          this.stopDragging();
+          return;
+        }
       }
       else tile.dragStart(hex, ctx)
     }
