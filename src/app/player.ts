@@ -2,7 +2,7 @@ import { stime } from "@thegraid/common-lib"
 import { NumCounter, PerRoundCounter } from "./counters"
 import { Debt } from "./debt"
 import { GamePlay, GamePlay0 } from "./game-play"
-import { GP } from "./gp"
+import { GP } from "./game-play";
 import type { Hex } from "./hex"
 import { HexDir } from "./hex-intfs"
 import { Criminal, Leader, Meeple, Police } from "./meeple"

@@ -1,6 +1,6 @@
 import { C, F, XY, stime } from "@thegraid/common-lib";
 import { DisplayObject, Shape, Text } from "@thegraid/easeljs-module";
-import { GP } from "./gp";
+import { GP } from "./game-play";
 import type { Hex2 } from "./hex";
 import { H } from "./hex-intfs";
 import { TP } from "./table-params";

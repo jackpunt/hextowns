@@ -1,6 +1,6 @@
 import { C, stime } from "@thegraid/common-lib";
 import { NoZeroCounter } from "./counters";
-import { GP } from "./gp";
+import { GP } from "./game-play";
 import type { Hex2, Hex } from "./hex";
 import { PaintableShape, HexShape } from "./shapes";
 import type { DragContext } from "./table";

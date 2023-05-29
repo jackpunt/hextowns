@@ -3,7 +3,6 @@ import { KeyBinder, S, Undo, stime } from "@thegraid/easeljs-lib";
 import { Container, Text } from "@thegraid/easeljs-module";
 import { CostIncCounter } from "./counters";
 import { GameSetup } from "./game-setup";
-import { GP } from "./gp";
 import { Hex, HexMap, IHex } from "./hex";
 import { H } from "./hex-intfs";
 import { Criminal, Leader, Meeple, Police } from "./meeple";
@@ -23,6 +22,10 @@ class Move{
   Aname: string = "";
   ind: number = 0;
   board: any = {};
+}
+
+export class GP {
+  static gamePlay: GamePlay0;
 }
 
 /** Implement game, enforce the rules, manage GameStats & hexMap; no GUI/Table required.

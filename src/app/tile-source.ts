@@ -1,5 +1,5 @@
 import { NumCounter } from "./counters";
-import { GP } from "./gp";
+import { GP } from "./game-play";
 import type { Hex2 } from "./hex";
 import { H } from "./hex-intfs";
 import type { Meeple } from "./meeple";

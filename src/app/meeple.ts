@@ -1,7 +1,7 @@
 import { C, F, S } from "@thegraid/common-lib";
 import { Shape, Text } from "@thegraid/easeljs-module";
 import { NoZeroCounter } from "./counters";
-import { GP } from "./gp";
+import { GP } from "./game-play";
 import type { Hex, Hex2, HexMap } from "./hex";
 import { H } from "./hex-intfs";
 import type { Player } from "./player";
