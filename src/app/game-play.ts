@@ -717,6 +717,15 @@ export class GamePlay extends GamePlay0 {
     this.table.stopDragging() // drop on nextHex (no Move)
   }
 
+  override showAuctionPrices() {
+    this.costIncHexCounters.forEach((cic, hex) => {
+      const plyr = (cic.repaint instanceof Player) ? cic.repaint : this.curPlayer;
+      const tile = this.auctionTiles[cic.ndx];
+      let [infR] = this.getInfR(tile, cic.ndx, plyr);
+      cic.setValue(infR);
+    });
+  }
+
   /** for KeyBinding test */
   override shiftAuction(pNdx?: number, alwaysShift?: boolean) {
     super.shiftAuction(pNdx, alwaysShift);
@@ -756,14 +765,6 @@ export class GamePlay extends GamePlay0 {
         cic.hex.meep?.paint(plyr.color); // flipping criminals!
       }
     })
-  }
-
-  override showAuctionPrices() {
-    this.costIncHexCounters.forEach(cic => {
-      let plyr = (cic.repaint instanceof Player) ? cic.repaint : this.curPlayer;
-      let [infR] = this.getInfR(cic.hex.tile, cic.ndx, plyr);
-      cic.setValue(infR);
-    });
   }
 
   /** dropFunc | eval_sendMove -- indicating new Move attempt */

@@ -709,21 +709,22 @@ export class AuctionTile extends Tile {
     }
 
     const targetTile = targetHex.tile; // generally undefined; except BonusTile (or ReserveHexes.tile)
-    let info = [ctx.targetHex.Aname, this.Aname, this.bonus];
-    let reserveTiles = gamePlay.reserveTiles[pIndex];
-    let reserveHexes = gamePlay.reserveHexes[pIndex];
-    let auctionTiles = gamePlay.auctionTiles;
+    const info = [ctx.targetHex.Aname, this.Aname, this.bonus];
+    const reserveTiles = gamePlay.reserveTiles[pIndex];
+    const reserveHexes = gamePlay.reserveHexes[pIndex];
+    const auctionTiles = gamePlay.auctionTiles;
 
     // remove from reserveTiles:
-    let rIndex = reserveTiles.indexOf(this)
+    const rIndex = reserveTiles.indexOf(this)
     if (rIndex >= 0) {
       reserveTiles[rIndex] = undefined;
     }
     // remove from auctionTiles:
-    let auctionNdx = auctionTiles.indexOf(this); // if from auctionTiles
+    const auctionNdx = auctionTiles.indexOf(this); // if from auctionTiles
     if (auctionNdx >= 0) {
-      auctionTiles[auctionNdx] = undefined
+      auctionTiles[auctionNdx] = undefined;
       this.player = player;
+      GP.gamePlay.showAuctionPrices();
     }
 
     super.dropFunc(targetHex, ctx); // set this.hex = targetHex, ctx.originHex.tile = undefined;
@@ -738,6 +739,7 @@ export class AuctionTile extends Tile {
       this.player = undefined;
       this.paint(player.color);
       this.updateCache();
+      GP.gamePlay.showAuctionPrices();
     }
     // add to reserveTiles:
     const rIndex2 = reserveHexes.indexOf(toHex)
