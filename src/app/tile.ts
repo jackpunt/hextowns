@@ -1,50 +1,14 @@
 import { C, F, ImageLoader, className, stime } from "@thegraid/common-lib";
 import { ValueEvent } from "@thegraid/easeljs-lib";
 import { Bitmap, Container, DisplayObject, EventDispatcher, MouseEvent, Shape, Text } from "@thegraid/easeljs-module";
-import { GamePlay } from "./game-play";
+import type { Debt } from "./debt";
+import { GP } from "./gp";
 import { Hex, Hex2, HexMap } from "./hex";
 import { H } from "./hex-intfs";
-import { Debt } from "./meeple";
-import { Player } from "./player";
-import { C1, CapMark, PaintableShape, TileShape } from "./shapes";
-import { CenterText, DragContext } from "./table";
+import type { Player } from "./player";
+import { C1, CapMark, CenterText, InfRays, InfShape, PaintableShape, TileShape } from "./shapes";
+import { DragContext } from "./table";
 import { PlayerColor, PlayerColorRecord, TP, playerColorRecord, playerColorsC } from "./table-params";
-
-/** lines showing influence of a Tile. */
-export class InfRays extends Container {
-  /**
-   * draw 6 rays (around a HexShape)
-   * @param inf number of rays to draw
-   * @param infColor color of ray
-   * @param y0 start of ray (ends at .9) X TP.hexRad
-   * @param xw width of each ray
-   */
-  constructor(inf = 1, infColor?: PlayerColor, y0 = .7, xw = 3) {
-    super()
-    let color = infColor ? TP.colorScheme[infColor] : C.WHITE;
-    let rad = TP.hexRad, y1 = y0 * rad, y2 = .9 * rad;
-    let xs = [[0], [-.1 * rad, +.1 * rad], [-.1 * rad, 0, +.1 * rad]][Math.abs(inf) - 1];
-    H.ewDirs.forEach(dir => {
-      let sl = new Shape(), gl = sl.graphics
-      gl.ss(xw).s(color)
-      xs.forEach(x => gl.mt(x, y1).lt(x, y2))
-      sl.rotation = H.dirRot[dir]
-      this.addChild(sl)
-    })
-    this.cache(-rad, -rad, 2 * rad, 2 * rad)
-  }
-}
-
-export class InfShape extends Container {
-  /** hexagon scaled by TP.hexRad/4 */
-  constructor(bgColor = 'grey') {
-    super()
-    let s = new Shape(), c = this;
-    s.graphics.f(bgColor).dp(0, 0, TP.hexRad, 6, 0, 30)
-    c.addChild(s)
-    c.addChild(new InfRays(1, undefined, .3, 10)) // short & wide; it gets scaled down
-  }
-}
 
 export type Bonus = 'star' | 'brib' | 'actn' | 'econ' | 'Bank' | 'Lake' | 'Star';
 export type AuctionBonus = Exclude<Bonus, 'Bank' | 'Lake' | 'Star'>;
@@ -287,7 +251,7 @@ export class Tile extends Tile0 {
     if (!show) {
       this.removeChild(mark);
     } else {
-      const [infR, costR] = GamePlay.gamePlay.getInfR(this);
+      const [infR, costR] = GP.gamePlay.getInfR(this);
       mark.text = `$ ${costR}`;
       mark.y = TP.hexRad * dy;
       this.addChild(mark);
@@ -455,10 +419,10 @@ export class Tile extends Tile0 {
     if (!hex) return false;
     if (hex.tile
       && !(hex.tile instanceof BonusTile)
-      && !(GamePlay.gamePlay.reserveHexesP.includes(hex))
+      && !(GP.gamePlay.reserveHexesP.includes(hex))
     ) return false; // note: from AuctionHexes to Reserve overrides this.
-    if (hex.meep && (hex.meep.player !== GamePlay.gamePlay.curPlayer)) return false;
-    if (GamePlay.gamePlay.failToPayCost(this, hex, false)) return false;
+    if (hex.meep && (hex.meep.player !== GP.gamePlay.curPlayer)) return false;
+    if (GP.gamePlay.failToPayCost(this, hex, false)) return false;
     // if (hex.isLegalTarget)
     // TODO: when auto-capture is working, re-assert no dragging.
     // if ((this.hex as Hex2).isOnMap) return false;
@@ -475,7 +439,7 @@ export class Tile extends Tile0 {
    * @param ctx DragContext
    */
   dropFunc(targetHex: Hex2, ctx: DragContext) {
-    GamePlay.gamePlay.placeTile(this, targetHex);
+    GP.gamePlay.placeTile(this, targetHex);
   }
 }
 
@@ -512,20 +476,20 @@ export class Civic extends Tile {
 
   override isLegalTarget(hex: Hex) { // Civic
     if (!super.isLegalTarget(hex)) return false; // check cost & influence (& balance)
-    if (hex == GamePlay.gamePlay.recycleHex) return true;
+    if (hex == GP.gamePlay.recycleHex) return true;
     if (!hex.isOnMap) return false;
     return true;
   }
 
   override sendHome() {   // Civic - put under Leader
     super.sendHome();
-    GamePlay.gamePlay.hexMap.mapCont.tileCont.addChildAt(this, 1); // under meeple
+    this.parent.addChildAt(this, 1); // under meeple
   }
 
   override dropFunc(targetHex: Hex2, ctx: DragContext): void {
       super.dropFunc(targetHex, ctx);
       // placing a Civic changes the cost of Auction Tiles:
-      (GamePlay.gamePlay as GamePlay).showAuctionPrices();
+      GP.gamePlay.showAuctionPrices();
   }
 }
 
@@ -664,12 +628,12 @@ export class AuctionTile extends Tile {
 
   sendToBag() {
     console.log(stime(this, `.sendHome: tileBag.unshift()`), this.Aname, this.player?.colorn, this);
-    GamePlay.gamePlay.shifter.tileBag.unshift(this);
+    GP.gamePlay.shifter.tileBag.unshift(this);
   }
 
   // from map: capture/destroy; from auction: outShift; from Market: recycle [unlikely]
   override sendHome(): void {  // AuctionTile: removeBonus; to tileBag
-    const gamePlay = GamePlay.gamePlay;
+    const gamePlay = GP.gamePlay;
     gamePlay.fromMarket(this.hex);
     super.sendHome();          // resetTile(); this.hex = undefined
     this.player = undefined;
@@ -680,14 +644,14 @@ export class AuctionTile extends Tile {
   override canBeMovedBy(player: Player, ctx: DragContext): boolean {
     if (!super.canBeMovedBy(player, ctx)) return false;
     // exclude opponent's [unowned] private auction Tiles:
-    const gamePlay = GamePlay.gamePlay;
+    const gamePlay = GP.gamePlay;
     const ndx = gamePlay.auctionTiles.indexOf(this);
     const plyr = gamePlay.shifter.getPlayer(ndx, true);
     return (plyr === true) ? true : (plyr === player);
   }
 
   override addBonus(type: AuctionBonus): BonusMark {
-    if (GamePlay.gamePlay.auctionTiles.includes(this)) {
+    if (GP.gamePlay.auctionTiles.includes(this)) {
       console.log(stime(this, `.addBonus`), { tile: this, type })
     }
     return super.addBonus(type);
@@ -696,7 +660,7 @@ export class AuctionTile extends Tile {
 
   override isLegalTarget(toHex: Hex): boolean { // AuctionTile
     if (!super.isLegalTarget(toHex)) return false; // allows dropping on occupied reserveHexes
-    const gamePlay = GamePlay.gamePlay;
+    const gamePlay = GP.gamePlay;
     if (!toHex.isOnMap) {
       if (gamePlay.recycleHex === toHex) return true; // && this.hex.isOnMap (OH! recycle from AuctionHexes)
       const reserveHexes = gamePlay.reserveHexesP;
@@ -714,12 +678,12 @@ export class AuctionTile extends Tile {
     return true
   }
 
-  flipOwner(player: Player, gamePlay = GamePlay.gamePlay) {
+  flipOwner(player: Player, gamePlay = GP.gamePlay) {
     gamePlay.logText(`Flip ${this.Aname}@${this.hex.Aname} to ${player.colorn}`)
     this.debt?.sendHome(); // foreclose any mortgage
     this.player = player;  // Flip ownership
     this.paint(player.color);
-    Player.updateCounters();
+    player.updateCounters();
     // Assert: AuctionTile.inf == 0; [unless we make an InfBonus(brib) attached to tile/hex]
     // Assert: Civic Tile does not get flipped.
     // Therefore: Flip does not change the propagated influence
@@ -729,7 +693,7 @@ export class AuctionTile extends Tile {
 
   // AuctionTile
   override dropFunc(targetHex: Hex2, ctx: DragContext) {
-    let gamePlay = GamePlay.gamePlay;
+    let gamePlay = GP.gamePlay;
     let player = gamePlay.curPlayer, pIndex = player.index;
 
     if ((targetHex === ctx.originHex)) {
@@ -767,7 +731,7 @@ export class AuctionTile extends Tile {
     if (toHex === undefined) return; // recycled...
 
     // add TO auctionTiles (from reserveHexes; see isLegalTarget) FOR TEST & DEV
-    const auctionNdx2 = GamePlay.gamePlay.auctionHexes.indexOf(toHex);
+    const auctionNdx2 = GP.gamePlay.auctionHexes.indexOf(toHex);
     if (auctionNdx2 >= 0) {
       auctionTiles[auctionNdx2]?.moveTo(ctx.originHex);  // if something there, swap it to fromHex
       auctionTiles[auctionNdx2] = this;
@@ -785,7 +749,7 @@ export class AuctionTile extends Tile {
     if (toHex === ctx.originHex) return;
 
     // from market source:
-    GamePlay.gamePlay.fromMarket(ctx.originHex)?.nextUnit();
+    GP.gamePlay.fromMarket(ctx.originHex)?.nextUnit();
     if (this.player && this.inf) this.setInfRays();
 
     if (toHex.isOnMap) {
@@ -823,7 +787,7 @@ export class Monument extends AuctionTile {
   }
   override sendToBag(): void {}
   override get cost(): number {
-    return Monument.costs[GamePlay.gamePlay.marketSource['Monument'].counter.getValue()];
+    return Monument.costs[GP.gamePlay.marketSource['Monument'].counter.getValue()];
   }
 }
 

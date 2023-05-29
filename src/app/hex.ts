@@ -1,10 +1,10 @@
 import { C, F, RC, S } from "@thegraid/easeljs-lib";
 import { Container, DisplayObject, Graphics, Point, Shape, Text } from "@thegraid/easeljs-module";
 import { EwDir, H, HexAxis, HexDir, InfDir, NsDir } from "./hex-intfs";
-import { Meeple } from "./meeple";
+import type { Meeple } from "./meeple";
 import { CapMark, HexShape, LegalMark, MeepCapMark } from "./shapes";
 import { PlayerColor, PlayerColorRecord, TP, playerColorRecord, playerColorRecordF, playerColorsC } from "./table-params";
-import { Tile } from "./tile";
+import type { Tile } from "./tile";
 
 export const S_Resign = 'Hex@Resign'
 export const S_Skip = 'Hex@skip '
@@ -72,7 +72,6 @@ class HexCont extends Container {
  * non-Planet Hex is unexplored or contains a AfHex.
  */
 export class Hex {
-  static capColor = H.capColor1 // dynamic bind in GamePlay.doProtoMove()
   /** return indicated Hex from otherMap */
   static ofMap(ihex: IHex, otherMap: HexMap) {
     try {
@@ -430,13 +429,12 @@ export class Hex2 extends Hex {
     let d0 = H.dirRot[dir0], d1 = H.dirRot[dir1]
     let a2 = (d0 + d1) / 2, h = this.radius
     if (Math.abs(d0 - d1) > 180) a2 += 180
-    let a = a2 * Hex2.degToRadians
+    let a = a2 * H.degToRadians
     return new Point(this.x + Math.sin(a) * h, this.y - Math.cos(a) * h)
   }
-  static readonly degToRadians = Math.PI / 180;
   /** location of edge point in dir; in parent coordinates. */
   edgePoint(dir: HexDir) {
-    let a = H.dirRot[dir] * Hex2.degToRadians, h = this.radius * H.sqrt3 / 2
+    let a = H.dirRot[dir] * H.degToRadians, h = this.radius * H.sqrt3 / 2
     return new Point(this.x + Math.sin(a) * h, this.y - Math.cos(a) * h)
   }
 }

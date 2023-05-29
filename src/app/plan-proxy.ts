@@ -1,5 +1,5 @@
 import { stime } from "@thegraid/common-lib";
-import { HexMap } from "./hex";
+import type { HexMap } from "./hex";
 
 /** Local/Direct methods of Planner */
 export interface IPlanner extends IPlannerMethods {

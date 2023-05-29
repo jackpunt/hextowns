@@ -1,20 +1,21 @@
-import { C, F, S, stime } from "@thegraid/common-lib";
+import { C, F, S } from "@thegraid/common-lib";
 import { Shape, Text } from "@thegraid/easeljs-module";
-import { NoZeroCounter, NumCounter } from "./counters";
-import { GamePlay } from "./game-play";
-import { Hex, Hex2, HexMap } from "./hex";
+import { NoZeroCounter } from "./counters";
+import { GP } from "./gp";
+import type { Hex, Hex2, HexMap } from "./hex";
 import { H } from "./hex-intfs";
-import { Player } from "./player";
-import { C1, HexShape, PaintableShape } from "./shapes";
-import { DragContext } from "./table";
+import type { Player } from "./player";
+import { C1, HexShape, InfRays, PaintableShape } from "./shapes";
+import type { DragContext } from "./table";
 import { PlayerColor, TP, criminalColor } from "./table-params";
-import { Church, Civic, Courthouse, InfRays, PS, Tile, TownStart, University } from "./tile";
+import { Church, Civic, Courthouse, PS, Tile, TownStart, University } from "./tile";
+import { TileSource, UnitSource } from "./tile-source";
 
 class MeepleShape extends Shape implements PaintableShape {
   static fillColor = 'rgba(225,225,225,.7)';
   static overColor = 'rgba(120,210,120,.5)'; // transparent light green
 
-  constructor(public player: Player, public radius = TP.hexRad * .4, public y0 = Meeple.radius) {
+  constructor(public player: Player, public radius = TP.hexRad * .4, public y0 = TP.meepleRad) {
     super()
     this.paint();
     this.overShape = this.makeOverlay();
@@ -41,7 +42,6 @@ class MeepleShape extends Shape implements PaintableShape {
 type MeepleInf = -1 | 0 | 1;
 export class Meeple extends Tile {
   static allMeeples: Meeple[] = [];
-  static radius = TP.hexRad * .4;
 
   readonly colorValues = C.nameToRgba("blue"); // with alpha component
   get y0() { return (this.baseShape as MeepleShape).y0; }
@@ -92,14 +92,14 @@ export class Meeple extends Tile {
     this.overShape.visible = false;
     this.startHex = this.hex;
     this.updateCache()
-    GamePlay.gamePlay.hexMap.update();
+    GP.gamePlay.hexMap.update();
   }
 
   /** when moved, show grey overlay */
   faceDown() {
     this.overShape.visible = true;
     this.updateCache()
-    GamePlay.gamePlay.hexMap.update();
+    GP.gamePlay.hexMap.update();
   }
 
   override moveTo(hex: Hex): Hex {
@@ -139,7 +139,7 @@ export class Meeple extends Tile {
   override isLegalTarget(hex: Hex) {  // Meeple
     if (!hex) return false;
     if (hex.meep) return false;    // no move onto meeple
-    if (GamePlay.gamePlay.failToPayCost(this, hex, false)) return false;
+    if (GP.gamePlay.failToPayCost(this, hex, false)) return false;
     // only move in line, to hex with influence:
     let onLine = this.isOnLine(hex), noInf = hex.getInfT(this.infColor) === 0;
     if (this.hex.isOnMap && (!onLine || noInf)) return false;
@@ -158,7 +158,7 @@ export class Meeple extends Tile {
 
   // Meeple
   override dropFunc(targetHex: Hex2, ctx: DragContext): void {
-    GamePlay.gamePlay.placeMeep(this, targetHex); // Drop
+    GP.gamePlay.placeMeep(this, targetHex); // Drop
     const infP = this.hex?.getInfP(this.infColor) ?? 0;
     targetHex.tile?.setInfRays(infP);
     this.setInfRays(infP);
@@ -233,60 +233,6 @@ export class Priest extends Leader {
   }
 }
 
-/** a Dispenser of a set of Tiles. */
-export class TileSource<T extends Tile> {
-  readonly Aname: string
-  private readonly allUnits: T[] = new Array<T>();
-  private readonly available: T[] = new Array<T>();
-  readonly counter?: NumCounter;   // counter of available units.
-
-  /** mark unit available for later deployment */
-  availUnit(unit: T) {
-    if (!this.available.includes(unit)) {
-      this.available.push(unit);
-      unit.hex = undefined;
-      unit.visible = false;
-    }
-    this.updateCounter();
-  }
-
-  /** enroll a new Unit to this source. */
-  newUnit(unit: T) {
-      unit.homeHex = this.hex;
-      this.allUnits.push(unit);
-      this.availUnit(unit);
-    }
-
-  /** move next available unit to source.hex, make visible */
-  nextUnit() {
-    let unit = this.available.shift();    // remove from available
-    if (!unit) return unit;
-    unit.visible = true;
-    unit.moveTo(this.hex);     // and try push to available
-    if (!unit.player) unit.paint(GamePlay.gamePlay.curPlayer?.color)
-    this.updateCounter();
-    return unit;
-  }
-
-  updateCounter() {
-    this.counter.parent.setChildIndex(this.counter, this.counter.parent.numChildren - 1);
-    this.counter?.setValue(this.available.length);
-    this.hex.cont.updateCache(); // updateCache of counter on hex
-    this.hex.map.update();       // updateCache of hexMap with hex & counter
-  }
-
-  constructor(type: new (...args: any) => T, public readonly player: Player, public readonly hex: Hex2) {
-    this.Aname = `${type.name}-Source`;
-    this.counter = new NumCounter(`${type.name}:${player?.index || 'any'}`, this.available.length, `lightblue`, TP.hexRad / 2);
-    const cont = GamePlay.gamePlay.hexMap.mapCont.counterCont;
-    const xy = hex.cont.localToLocal(0, -TP.hexRad / H.sqrt3, cont);
-    this.counter.attachToContainer(cont, xy);
-  }
-}
-
-class UnitSource<T extends Meeple> extends TileSource<T> {
-
-}
 
 export class Police extends Meeple {
   static source: UnitSource<Police>[] = [];
@@ -395,7 +341,7 @@ export class Criminal extends Meeple {
         source.nextUnit()   // Criminal: shift; moveTo(source.hex); update source counter
       }
     }
-    const gamePlay = GamePlay.gamePlay, curPlayer = gamePlay.curPlayer;
+    const gamePlay = GP.gamePlay, curPlayer = gamePlay.curPlayer;
     if (toHex === gamePlay.recycleHex && this.player !== curPlayer) {
       curPlayer.coins -= this.econ;   // capturing player gets this Criminal's salary (0 if autoCrime)
     }
@@ -410,7 +356,7 @@ export class Criminal extends Meeple {
 
   override isLegalTarget(hex: Hex): boolean { // Criminal
     if (!super.isLegalTarget(hex)) return false;
-    let plyr = this.player ?? GamePlay.gamePlay.curPlayer; // owner or soon-to-be owner
+    let plyr = this.player ?? GP.gamePlay.curPlayer; // owner or soon-to-be owner
     // must NOT be on or adj to plyr's Tile:
     if (hex.tile?.player == plyr) return false;
     if (hex.findLinkHex(hex => hex.tile?.player == plyr)) return false;
@@ -428,144 +374,5 @@ export class Criminal extends Meeple {
     const source = Criminal.source[this.player.index];
     source.availUnit(this);
     if (!source.hex.meep) source.nextUnit();
-  }
-}
-
-export class DebtSource extends TileSource<Debt> {
-  constructor(hex: Hex2) {
-    super(Debt, undefined, hex)
-  }
-  // availUnit(unit) -> unit.hex = undefined
-
-  override nextUnit(): Debt {
-    const debt = super.nextUnit();
-    this.hex.tile.debt = debt;
-    return debt;
-  }
-}
-
-/**
- * Debt is 'sourced'; Debt moved to a hex is attached to the Tile on that hex.
- */
-export class Debt extends Tile {
-  static source: DebtSource;
-  static debtRust = C.nameToRgbaString(C.debtRust, .8);
-
-  static makeSource(hex: Hex2, n = 30) {
-    const source = Debt.source = new DebtSource(hex)
-    for (let i = 0; i < n; i++) {
-      source.newUnit(new Debt(i + 1));
-    }
-    source.nextUnit(); // moveTo(source.hex)
-    return source;
-  }
-
-  constructor(serial: number) {
-    super(undefined, `Debt-${serial}`, 0, 0, 0, 0);
-    this.counter.attachToContainer(this, {x: 0, y: this.baseShape.y});
-  }
-
-  // transparent background
-  counter = new NoZeroCounter(`${this.Aname}C`, 0, 'rgba(0,0,0,0)', this.radius * .7);
-  get balance() { return this.counter.getValue(); }
-  set balance(v: number) {
-    this.counter.stage ? this.counter.updateValue(v) : this.counter.setValue(v);
-    this.updateCache();
-    this.tile?.updateCache();
-  }
-
-  override makeShape(): PaintableShape {
-    const shape = new HexShape(this.radius * .5);
-    shape.y += this.radius * .3
-    return shape;
-  }
-  override paint(pColor?: PlayerColor, colorn?: string): void {
-    super.paint(pColor, Debt.debtRust); // TODO: override paint() --> solid hexagon (also: with Counter)
-  }
-  override textVis(vis?: boolean): void {
-    super.textVis(vis);
-    this.tile?.updateCache();
-  }
-
-  override get hex() { return this._tile?.hex; }
-  override set hex(hex: Hex) { this.tile = hex?.tile; }
-
-  _tile: Tile;
-  get tile() { return this._tile; }
-  set tile(tile: Tile) {
-    if (this._tile && this._tile !== tile) {
-      this._tile.removeChild(this);
-      this._tile.debt = undefined;
-      // expect this.balance === 0;?
-      // expect [new] tile is undefined or debtSource
-    }
-    this._tile = tile;
-    if (tile) {
-      tile.debt = this;
-      tile.addChild(this);
-      this.x = this.y = 0;
-      tile.paint();
-    }
-  }
-
-  /** show loanLimit of Tile under Debt. */
-  override dragFunc0(hex: Hex2, ctx: DragContext): void {
-    const loan = (hex?.tile?.player === GamePlay.gamePlay.curPlayer) && hex?.tile?.loanLimit;
-    this.balance = loan ?? 0;
-    super.dragFunc0(hex, ctx);
-  }
-
-  override dropFunc(targetHex: Hex2, ctx: DragContext): void {
-    this.balance = 0;
-    super.dropFunc(targetHex, ctx);
-  }
-  /** never showCostMark */
-  override showCostMark(show?: boolean): void { }
-
-  override isLegalRecycle(ctx: DragContext) {
-    return this.hex.isOnMap;
-  }
-
-  override isLegalTarget(hex: Hex): boolean {
-    if (!hex.isOnMap) return false;
-    if (this.balance > 0) return false;
-    if (hex?.tile?.player !== GamePlay.gamePlay.curPlayer) return false;
-    if (hex.tile.loanLimit <= 0) return false; // no first mortgage.
-    if (hex.tile.debt) return false;           // no second mortgage.
-    return true;
-  }
-
-  // nextUnit() --> unit.moveTo(source.hex)
-  override moveTo(toHex: Hex) {
-    const source = Debt.source; //[this.player.index]
-    const fromHex = this.hex;
-    if (toHex === fromHex) {
-      this.tile = toHex.tile;
-      return toHex;
-    }
-    const tile = toHex.tile;
-    if (!tile) debugger;        // sendHome...?
-    this.tile = tile;           // super.moveTo(hex);    // super.moveTo(hex);
-    if (this.tile?.player) {
-      this.balance = tile?.loanLimit ?? 0;
-      this.tile.player.coins += this.balance;
-    }
-    if (fromHex === source.hex) {
-      source.nextUnit();
-    }
-    return toHex;
-  }
-
-  override sendHome(): void {
-    let source = Debt.source; //[this.player.index]
-    if (this.tile) {
-      this.tile.player.coins -= this.balance;
-      console.log(stime(this, `.sendHome: ${this.tile.player} foreclosed:`), this.balance);
-    }
-    this.balance = 0;
-    this.tile = undefined;
-    super.sendHome();
-    source.availUnit(this);
-    if (!source.hex.tile) source.nextUnit();
   }
 }

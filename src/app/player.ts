@@ -1,13 +1,15 @@
-import { C, stime } from "@thegraid/common-lib"
-import { GamePlay, GamePlay0 } from "./game-play"
-import { Hex, Hex2 } from "./hex"
-import { HexDir } from "./hex-intfs"
-import { Criminal, Debt, Leader, Meeple, Police } from "./meeple"
-import { IPlanner, newPlanner } from "./plan-proxy"
-import { PlayerColor, TP, otherColor, playerColors } from "./table-params"
-import { AuctionTile, Civic, Tile, TownRules, TownStart } from "./tile"
-import { CenterText } from "./table"
+import { stime } from "@thegraid/common-lib"
 import { NumCounter, PerRoundCounter } from "./counters"
+import { Debt } from "./debt"
+import { GamePlay, GamePlay0 } from "./game-play"
+import { GP } from "./gp"
+import type { Hex } from "./hex"
+import { HexDir } from "./hex-intfs"
+import { Criminal, Leader, Meeple, Police } from "./meeple"
+import { IPlanner, newPlanner } from "./plan-proxy"
+import { CenterText } from "./shapes"
+import { PlayerColor, TP, playerColors } from "./table-params"
+import { Civic, Tile, TownRules, TownStart } from "./tile"
 
 export class Player {
   static allPlayers: Player[] = [];
@@ -21,9 +23,12 @@ export class Player {
       player.expenseCounter.updateValue(player.expenses)
       player.vpCounter.updateValue(player.vps)
       if (player && player !== curPlayer) player.totalVpCounter.updateValue(player.totalVps)
-      player.balanceText.text = GamePlay.gamePlay.playerBalanceString(player);
+      player.balanceText.text = GP.gamePlay.playerBalanceString(player);
     })
-    GamePlay.gamePlay.hexMap.update()
+    GP.gamePlay.hexMap.update()
+  }
+  updateCounters(curPlayer?: Player) {
+    Player.updateCounters(curPlayer);
   }
 
   readonly Aname: string;

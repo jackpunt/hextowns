@@ -1,19 +1,22 @@
-import { F, json } from "@thegraid/common-lib";
+import { json } from "@thegraid/common-lib";
 import { KeyBinder, S, Undo, stime } from "@thegraid/easeljs-lib";
+import { Container, Text } from "@thegraid/easeljs-module";
+import { CostIncCounter } from "./counters";
 import { GameSetup } from "./game-setup";
-import { Hex, Hex2, HexMap, IHex } from "./hex";
-import { Criminal, Debt, DebtSource, Leader, Meeple, Police, TileSource } from "./meeple";
-import { Planner } from "./plan-proxy";
+import { GP } from "./gp";
+import { Hex, HexMap, IHex } from "./hex";
+import { H } from "./hex-intfs";
+import { Criminal, Leader, Meeple, Police } from "./meeple";
+import type { Planner } from "./plan-proxy";
 import { Player } from "./player";
+import { CenterText } from "./shapes";
 import { GameStats, TableStats } from "./stats";
 import { LogWriter } from "./stream-writer";
+import { AuctionShifter, DragContext, Table } from "./table";
 import { PlayerColor, PlayerColorRecord, TP, criminalColor, otherColor, playerColorRecord, playerColors, } from "./table-params";
 import { AuctionBonus, AuctionTile, BonusTile, Busi, Monument, Resi, Tile, TownRules } from "./tile";
 import { NC } from "./choosers";
-import { H } from "./hex-intfs";
-import { Container, Text } from "@thegraid/easeljs-module";
-import { CostIncCounter } from "./counters";
-import { AuctionShifter, CenterText, DragContext, Table } from "./table";
+import { TileSource } from "./tile-source";
 
 class HexEvent {}
 class Move{
@@ -79,7 +82,7 @@ export class GamePlay0 {
   }
 
   constructor() {
-    GamePlay.gamePlay = this;
+    GP.gamePlay = this;
     this.logWriter = this.logWriterLine0()
     this.hexMap[S.Aname] = `mainMap`
     this.gStats = new GameStats(this.hexMap) // AFTER allPlayers are defined so can set pStats
@@ -287,6 +290,9 @@ export class GamePlay0 {
   costNdxFromHex(hex: Hex) {
     return this.costIncHexCounters.get(hex)?.ndx ?? -1; // Criminal/Police: ndx, no counter
   }
+  showAuctionPrices() {
+
+  }
 
   /** Influence Required; must supply tile.hex OR ndx */
   getInfR(tile: Tile | undefined, ndx = this.costNdxFromHex(tile.hex), plyr = this.curPlayer) {
@@ -382,7 +388,7 @@ export class GamePlay0 {
     }
     Player.updateCounters();
   }
-  logDisposition(tile: Tile, verb = (tile instanceof Meeple) ? 'dismissed' : (tile instanceof Debt) ? 'paid-off' : 'demolished') {
+  logDisposition(tile: Tile, verb: string) {
     const cp = this.curPlayer
     const loc = tile.hex?.isOnMap ? 'onMap' : 'offMap';
     const info = { name: tile.Aname, fromHex: tile.hex?.Aname, cp: cp.colorn, caps: cp.captures, tile }
@@ -401,6 +407,7 @@ export class GamePlay0 {
         this.curPlayer.coins -= tile.econ;  // dismiss Meeple, claw-back salary.
       }
     }
+    verb = (tile instanceof Meeple) ? 'dismissed' : 'removed';
     this.logDisposition(tile, verb);
     tile.sendHome();  // recycleTile
   }
@@ -721,7 +728,6 @@ export class GamePlay extends GamePlay0 {
     super.endTurn();   // shift(), roll()
   }
 
-  // TODO: use setNextPlayerNdx() and include in GamePlay0 ?
   override setNextPlayer(plyr = this.otherPlayer()) {
     super.setNextPlayer(plyr);
     this.paintForPlayer();
@@ -749,7 +755,7 @@ export class GamePlay extends GamePlay0 {
     })
   }
 
-  showAuctionPrices() {
+  override showAuctionPrices() {
     this.costIncHexCounters.forEach(cic => {
       let plyr = (cic.repaint instanceof Player) ? cic.repaint : this.curPlayer;
       let [infR] = this.getInfR(cic.hex.tile, cic.ndx, plyr);

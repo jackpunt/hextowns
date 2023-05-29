@@ -1,13 +1,12 @@
 import { C, F, XY, stime } from "@thegraid/common-lib";
 import { DisplayObject, Shape, Text } from "@thegraid/easeljs-module";
-import { GamePlay } from "./game-play";
-import { Hex2 } from "./hex";
+import { GP } from "./gp";
+import type { Hex2 } from "./hex";
 import { H } from "./hex-intfs";
 import { TP } from "./table-params";
-import { InfShape } from "./tile";
-import { ValueCounter } from "@thegraid/easeljs-lib";
-//import { ValueCounter } from "./value-counter";
-import { Player } from "./player";
+import { InfShape } from "./shapes";
+import { ValueCounter } from "@thegraid/easeljs-lib"; // "./value-counter";
+import type { Player } from "./player";
 
 /** ValueCounter in a Rectangle. */
 export class ValueCounterBox extends ValueCounter {
@@ -99,7 +98,7 @@ export class DecimalCounter extends NumCounterBox {
 
 export class PerRoundCounter extends DecimalCounter {
   override decimal = 1;
-  get perRound() { return (this.value as number) / Math.max(1, Math.floor(GamePlay.gamePlay.turnNumber / 2)); }
+  get perRound() { return (this.value as number) / Math.max(1, Math.floor(GP.gamePlay.turnNumber / 2)); }
   override setBoxWithValue(value: number): void {
     super.setBoxWithValue(this.perRound);
   }

@@ -1,16 +1,17 @@
 import { AT, C, Dragger, DragInfo, F, KeyBinder, S, ScaleableContainer, stime, XY } from "@thegraid/easeljs-lib";
 import { Container, DisplayObject, EventDispatcher, Graphics, MouseEvent, Shape, Stage, Text } from "@thegraid/easeljs-module";
-import { GamePlay } from "./game-play";
+import { ButtonBox, CostIncCounter, NumCounter, NumCounterBox, PerRoundCounter } from "./counters";
+import { Debt } from "./debt";
+import type { GamePlay } from "./game-play";
 import { Hex, Hex2, HexMap, IHex } from "./hex";
 import { H, XYWH } from "./hex-intfs";
-//import { TablePlanner } from "./planner";
-import { Criminal, Debt, DebtSource, Police, TileSource } from "./meeple";
+import { Criminal, Police } from "./meeple";
 import { Player } from "./player";
-import { StatsPanel } from "./stats";
-//import { StatsPanel } from "./stats";
+import type { StatsPanel } from "./stats";
 import { PlayerColor, playerColor0, playerColor1, playerColors, TP } from "./table-params";
 import { AuctionTile, Busi, Monument, NoDragTile, Resi, Tile, TileBag } from "./tile";
-import { ButtonBox, CostIncCounter, NumCounter, NumCounterBox, PerRoundCounter } from "./counters";
+import { TileSource } from "./tile-source";
+//import { TablePlanner } from "./planner";
 
 
 /** to own file... */
@@ -21,13 +22,6 @@ interface StageTable extends Stage {
   table: Table;
 }
 
-export class CenterText extends Text {
-  constructor(text?: string, size = TP.hexRad / 2, color?: string) {
-    super(text, F.fontSpec(size), color);
-    this.textAlign = 'center';
-    this.textBaseline = 'middle';
-  }
-}
 export interface DragContext {
   originHex: Hex2;      // where Tile was picked
   targetHex: Hex2;      // last isLegalTarget() or originHex
@@ -354,7 +348,6 @@ export class Table extends EventDispatcher  {
       this.addCostCounter(academyHex, undefined, -1, false); // academyHex[plyr]: no Counter, no incr, no repaint
       Police.makeSource(p, academyHex, TP.policePerPlayer);
 
-      // TODO: Criminal.source[plyr], just like Police
       const crimeHex = topRowHex(`Barbs:${pIndex}`, colf2(2), 0)
       this.addCostCounter(crimeHex, undefined, -1, false);
       Criminal.makeSource(p, crimeHex, TP.criminalPerPlayer);
