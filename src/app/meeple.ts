@@ -1,7 +1,6 @@
 import { C, F, S, stime } from "@thegraid/common-lib";
-import { ValueCounter } from "@thegraid/easeljs-lib";
 import { Shape, Text } from "@thegraid/easeljs-module";
-import { NoZeroCounter } from "./counters";
+import { NoZeroCounter, NumCounter } from "./counters";
 import { GamePlay } from "./game-play";
 import { Hex, Hex2, HexMap } from "./hex";
 import { H } from "./hex-intfs";
@@ -104,6 +103,7 @@ export class Meeple extends Tile {
   }
 
   override moveTo(hex: Hex): Hex {
+    if (hex.meep) hex.meep.x += 10; // make double occupancy apparent [gamePlay.unMove()]
     const fromHex = this.hex;
     const toHex = super.moveTo(hex);
     if (toHex.isOnMap) {
@@ -146,7 +146,12 @@ export class Meeple extends Tile {
     return hex.isOnMap;
   }
 
-  override dragStart(hex: Hex2): void {
+  override showCostMark(show?: boolean): void {
+    super.showCostMark(show, -.2);
+  }
+
+  override dragStart(hex: Hex2, ctx: DragContext, ): void {
+    super.dragStart(hex, ctx);
     this.hex.tile?.setInfRays(this.hex.tile.inf); // removing meeple influence
     this.setInfRays(this.inf);  // show influence rays on this meeple
   }
@@ -158,14 +163,18 @@ export class Meeple extends Tile {
     targetHex.tile?.setInfRays(infP);
     this.setInfRays(infP);
   }
+  override sendHome(): void {
+    this.faceUp();
+    super.sendHome()
+  }
 }
 
 export class Leader extends Meeple {
   /** new Civic Tile with a Leader 'on' it. */
   static makeLeaders(p: Player, nPolice = 10) {
     new Mayor(new TownStart(p))   // King
-    new Priest(new Church(p))     // Bishop
     new Chancellor(new University(p))   // Rook: Chariot, Rector, Count
+    new Priest(new Church(p))     // Bishop
     new Judge(new Courthouse(p))  // Queen
   }
 
@@ -177,11 +186,10 @@ export class Leader extends Meeple {
   override get infP() { return super.infP + (this.civicTile !== this.hex.tile ? 0 : TP.infOnCivic); }
 
   constructor(tile: Civic, abbrev: string) {  // Leader(name, player, inf, vp, cost, econ)
-    super(`${abbrev}:${tile.player.index}`, tile.player, 1, 0, TP.leaderCost, TP.leaderEcon);
+    super(`${abbrev}:${tile.player.index}`, tile.player, 1, 1, TP.leaderCost, TP.leaderEcon);
     this.civicTile = tile;
-    const mark = this.addBonus('star');
-    this.addChildAt(mark, 1); // move bonus-star just above MeepleShape
-    this.paint()
+    this.drawStar();
+    this.paint();
     this.markCivicWithLetter();
   }
 
@@ -230,7 +238,7 @@ export class TileSource<T extends Tile> {
   readonly Aname: string
   private readonly allUnits: T[] = new Array<T>();
   private readonly available: T[] = new Array<T>();
-  readonly counter?: ValueCounter;   // counter of available units.
+  readonly counter?: NumCounter;   // counter of available units.
 
   /** mark unit available for later deployment */
   availUnit(unit: T) {
@@ -269,7 +277,7 @@ export class TileSource<T extends Tile> {
 
   constructor(type: new (...args: any) => T, public readonly player: Player, public readonly hex: Hex2) {
     this.Aname = `${type.name}-Source`;
-    this.counter = new ValueCounter(`${type.name}:${player?.index || 'any'}`, this.available.length, `lightblue`, TP.hexRad / 2);
+    this.counter = new NumCounter(`${type.name}:${player?.index || 'any'}`, this.available.length, `lightblue`, TP.hexRad / 2);
     const cont = GamePlay.gamePlay.hexMap.mapCont.counterCont;
     const xy = hex.cont.localToLocal(0, -TP.hexRad / H.sqrt3, cont);
     this.counter.attachToContainer(cont, xy);
@@ -457,6 +465,7 @@ export class Debt extends Tile {
     this.counter.attachToContainer(this, {x: 0, y: this.baseShape.y});
   }
 
+  // transparent background
   counter = new NoZeroCounter(`${this.Aname}C`, 0, 'rgba(0,0,0,0)', this.radius * .7);
   get balance() { return this.counter.getValue(); }
   set balance(v: number) {
@@ -499,14 +508,10 @@ export class Debt extends Tile {
     }
   }
 
-  override dragStart(hex: Hex2, ctx: DragContext): void {
-    this.tile?.updateCache();
-    super.dragStart(hex, ctx);
-  }
-
+  /** show loanLimit of Tile under Debt. */
   override dragFunc0(hex: Hex2, ctx: DragContext): void {
-    const v = hex?.tile?.loanLimit;
-    this.balance = v ?? 0;
+    const loan = (hex?.tile?.player === GamePlay.gamePlay.curPlayer) && hex?.tile?.loanLimit;
+    this.balance = loan ?? 0;
     super.dragFunc0(hex, ctx);
   }
 
@@ -514,6 +519,8 @@ export class Debt extends Tile {
     this.balance = 0;
     super.dropFunc(targetHex, ctx);
   }
+  /** never showCostMark */
+  override showCostMark(show?: boolean): void { }
 
   override isLegalRecycle(ctx: DragContext) {
     return this.hex.isOnMap;

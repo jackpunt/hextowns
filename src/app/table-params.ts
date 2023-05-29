@@ -36,17 +36,18 @@ export class TP {
   static auctionMerge = 0;
   static auctionSlots = 4;
   static reserveSlots = 1;
-  static resiPerPlayer = 10
-  static busiPerPlayer = 10;
+  static resiPerPlayer = 11
+  static busiPerPlayer = 9;
   static lakePerPlayer = 3;
   static bankPerPlayer = 3;
-  static inBusiResiMarket = 4;
-  static criminalPerPlayer = 5;
-  static policePerPlayer = 5;
+  static inMarket = 4;
+  static criminalPerPlayer = 4;
+  static policePerPlayer = 3;
   static psPerPlayer = 3;
   // 35 in Bag + 4 Civic Tiles per player.
   static textLogLines = 6;
 
+  static alwaysShift = false;
   static parallelAttack = true;  // true --> N intersects S
   static allowSacrifice = true;
   static yield = true

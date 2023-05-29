@@ -7,7 +7,7 @@ import { H } from "./hex-intfs";
 import { Debt } from "./meeple";
 import { Player } from "./player";
 import { C1, CapMark, PaintableShape, TileShape } from "./shapes";
-import { DragContext } from "./table";
+import { CenterText, DragContext } from "./table";
 import { PlayerColor, PlayerColorRecord, TP, playerColorRecord, playerColorsC } from "./table-params";
 
 /** lines showing influence of a Tile. */
@@ -43,12 +43,11 @@ export class InfShape extends Container {
     s.graphics.f(bgColor).dp(0, 0, TP.hexRad, 6, 0, 30)
     c.addChild(s)
     c.addChild(new InfRays(1, undefined, .3, 10)) // short & wide; it gets scaled down
-    c.scaleX = c.scaleY = 1 / 4;
   }
 }
 
-type Bonus = 'star' | 'brib' | 'actn' | 'econ' | 'Bank' | 'Lake'
-export type AuctionBonus = Exclude<Bonus, 'Bank' | 'Lake'>;
+export type Bonus = 'star' | 'brib' | 'actn' | 'econ' | 'Bank' | 'Lake' | 'Star';
+export type AuctionBonus = Exclude<Bonus, 'Bank' | 'Lake' | 'Star'>;
 type BonusObj = { [key in AuctionBonus]: boolean}
 
 type BonusInfo<T extends DisplayObject> = {
@@ -57,21 +56,11 @@ type BonusInfo<T extends DisplayObject> = {
   paint?: (s: T, info: BonusInfo<T>) => void
 }
 
-class BonusMark extends Container {
+export class BonusMark extends Container {
 
   static bonusInfo: BonusInfo<DisplayObject>[] = [
     {
       type: 'Bank', dtype: Text, x: 0, y: -2.6, size: TP.hexRad / 3, paint: (t: Text, info) => {
-        t.text = '$'
-        t.color = C.GREEN
-        t.textAlign = 'center'
-        t.font = F.fontSpec(info.size)
-        t.x = info.x * info.size
-        t.y = info.y * info.size
-      }
-    },
-    {
-      type: 'econ', dtype: Text, x: 0, y: -1.6, size: TP.hexRad / 2, paint: (t: Text, info) => {
         t.text = '$'
         t.color = C.GREEN
         t.textAlign = 'center'
@@ -87,14 +76,30 @@ class BonusMark extends Container {
       }
     },
     {
-      type: 'star', dtype: Shape, x: 0, y: 1.2, size: TP.hexRad / 3, paint: (s: Shape, info, tilt = -90) => {
+      type: 'Star', dtype: Shape, x: 0, y: 1.2, size: TP.hexRad / 3, paint: (s: Shape, info, tilt = -90) => {
         s.graphics.f(C.briteGold).dp(info.x, info.y, 1, 5, 2, tilt)
         s.scaleX = s.scaleY = info.size;
       }
     },
     {
+      type: 'star', dtype: Shape, x: 0, y: 0, size: TP.hexRad / 3, paint: (s: Shape, info, tilt = -90) => {
+        s.graphics.f(C.briteGold).dp(info.x, info.y, 1, 5, 2, tilt)
+        s.scaleX = s.scaleY = info.size;
+      }
+    },
+    {
+      type: 'econ', dtype: Text, x: 0, y: -1.6, size: TP.hexRad / 2, paint: (t: Text, info) => {
+        t.text = '$'
+        t.color = C.GREEN
+        t.textAlign = 'center'
+        t.font = F.fontSpec(info.size)
+        t.x = info.x * info.size
+        t.y = info.y * info.size
+      }
+    },
+    {
       type: 'brib', dtype: InfShape, x: 1.3, y: -1.3, size: TP.hexRad/4, paint: (c: Container, info) => {
-        c.scaleX = c.scaleY = 1/4;
+        c.scaleX = c.scaleY = .25;
         c.x = info.x * info.size;
         c.y = info.y * info.size;
       }
@@ -117,8 +122,8 @@ class BonusMark extends Container {
     rotation = 0,
     ) {
     super();            // this is a Container
-    let info = BonusMark.bonusMap.get(type); // has a paint() function
-    let dobj = new info.dtype();             // Shape or Text
+    const info = BonusMark.bonusMap.get(type); // has a paint() function
+    const dobj = new info.dtype();             // Shape or Text
     this.addChild(dobj) // dobj is a Shape or Text or other info.dtype()
     info.paint(dobj, info); // paint dobj with polystar(tilt) or Text(...)
     this.rotation = rotation;
@@ -126,11 +131,15 @@ class BonusMark extends Container {
 }
 
 class TileLoader {
+  static imageNames: string[] = [];
   Uname = ['Univ0', 'Univ1'];
+  Monu = [0,1].map(k => `Monument${k}`)
   imageMap = new Map<string, HTMLImageElement>()
   imageArgs = {
     root: 'assets/images/',
-    fnames: ['Resi', 'Busi', 'Pstation', 'Bank', 'Lake', 'Recycle', 'TownStart', 'Courthouse', 'TownHall', 'Temple', ...this.Uname],
+    fnames: ['Resi', 'Busi', 'Pstation', 'Bank', 'Lake', 'Recycle',
+      'TownStart', 'Courthouse', 'TownHall', 'Temple',
+      ...this.Monu, ...this.Uname],
     ext: 'png',
   };
 
@@ -150,10 +159,12 @@ class Tile0 extends Container {
 
   /** name in set of filenames loaded in GameSetup */
   addImageBitmap(name: string) {
-    let img = Tile0.loader.imageMap.get(name), bm = new Bitmap(img);
-    let width = TP.hexRad
-    bm.scaleX = bm.scaleY = width / Math.max(img.height, img.width);
-    bm.x = bm.y = -width / 2;
+    const img = Tile0.loader.imageMap.get(name), bm = new Bitmap(img);
+    const width = TP.hexRad, scale = width / Math.max(img.height, img.width);
+    bm.scaleX = bm.scaleY = scale;
+    const sw = img.width * scale, sh = img.height * scale;
+    bm.x = -sw / 2;
+    bm.y = -sh / 2;
     bm.y -= Tile.textSize / 2;
     this.addChildAt(bm, 1)
     return bm;
@@ -186,6 +197,15 @@ class Tile0 extends Container {
     this.lastColor = pColor;
     this.baseShape.paint(colorn); // recache baseShape
     this.updateCache()
+  }
+
+  // Looks just like the Bonus star!
+  drawStar() {
+    const star = this.addChildAt(new Shape(), 1);
+    const info = BonusMark.bonusMap.get('Star');
+    info.paint(star, info);
+    this.updateCache();
+    return star;
   }
 
   readonly bonus: BonusObj = { star: false, brib: false, actn: false, econ: false }
@@ -259,6 +279,21 @@ export class Tile extends Tile0 {
 
   get vp() { return this.debt ? 0 : this._vp + (this.bonus.star ? 1 : 0); } // override in Lake
   get econ() { return this._econ + (this.bonus.econ ? 1 : 0); } // override in Bank
+  get cost() { return this._cost; }
+
+  static costMark: Text = new CenterText('$ 0');
+  showCostMark(show = true, dy = .5) {
+    const mark = Tile.costMark;
+    if (!show) {
+      this.removeChild(mark);
+    } else {
+      const [infR, costR] = GamePlay.gamePlay.getInfR(this);
+      mark.text = `$ ${costR}`;
+      mark.y = TP.hexRad * dy;
+      this.addChild(mark);
+    }
+    this.updateCache();
+  }
 
   // Tile
   constructor(
@@ -267,7 +302,7 @@ export class Tile extends Tile0 {
     public readonly Aname?: string,
     public readonly inf: number = 0,
     private readonly _vp: number = 0,
-    public readonly cost: number = 1,
+    public readonly _cost: number = 1,
     public readonly _econ: number = 1,
   ) {
     super()
@@ -280,6 +315,7 @@ export class Tile extends Tile0 {
     this.nameText = this.addNameText()   // index = 1
     this.infText = this.addNameText('', TP.hexRad)
     if (inf > 0) this.setInfRays(inf)
+    if (_vp > 0) this.drawStar();
     this.paint()
   }
 
@@ -384,7 +420,8 @@ export class Tile extends Tile0 {
   /**
    * Augment Table.dragFunc0().
    *
-   * isLegal already set; record ctx.targetHex when meeple is over a legal target hex.
+   * isLegal already set;
+   * record ctx.targetHex & showMark() when Tile is over a legal targetHex.
    */
   dragFunc0(hex: Hex2, ctx: DragContext) {
     ctx.targetHex = hex?.isLegal ? hex : ctx.originHex;
@@ -395,6 +432,7 @@ export class Tile extends Tile0 {
   dropFunc0(hex: Hex2, ctx: DragContext) {
     this.dropFunc(ctx.targetHex, ctx);
     ctx.targetHex.map.showMark(undefined);
+    this.showCostMark(false); // QQQ: should this be in dropFunc() ??
   }
 
   canBeMovedBy(player: Player, ctx: DragContext) {
@@ -464,19 +502,12 @@ export class BonusTile extends Tile {
 
 // Leader.civicTile -> Civic; Civic does not point to its leader...
 export class Civic extends Tile {
-  constructor(player: Player, type: string, image: string, inf = 1, vp = 1, cost = 1, econ = 1) {
+  constructor(player: Player, type: string, image: string, inf = 1, vp = 1, cost = 2, econ = 1) {
     super(player, `${type}:${player.index}`, inf, vp, cost, econ);
     this.player = player;
     this.loanLimit = 10;
     this.addImageBitmap(image);
-    this.addBonus('star').y += this.radius / 12;
     player.civicTiles.push(this);
-  }
-
-  // also paint the InfRays
-  override paint(pColor?: PlayerColor, colorn?: string): void {
-    super.paint(pColor);
-    this.setInfRays()
   }
 
   override isLegalTarget(hex: Hex) { // Civic
@@ -608,7 +639,6 @@ export class TileBag<T extends Tile> extends Array<T> {
     return rv
   }
 }
-
 export class AuctionTile extends Tile {
 
   static fillBag(tileBag: TileBag<AuctionTile>) {
@@ -619,8 +649,8 @@ export class AuctionTile extends Tile {
       }
     }
     tileBag.length = 0;
-    addTiles(TP.resiPerPlayer * 2, Resi)
-    addTiles(TP.busiPerPlayer * 2, Busi)
+    addTiles((TP.busiPerPlayer - TP.inMarket) * 2, Busi)
+    addTiles((TP.resiPerPlayer - TP.inMarket) * 2, Resi)
     addTiles(TP.psPerPlayer * 2, PS)
     addTiles(TP.bankPerPlayer * 2, Bank)
     addTiles(TP.lakePerPlayer * 2, Lake)
@@ -632,15 +662,18 @@ export class AuctionTile extends Tile {
     super(player, Aname, inf, vp, cost, econ)
   }
 
+  sendToBag() {
+    console.log(stime(this, `.sendHome: tileBag.unshift()`), this.Aname, this.player?.colorn, this);
+    GamePlay.gamePlay.shifter.tileBag.unshift(this);
+  }
+
   // from map: capture/destroy; from auction: outShift; from Market: recycle [unlikely]
   override sendHome(): void {  // AuctionTile: removeBonus; to tileBag
-    console.log(stime(this, `.sendHome: tileBag.unshift()`), this.Aname, this.player?.colorn, this)
-    const fromHex = this.hex;
-    super.sendHome();          // move to bag; this.hex = undefined
-    this.player = undefined;
     const gamePlay = GamePlay.gamePlay;
-    gamePlay.shifter.tileBag.unshift(this);
-    gamePlay.fromMarket(fromHex)?.nextUnit(); // maybe source nextUnit
+    gamePlay.fromMarket(this.hex);
+    super.sendHome();          // resetTile(); this.hex = undefined
+    this.player = undefined;
+    this.sendToBag();
     gamePlay.hexMap.update();
   }
 
@@ -700,8 +733,13 @@ export class AuctionTile extends Tile {
     let player = gamePlay.curPlayer, pIndex = player.index;
 
     if ((targetHex === ctx.originHex)) {
+      // flip if Infl:
       if (targetHex.isOnMap && targetHex.getInfT(player.color) > targetHex.getInfT(this.player.color)) {
         this.flipOwner(player, gamePlay);
+      }
+      // flip if ctrlKey:
+      if (targetHex.isOnMap && ctx.lastCtrl) {
+        this.flipOwner(this.player.otherPlayer, gamePlay);
       }
       return super.dropFunc(targetHex, ctx);
     }
@@ -748,6 +786,7 @@ export class AuctionTile extends Tile {
 
     // from market source:
     GamePlay.gamePlay.fromMarket(ctx.originHex)?.nextUnit();
+    if (this.player && this.inf) this.setInfRays();
 
     if (toHex.isOnMap) {
       if (targetTile instanceof BonusTile) {
@@ -768,6 +807,26 @@ export class AuctionTile extends Tile {
     }
   }
 }
+export class Monument extends AuctionTile {
+  static inst = 0;
+  static fibcost = [1, 1, 2, 3, 5, 8, 13, 21];
+  static tricost = [1, 3, 6, 10, 15, 21, 28, 36];
+  static lincost = [1, 2, 4, 7, 11, 16, 22, 29];
+  static ln2cost = [2, 2, 4, 4, 7, 7, 11, 11];
+  static cost = Monument.ln2cost;
+  static costs = Monument.cost.slice(0, TP.inMarket + 2).reverse();
+  constructor(player?: Player, Aname = `Mnt-${Monument.cost[Monument.inst]}`, inf = 1, vp = 1, cost = 0, econ = -4) {
+    super(player, Aname, inf, vp, cost, econ);
+    //this.addImageBitmap(`Monument${Monument.inst % Tile0.loader.Monu.length}`);
+    this.addImageBitmap(`Monument1`);
+    Monument.inst++;
+  }
+  override sendToBag(): void {}
+  override get cost(): number {
+    return Monument.costs[GamePlay.gamePlay.marketSource['Monument'].counter.getValue()];
+  }
+}
+
 
 export class Resi extends AuctionTile {
   override get nR() { return 1; } // Resi

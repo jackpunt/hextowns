@@ -65,7 +65,7 @@ export class TileShape extends HexShape {
 /** CapMark indicates if hex can be or has been captured. */
 export class CapMark extends Shape {
   static capSize = TP.hexRad/4   // depends on HexMap.height
-  static xyOffset = playerColorRecord<XY>({ x: -.3, y: -.5 }, { x: .3, y: -.5 }, { x: 0, y: .3 })
+  static xyOffset = playerColorRecord<XY>({ x: -.5, y: .5 }, { x: .5, y: .5 }, { x: 0, y: -.6 })
   constructor(pc: PlayerColor, vis = true, xy = CapMark.xyOffset[pc], rad = TP.hexRad) {
     super()
     this.visible = vis;

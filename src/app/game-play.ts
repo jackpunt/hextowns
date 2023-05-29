@@ -8,12 +8,12 @@ import { Player } from "./player";
 import { GameStats, TableStats } from "./stats";
 import { LogWriter } from "./stream-writer";
 import { PlayerColor, PlayerColorRecord, TP, criminalColor, otherColor, playerColorRecord, playerColors, } from "./table-params";
-import { AuctionBonus, AuctionTile, BonusTile, Busi, Resi, Tile, TownRules } from "./tile";
+import { AuctionBonus, AuctionTile, BonusTile, Busi, Monument, Resi, Tile, TownRules } from "./tile";
 import { NC } from "./choosers";
 import { H } from "./hex-intfs";
 import { Container, Text } from "@thegraid/easeljs-module";
 import { CostIncCounter } from "./counters";
-import { AuctionShifter, DragContext, Table } from "./table";
+import { AuctionShifter, CenterText, DragContext, Table } from "./table";
 
 class HexEvent {}
 class Move{
@@ -58,12 +58,10 @@ export class GamePlay0 {
   readonly reserveHexes: Hex[][] = [[], []];          // target Hexes for reserving a Tile.
   get reserveHexesP() { return this.reserveHexes[this.curPlayerNdx]; }
 
-  readonly marketSource: { Busi?: TileSource<Busi>, Resi?: TileSource<Resi>} = {};  // per Busi/Resi type
-  getMarketSource(type: 'Busi' | 'Resi' ) { return this.marketSource[type] as TileSource<AuctionTile>; }
-  /** return the market that sourced tile, or undefined if not from market. */
+  readonly marketSource: { Busi?: TileSource<Busi>, Resi?: TileSource<Resi>, Monument?: TileSource<Monument> } = {};  // per Busi/Resi type
+  /** return the market with given Source.hex; or undefined if not from market. */
   fromMarket(fromHex: Hex) {
-    const type = Object.keys(this.marketSource).find((type: 'Busi' | 'Resi') => fromHex == this.getMarketSource(type).hex) as 'Busi' | 'Resi';
-    return this.getMarketSource(type);
+    return Object.values(this.marketSource).find(src => fromHex === src.hex);
   }
 
   logWriterLine0() {
@@ -178,14 +176,18 @@ export class GamePlay0 {
       hex.tile = tile;
     });
   }
-  shiftAuction() {
-    this.shifter.shift();   // QQQ? shift before nextPlayer? also: set Bonus on last Tile? or curPlayer choose Tile?
+  shiftAuction(pNdx?: number, alwaysShift?: boolean) {
+    this.shifter.shift(pNdx, alwaysShift);
   }
 
   /** when Player has completed their Action & maybe a hire. */
   endTurn() {
     this.shiftAuction();
     this.rollDiceForBonus();
+  }
+
+  assessThreats() {
+    this.hexMap.forEachHex(hex => hex.assessThreats()); // try ensure threats are correctly marked
   }
 
   setNextPlayer(plyr: Player): void {
@@ -195,7 +197,7 @@ export class GamePlay0 {
     this.curPlayerNdx = plyr.index
     this.curPlayer.actions = 0;
     this.curPlayer.newTurn();
-    this.hexMap.forEachHex(hex => hex.assessThreats()); // try ensure threats are correctly marked
+    this.assessThreats();
   }
 
   /** Planner may override with alternative impl. */
@@ -227,20 +229,21 @@ export class GamePlay0 {
   }
 
   playerBalanceString(player: Player, ivec = [0, 0, 0, 0]) {
-    return this.playerBalance(player, ivec).toString(); // so we can use alternate format if desired
+    const [nb, fb, nr, fr] = this.playerBalance(player, ivec);
+    return `${nb}+${fb}:${nr}+${fr}`;
   }
   playerBalance(player: Player, ivec = [0, 0, 0, 0]) {
-    let [nBusi, nResi, fBusi, fResi] = ivec;
+    let [nBusi, fBusi, nResi, fResi] = ivec;
     this.hexMap.forEachHex(hex => {
       let tile = hex.tile;
       if (tile && tile.player == player) {
         nBusi += tile.nB;
-        nResi += tile.nR;
         fBusi += tile.fB;
+        nResi += tile.nR;
         fResi += tile.fR;
       }
     });
-    return [nBusi, nResi, fBusi, fResi];
+    return [nBusi, fBusi, nResi, fResi];
   }
 
   failTurn = undefined;  // Don't repeat "Need Busi/Resi" message this turn.
@@ -248,7 +251,7 @@ export class GamePlay0 {
     const player = this.curPlayer;
     // tile on map during Test/Dev, OR: when demolishing...
     const ivec = tile.hex.isOnMap ? [0, 0, 0, 0] : [tile.nB, tile.nR, tile.fB, tile.fR];
-    const [nBusi, nResi, fBusi, fResi] = this.playerBalance(player, ivec);
+    const [nBusi, fBusi, nResi, fResi] = this.playerBalance(player, ivec);
     const noBusi = nBusi > 1 * (nResi + fResi);
     const noResi = nResi > 2 * (nBusi + fBusi);
     const fail = (noBusi && (tile.nB > 0)) || (noResi && (tile.nR > 0));
@@ -257,7 +260,7 @@ export class GamePlay0 {
       const failTurn = `${this.turnNumber}:${failText}`;
       if (this.failTurn != failTurn) {
         this.failTurn = failTurn;
-        console.log(stime(this, `.failToBalance: ${failText} ${tile.Aname}`), [nBusi, nResi, fBusi, fResi], tile);
+        console.log(stime(this, `.failToBalance: ${failText} ${tile.Aname}`), [nBusi, fBusi, nResi, fResi], tile);
         this.logText(failText);
       }
     }
@@ -320,7 +323,7 @@ export class GamePlay0 {
         return true;
       }
     }
-    if (coinR > 0 && coinR > this.curPlayer.coins) {    // QQQ: can you but a 0-cost tile with < 0 coins? [Yes!? so can buy a AT for free]
+    if (coinR > 0 && coinR > this.curPlayer.coins) {    // QQQ: can you buy a 0-cost tile with < 0 coins? [Yes!? so can buy a AT for free]
       if (commit) this.logFailure('Coins', coinR, this.curPlayer.coins, toHex);
       return true;
     }
@@ -523,13 +526,17 @@ export class GamePlay extends GamePlay0 {
   }
 
   // do we may need to unMove meeples in the proper order? lest we get 2 meeps on a hex? (apparently not)
+  // move police from station, place new police in station; unMove will place *both* in the station.
+  // perhaps one of them should recycle back to the academy...
+  // perhpas the startHex should be the academy? and use recycle/sendHome to reclaim the salary?
   unMove() {
     this.curPlayer.meeples.forEach(meep => {
       if (meep.hex?.isOnMap && meep.startHex && meep.startHex !== meep.hex ) {
         this.placeMeep(meep, meep.startHex); // unMove update influence; Note: no unMove for Hire! (sendHome)
-        meep.faceUp()
+        meep.faceUp();
       }
     })
+    this.assessThreats();
   }
 
 
@@ -558,7 +565,7 @@ export class GamePlay extends GamePlay0 {
     //KeyBinder.keyBinder.setKey('S', { thisArg: this, func: this.skipMove })
     KeyBinder.keyBinder.setKey('M-K', { thisArg: this, func: this.resignMove })// S-M-k
     KeyBinder.keyBinder.setKey('Escape', {thisArg: table, func: table.stopDragging}) // Escape
-    KeyBinder.keyBinder.setKey('C-a', { thisArg: this, func: () => { this.shiftAuction()} })  // C-a new Tile
+    KeyBinder.keyBinder.setKey('C-a', { thisArg: this, func: () => { this.shiftAuction(undefined, true)} })  // C-a new Tile
     KeyBinder.keyBinder.setKey('C-s', { thisArg: this.gameSetup, func: () => { this.gameSetup.restart() } })// C-s START
     KeyBinder.keyBinder.setKey('C-c', { thisArg: this, func: this.stopPlayer })// C-c Stop Planner
     KeyBinder.keyBinder.setKey('m', { thisArg: this, func: this.makeMove, argVal: true })
@@ -701,8 +708,8 @@ export class GamePlay extends GamePlay0 {
   }
 
   /** for KeyBinding test */
-  override shiftAuction() {
-    super.shiftAuction();
+  override shiftAuction(pNdx?: number, alwaysShift?: boolean) {
+    super.shiftAuction(pNdx, alwaysShift);
     this.paintForPlayer();
     this.showAuctionPrices();
     this.hexMap.update();
@@ -771,8 +778,7 @@ class Dice {
   text: Text;
   textSize: number = .5 * TP.hexRad;
   constructor() {
-    this.text = new Text(`0:0`, F.fontSpec(this.textSize));
-
+    this.text = new CenterText(`0:0`, this.textSize);
   }
   roll(n = 2, d = 6) {
     let rv = new Array(n).fill(1).map(v => 1 + Math.floor(Math.random() * d));
@@ -782,7 +788,7 @@ class Dice {
   }
   setContainer(parent: Container, x = 0, y = 0) {
     this.text.x = x;
-    this.text.y = y - this.textSize/2;
+    this.text.y = y;
     parent.addChild(this.text);
   }
 }
