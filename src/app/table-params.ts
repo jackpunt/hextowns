@@ -40,11 +40,11 @@ export class TP {
   static busiPerPlayer = 9;
   static lakePerPlayer = 3;
   static bankPerPlayer = 3;
-  static inMarket = 4;
+  static pstaPerPlayer = 3;
+  static inMarket = { Busi: 4, Resi: 4, Monument: 6 } as const;
+  // 58 Baggable Tiles + 4 Civic Tiles per player.
   static criminalPerPlayer = 4;
   static policePerPlayer = 3;
-  static psPerPlayer = 3;
-  // 35 in Bag + 4 Civic Tiles per player.
   static textLogLines = 6;
 
   static alwaysShift = false;

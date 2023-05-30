@@ -489,7 +489,7 @@ export class Civic extends Tile {
   override dropFunc(targetHex: Hex2, ctx: DragContext): void {
       super.dropFunc(targetHex, ctx);
       // placing a Civic changes the cost of Auction Tiles:
-      GP.gamePlay.showAuctionPrices();
+      GP.gamePlay.updateCostCounters();
   }
 }
 
@@ -613,9 +613,9 @@ export class AuctionTile extends Tile {
       }
     }
     tileBag.length = 0;
-    addTiles((TP.busiPerPlayer - TP.inMarket) * 2, Busi)
-    addTiles((TP.resiPerPlayer - TP.inMarket) * 2, Resi)
-    addTiles(TP.psPerPlayer * 2, PS)
+    addTiles(TP.busiPerPlayer * 2 - TP.inMarket['Busi'], Busi)
+    addTiles(TP.resiPerPlayer * 2 - TP.inMarket['Resi'], Resi)
+    addTiles(TP.pstaPerPlayer * 2, PS)
     addTiles(TP.bankPerPlayer * 2, Bank)
     addTiles(TP.lakePerPlayer * 2, Lake)
     tileBag.dispatch();
@@ -724,22 +724,20 @@ export class AuctionTile extends Tile {
     if (auctionNdx >= 0) {
       auctionTiles[auctionNdx] = undefined;
       this.player = player;
-      GP.gamePlay.showAuctionPrices();
     }
 
-    super.dropFunc(targetHex, ctx); // set this.hex = targetHex, ctx.originHex.tile = undefined;
-    const toHex = this.hex as Hex2;   // where GamePlay.placeTile() put it (could be back to orig.hex)
-    if (toHex === undefined) return; // recycled...
+    // placeTile(this, targetHex); moveTo(targetHex);
+    super.dropFunc(targetHex, ctx);  // set this.hex = targetHex, ctx.originHex.tile = undefined;
+    const toHex = this.hex as Hex2;  // where GamePlay.placeTile() put it (could be back to orig.hex)
 
     // add TO auctionTiles (from reserveHexes; see isLegalTarget) FOR TEST & DEV
-    const auctionNdx2 = GP.gamePlay.auctionHexes.indexOf(toHex);
+    const auctionNdx2 = gamePlay.auctionHexes.indexOf(toHex);
     if (auctionNdx2 >= 0) {
       auctionTiles[auctionNdx2]?.moveTo(ctx.originHex);  // if something there, swap it to fromHex
       auctionTiles[auctionNdx2] = this;
       this.player = undefined;
       this.paint(player.color);
       this.updateCache();
-      GP.gamePlay.showAuctionPrices();
     }
     // add to reserveTiles:
     const rIndex2 = reserveHexes.indexOf(toHex)
@@ -751,10 +749,13 @@ export class AuctionTile extends Tile {
     if (toHex === ctx.originHex) return;
 
     // from market source:
-    GP.gamePlay.fromMarket(ctx.originHex)?.nextUnit();
+    gamePlay.fromMarket(ctx.originHex)?.nextUnit();
+    gamePlay.updateCostCounters(); // update if fromMarket (or toMarket!)
+
     if (this.player && this.inf) this.setInfRays();
 
-    if (toHex.isOnMap) {
+    // (toHex === undefined) when this Tile is recycled
+    if (toHex?.isOnMap) {
       if (targetTile instanceof BonusTile) {
         targetTile.forEachBonus((b, v) => v && this.addBonus(b) )
         targetTile.sendHome();
@@ -779,9 +780,9 @@ export class Monument extends AuctionTile {
   static tricost = [1, 3, 6, 10, 15, 21, 28, 36];
   static lincost = [1, 2, 4, 7, 11, 16, 22, 29];
   static ln2cost = [2, 2, 4, 4, 7, 7, 11, 11];
-  static cost = Monument.ln2cost;
-  static costs = Monument.cost.slice(0, TP.inMarket + 2).reverse();
-  constructor(player?: Player, Aname = `Mnt-${Monument.cost[Monument.inst]}`, inf = 1, vp = 1, cost = 0, econ = -4) {
+  static cost = Monument.ln2cost; // + 1 for this.inf
+  static costs = Monument.cost.slice(0, TP.inMarket['Monument']).reverse();
+  constructor(player?: Player, Aname = `Mnt-${Monument.cost[Monument.inst]}`, inf = 1, vp = 1, cost = 0, econ = -1) {
     super(player, Aname, inf, vp, cost, econ);
     //this.addImageBitmap(`Monument${Monument.inst % Tile0.loader.Monu.length}`);
     this.addImageBitmap(`Monument1`);
@@ -836,10 +837,12 @@ class AdjBonusTile extends AuctionTile {
     mark.rotation = H.dirRot[dir];
     return mark;
   });
+
   isBonus(tile: Tile | undefined) {
     return !!tile && this.isAdjFn(tile) && (this.anyPlayer || tile.player === this.player);
   }
-  get bonusTiles() { return this.hex.linkHexes.filter(hex => this.isBonus(hex.tile)).length; }
+
+  get adjBonus() { return this.hex.linkHexes.filter(hex => this.isBonus(hex.tile)).length; }
 
   override draw(ctx: CanvasRenderingContext2D, ignoreCache?: boolean): boolean {
     this.myMarks?.forEach((m, ndx) => {
@@ -863,7 +866,7 @@ export class Bank extends AdjBonusTile {
     super('Bank', Bank.isAdj, true, player, Aname, inf, vp, cost, econ);
     this.loanLimit = 8;
   }
-  override get econ() { return super.econ + this.bonusTiles }
+  override get econ() { return super.econ + this.adjBonus }
 }
 
 export class Lake extends AdjBonusTile {
@@ -873,5 +876,5 @@ export class Lake extends AdjBonusTile {
   constructor(player?: Player, Aname?: string, inf = 0, vp = 0, cost = 1, econ = 0) {
     super('Lake', Lake.isAdj, false, player, Aname, inf, vp, cost, econ);
   }
-  override get vp() { return super.vp + this.bonusTiles; }
+  override get vp() { return super.vp + this.adjBonus; }
 }

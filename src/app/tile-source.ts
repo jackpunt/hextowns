@@ -51,10 +51,10 @@ export class TileSource<T extends Tile> {
   }
 
   updateCounter() {
-    this.counter.parent.setChildIndex(this.counter, this.counter.parent.numChildren - 1);
-    this.counter?.setValue(this.available.length);
-    this.hex.cont.updateCache(); // updateCache of counter on hex
-    this.hex.map.update();       // updateCache of hexMap with hex & counter
+    this.counter.parent?.setChildIndex(this.counter, this.counter.parent.numChildren - 1);
+    this.counter.setValue(this.available.length);
+    this.hex?.cont?.updateCache(); // updateCache of counter on hex
+    this.hex?.map?.update();       // updateCache of hexMap with hex & counter
   }
 }
 

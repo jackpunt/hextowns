@@ -8,7 +8,7 @@ import { Player } from "./player";
 import { StatsPanel, TableStats } from "./stats";
 import { Table } from "./table";
 import { criminalColor, TP } from "./table-params";
-import { Tile } from "./tile";
+import { Monument, Tile } from "./tile";
 
 /** show " R" for " N" */
 stime.anno = (obj: string | { constructor: { name: string; }; }) => {
@@ -72,6 +72,7 @@ export class GameSetup {
     Tile.allTiles = [];
     Meeple.allMeeples = [];
     Player.allPlayers = [];
+    Monument.serial = 0;
 
     let table = new Table(this.stage)        // EventDispatcher, ScaleCont, GUI-Player
     let gamePlay = new GamePlay(table, this) // hexMap, players, fillBag, gStats, mouse/keyboard->GamePlay

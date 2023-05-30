@@ -308,13 +308,13 @@ export class Table extends EventDispatcher  {
       }
     });
 
-    const locs = { Busi: [4, 0, TP.inMarket], Resi: [5, 0, TP.inMarket], Monument: [4, -1, TP.inMarket + 2] };
+    const locs = { Busi: [4, 0], Resi: [5, 0], Monument: [4, -1] };
 
-    [Busi, Resi, Monument].forEach((type, ndx) => {
-      const [col, row, nTiles] = locs[type.name];
+    gamePlay.marketTypes.forEach((type, ndx) => {
+      const [col, row] = locs[type.name];
       const hex = topRowHex(type.name, col, row); // Busi/Resi-MarketHex
       const source = gamePlay.marketSource[type.name] = new TileSource<Tile>(type, undefined, hex);
-      for (let i = 0; i < nTiles; i++) {
+      for (let i = 0; i < TP.inMarket[type.name]; i++) {
         source.availUnit(new type());
       }
       source.nextUnit();
@@ -327,14 +327,10 @@ export class Table extends EventDispatcher  {
     Player.allPlayers.forEach((p, pIndex) => {
       this.layoutButtonsAndCounters(p);
       p.makePlayerBits();
-      const colf1 = (ndx: number) => (pIndex == 0 ? ndx - 1 : 14 - ndx);
-      const colf2 = (ndx: number) => (pIndex == 0 ? ndx - 1 : 15 - ndx);
-      this.reserveHexes[pIndex] = [];
-      for (let i = 0; i < TP.reserveSlots; i++) {
-        const rhex = topRowHex(`Reserve:${pIndex}-${i}`, colf2(3), 0);
-        this.addCostCounter(rhex, `rCost-${i}`, 1, false); // reserveHexes[plyr]
-        this.reserveHexes[pIndex].push(rhex);
-      }
+      const offcc = 0;
+      const colf1 = (ndx = 7, offc = offcc) => (pIndex == 0 ? (ndx - offc) - 1 : 14 - (ndx - offc));
+      const colf2 = (ndx = 7, offc = offcc) => (pIndex == 0 ? (ndx - offc) : 14 - (ndx - offc));
+
       const leaderHexes = p.allLeaders.map((meep, ndx) => topRowHex(meep.Aname, colf1(ndx), -1))
       // place [civic/leader, academy/police] meepleHex on Table/Hex (but not on Map)
       this.leaderHexes[pIndex] = leaderHexes;
@@ -343,23 +339,30 @@ export class Table extends EventDispatcher  {
         meep.homeHex = meep.civicTile.homeHex = homeHex;
         this.addCostCounter(homeHex, `${meep.Aname}-c`, 1, p); // leaderHex[plyr]
       })
+      let col0 = 0;
 
-      const academyHex = topRowHex(`Academy:${pIndex}`, colf2(1), 0)
+      const academyHex = topRowHex(`Academy:${pIndex}`, colf2(col0++), 0)
       this.addCostCounter(academyHex, undefined, -1, false); // academyHex[plyr]: no Counter, no incr, no repaint
       Police.makeSource(p, academyHex, TP.policePerPlayer);
 
-      const crimeHex = topRowHex(`Barbs:${pIndex}`, colf2(2), 0)
+      const crimeHex = topRowHex(`Barbs:${pIndex}`, colf2(col0++), 0)
       this.addCostCounter(crimeHex, undefined, -1, false);
       Criminal.makeSource(p, crimeHex, TP.criminalPerPlayer);
 
-    {
-      const bText = p.balanceText, parent = this.scaleCont;
-      const rHex0 = (this.reserveHexes[p.index][0] as Hex2);
-      const x = rHex0.x, y = rHex0.y + TP.hexRad * H.sqrt3;
-      // bText.textAlign = ['left', 'right'][index];
-      rHex0.cont.parent.localToLocal(x, y, parent, bText);
-      parent.addChild(bText);
-    }
+      this.reserveHexes[pIndex] = [];
+      for (let i = 0; i < TP.reserveSlots; i++) {
+        const rhex = topRowHex(`Reserve:${pIndex}-${i}`, colf2(col0++), 0);
+        this.addCostCounter(rhex, `rCost-${i}`, 1, false); // reserveHexes[plyr]
+        this.reserveHexes[pIndex].push(rhex);
+      }
+
+      {
+        const bText = p.balanceText, parent = this.scaleCont;
+        const hexC2 = this.hexMap[8][colf2(2, 0)] as Hex2, hexR1 = this.hexMap[1][3] as Hex2;
+        const x = hexC2.x, y = hexR1.y - .3 * TP.hexRad * H.sqrt3;;
+        hexC2.cont.parent.localToLocal(x, y, parent, bText);
+        parent.addChild(bText);
+      }
 
     });
 
@@ -870,7 +873,7 @@ export class AuctionShifter2 extends AuctionShifter {
     const counterCont = table.hexMap.mapCont.counterCont;
     const x0 = this.hexes[0].x, y0 = (this.hexes[0].y + this.hexes[this.nm].y) / 2, rad = TP.hexRad;
     this.tileCounter = new NumCounter('tileCounter', this.tileBag.length, 'lightblue', rad/2)
-    this.tileCounter.attachToContainer(counterCont, { x: x0 -1.5 * rad, y: y0 - .4 * rad }, this.tileBag, TileBag.event, );
-    table.gamePlay.dice.setContainer(counterCont, x0 -1.5 * rad, y0 + .4 * rad);
+    this.tileCounter.attachToContainer(counterCont, { x: x0 -1.5 * rad, y: y0 + .2 * rad }, this.tileBag, TileBag.event, );
+    table.gamePlay.dice.setContainer(counterCont, x0 -1.5 * rad, y0 + 1 * rad);
   }
 }

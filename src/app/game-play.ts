@@ -64,7 +64,8 @@ export class GamePlay0 {
   readonly reserveHexes: Hex[][] = [[], []];          // target Hexes for reserving a Tile.
   get reserveHexesP() { return this.reserveHexes[this.curPlayerNdx]; }
 
-  readonly marketSource: { Busi?: TileSource<Busi>, Resi?: TileSource<Resi>, Monument?: TileSource<Monument> } = {};  // per Busi/Resi type
+  readonly marketTypes = [Busi, Resi, Monument];
+  readonly marketSource: { Busi?: TileSource<Busi>, Resi?: TileSource<Resi>, Monument?: TileSource<Monument> } = {};
   /** return the market with given Source.hex; or undefined if not from market. */
   fromMarket(fromHex: Hex) {
     return Object.values(this.marketSource).find(src => fromHex === src.hex);
@@ -293,9 +294,9 @@ export class GamePlay0 {
   costNdxFromHex(hex: Hex) {
     return this.costIncHexCounters.get(hex)?.ndx ?? -1; // Criminal/Police: ndx, no counter
   }
-  showAuctionPrices() {
 
-  }
+  /** update when Auction, Market or Civic Tiles are dropped. */
+  updateCostCounters() {}
 
   /** Influence Required; must supply tile.hex OR ndx */
   getInfR(tile: Tile | undefined, ndx = this.costNdxFromHex(tile.hex), plyr = this.curPlayer) {
@@ -717,11 +718,11 @@ export class GamePlay extends GamePlay0 {
     this.table.stopDragging() // drop on nextHex (no Move)
   }
 
-  override showAuctionPrices() {
+  override updateCostCounters() {
+    super.updateCostCounters();
     this.costIncHexCounters.forEach((cic, hex) => {
       const plyr = (cic.repaint instanceof Player) ? cic.repaint : this.curPlayer;
-      const tile = this.auctionTiles[cic.ndx];
-      let [infR] = this.getInfR(tile, cic.ndx, plyr);
+      const [infR] = this.getInfR(hex.tile, cic.ndx, plyr);
       cic.setValue(infR);
     });
   }
@@ -730,7 +731,7 @@ export class GamePlay extends GamePlay0 {
   override shiftAuction(pNdx?: number, alwaysShift?: boolean) {
     super.shiftAuction(pNdx, alwaysShift);
     this.paintForPlayer();
-    this.showAuctionPrices();
+    this.updateCostCounters();
     this.hexMap.update();
   }
 
@@ -743,14 +744,14 @@ export class GamePlay extends GamePlay0 {
   override setNextPlayer(plyr = this.otherPlayer()) {
     super.setNextPlayer(plyr);
     this.paintForPlayer();
-    this.showAuctionPrices();
+    this.updateCostCounters();
     Player.updateCounters(plyr); // beginning of round...
     this.logText(this.shifter.tileNames(this.curPlayerNdx));
     this.table.buttonsForPlayer[this.curPlayerNdx].visible = true;
-    this.table.showNextPlayer() // get to nextPlayer, waitPaused when Player tries to make a move.?
-    this.hexMap.update()
-    this.startTurn()
-    this.makeMove()
+    this.table.showNextPlayer(); // get to nextPlayer, waitPaused when Player tries to make a move.?
+    this.hexMap.update();
+    this.startTurn();
+    this.makeMove();
   }
 
   /** After setNextPlayer() */
