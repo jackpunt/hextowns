@@ -776,7 +776,7 @@ export class Monument extends AuctionTile {
   static inst = [0,0];
   static fibcost = [1, 1, 2, 3, 5, 8, 13, 21];
   static tricost = [1, 3, 6, 10, 15, 21, 28, 36];
-  static lincost = [1, 2, 4, 7, 11, 16, 22, 29];
+  static lincost = [2, 4, 7, 11, 16, 22, 29];
   static ln2cost = [2, 2, 4, 4, 7, 7, 11, 11];
   static cost = Monument.lincost; // + 1 for this.inf
   static costs = Monument.cost.slice(0, TP.inMarket['Monument']).reverse();

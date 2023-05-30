@@ -277,7 +277,8 @@ export class Table extends EventDispatcher  {
       return hex
     }
 
-    const topRowHex = (name: string, col: number, row = -1, dy = 0) => {
+    const topRowHex = (name: string, crxy = { col: 7, row: -1 }, dy = 0) => {
+      const {col, row} = crxy;
       const sy = (-.4 + .3 * row) * rowh // {-1: -.7, 0: -.4}
       const hex = makeHex2(row, col, name)
       this.homeRowHexes.push(hex);
@@ -286,11 +287,12 @@ export class Table extends EventDispatcher  {
       return hex
     }
 
-    const col0 = 6, row0 = 0, nm = TP.auctionMerge;
+    const nm = TP.auctionMerge;
     const splitRowHex = (name: string, ndx: number) => {
-      return ndx < nm ? topRowHex(name, col0 + ndx, row0, -TP.hexRad * 2) : // shift UP 2 when split
-        ndx < 2 * nm ? topRowHex(name, col0 + ndx - nm, row0) :             // stay DOWN when split
-          topRowHex(name, col0 + ndx - nm, row0, -rowh * .65);              // shift to middle, not split
+      const col0 = 5.5, row = 0;
+      return ndx < nm ? topRowHex(name, {col: col0 + ndx, row}, -TP.hexRad * 2) : // shift UP 2 when split
+        ndx < 2 * nm ? topRowHex(name, {col: col0 + ndx - nm, row}) :             // stay DOWN when split
+          topRowHex(name, {col: col0 + ndx - nm, row}, -rowh * .65);              // shift to middle, not split
     }
     const auctionTiles = this.gamePlay.auctionTiles, tileBag = this.gamePlay.shifter.tileBag;
     const shifter = this.gamePlay.shifter = new AuctionShifter2(auctionTiles, this, splitRowHex);
@@ -319,8 +321,9 @@ export class Table extends EventDispatcher  {
       const colf1 = (ndx = 7, offc = offcc) => (pIndex == 0 ? (ndx - offc) - 1 : 14 - (ndx - offc));
       // column index for Hex in 2ndRow(row = 0)
       const colf2 = (ndx = 7, offc = offcc) => (pIndex == 0 ? (ndx - offc) : 14 - (ndx - offc));
+      const colf = (ndx = 7, row = -1) => { return { row, col: (row === -1) ? colf1(ndx) : colf2(ndx) } };
 
-      const leaderHexes = p.allLeaders.map((meep, ndx) => topRowHex(meep.Aname, colf1(ndx), -1))
+      const leaderHexes = p.allLeaders.map((meep, ndx) => topRowHex(meep.Aname, colf(ndx, -1)));
       // place [civic/leader, academy/police] meepleHex on Table/Hex (but not on Map)
       this.leaderHexes[pIndex] = leaderHexes;
       p.allLeaders.forEach((meep, i) => {
@@ -330,17 +333,17 @@ export class Table extends EventDispatcher  {
       })
       let col0 = 0;
 
-      const academyHex = topRowHex(`Academy:${pIndex}`, colf2(col0++), 0)
+      const academyHex = topRowHex(`Academy:${pIndex}`, colf(col0++, 0));
       this.addCostCounter(academyHex, undefined, -1, false); // academyHex[plyr]: no Counter, no incr, no repaint
       Police.makeSource(p, academyHex, TP.policePerPlayer);
 
-      const crimeHex = topRowHex(`Barbs:${pIndex}`, colf2(col0++), 0)
+      const crimeHex = topRowHex(`Barbs:${pIndex}`, colf(col0++, 0));
       this.addCostCounter(crimeHex, undefined, -1, false);
       Criminal.makeSource(p, crimeHex, TP.criminalPerPlayer);
 
       this.reserveHexes[pIndex] = [];
       for (let i = 0; i < TP.reserveSlots; i++) {
-        const rhex = topRowHex(`Reserve:${pIndex}-${i}`, colf2(col0++), 0);
+        const rhex = topRowHex(`Reserve:${pIndex}-${i}`, colf(col0++, 0));
         this.addCostCounter(rhex, `rCost-${i}`, 1, false); // reserveHexes[plyr]
         this.reserveHexes[pIndex].push(rhex);
       }
@@ -349,8 +352,7 @@ export class Table extends EventDispatcher  {
 
       gamePlay.marketTypes.forEach((type, ndx) => {
         const [col, row] = locs[type.name];
-        const cc = (row == -1) ? colf1(col) : colf2(col);
-        const hex = topRowHex(type.name, cc, row); // Busi/Resi-MarketHex
+        const hex = topRowHex(type.name, colf(col, row)); // Busi/Resi-MarketHex
         const source = gamePlay.marketSource[pIndex][type.name] = new TileSource<Tile>(type, p, hex);
         for (let i = 0; i < TP.inMarket[type.name]; i++) {
           source.availUnit(new type(p));
@@ -877,7 +879,7 @@ export class AuctionShifter2 extends AuctionShifter {
     const counterCont = table.hexMap.mapCont.counterCont;
     const x0 = this.hexes[0].x, y0 = (this.hexes[0].y + this.hexes[this.nm].y) / 2, rad = TP.hexRad;
     this.tileCounter = new NumCounter('tileCounter', this.tileBag.length, 'lightblue', rad/2)
-    this.tileCounter.attachToContainer(counterCont, { x: x0 -1.5 * rad, y: y0 + .2 * rad }, this.tileBag, TileBag.event, );
-    table.gamePlay.dice.setContainer(counterCont, x0 -1.5 * rad, y0 + 1 * rad);
+    this.tileCounter.attachToContainer(counterCont, { x: x0 -1.5 * rad, y: y0 - .2 * rad }, this.tileBag, TileBag.event, );
+    table.gamePlay.dice.setContainer(counterCont, x0 -1.5 * rad, y0 - 1 * rad);
   }
 }

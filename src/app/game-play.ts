@@ -790,7 +790,7 @@ export class GamePlay extends GamePlay0 {
 }
 
 class Dice {
-  text: Text;
+  text: CenterText;
   textSize: number = .5 * TP.hexRad;
   constructor() {
     this.text = new CenterText(`0:0`, this.textSize);
@@ -798,7 +798,6 @@ class Dice {
   roll(n = 2, d = 6) {
     let rv = new Array(n).fill(1).map(v => 1 + Math.floor(Math.random() * d));
     this.text.text = rv.reduce((pv, cv, ci) => `${pv}${ci > 0 ? ':' : ''}${cv}`, '');
-    this.text.textAlign = 'center';
     return rv
   }
   setContainer(parent: Container, x = 0, y = 0) {
