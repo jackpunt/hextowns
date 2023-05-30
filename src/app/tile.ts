@@ -633,12 +633,10 @@ export class AuctionTile extends Tile {
 
   // from map: capture/destroy; from auction: outShift; from Market: recycle [unlikely]
   override sendHome(): void {  // AuctionTile: removeBonus; to tileBag
-    const gamePlay = GP.gamePlay;
-    gamePlay.fromMarket(this.hex);
     super.sendHome();          // resetTile(); this.hex = undefined
     this.player = undefined;
     this.sendToBag();
-    gamePlay.hexMap.update();
+    GP.gamePlay.hexMap.update();
   }
 
   override canBeMovedBy(player: Player, ctx: DragContext): boolean {
@@ -775,22 +773,22 @@ export class AuctionTile extends Tile {
   }
 }
 export class Monument extends AuctionTile {
-  static inst = 0;
+  static inst = [0,0];
   static fibcost = [1, 1, 2, 3, 5, 8, 13, 21];
   static tricost = [1, 3, 6, 10, 15, 21, 28, 36];
   static lincost = [1, 2, 4, 7, 11, 16, 22, 29];
   static ln2cost = [2, 2, 4, 4, 7, 7, 11, 11];
-  static cost = Monument.ln2cost; // + 1 for this.inf
+  static cost = Monument.lincost; // + 1 for this.inf
   static costs = Monument.cost.slice(0, TP.inMarket['Monument']).reverse();
-  constructor(player?: Player, Aname = `Mnt-${Monument.cost[Monument.inst]}`, inf = 1, vp = 1, cost = 0, econ = -1) {
+  constructor(player?: Player, Aname = `Mnt:${player?.index ?? '?'}-${Monument.inst[player?.index ?? 0]}`, inf = 1, vp = 1, cost = 0, econ = -1) {
     super(player, Aname, inf, vp, cost, econ);
     //this.addImageBitmap(`Monument${Monument.inst % Tile0.loader.Monu.length}`);
     this.addImageBitmap(`Monument1`);
-    Monument.inst++;
+    Monument.inst[player?.index ?? 0]++;
   }
   override sendToBag(): void {}
   override get cost(): number {
-    return Monument.costs[GP.gamePlay.marketSource['Monument'].counter.getValue()];
+    return Monument.costs[GP.gamePlay.marketSource[this.player.index]['Monument'].counter.getValue()];
   }
 }
 

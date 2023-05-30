@@ -65,10 +65,14 @@ export class GamePlay0 {
   get reserveHexesP() { return this.reserveHexes[this.curPlayerNdx]; }
 
   readonly marketTypes = [Busi, Resi, Monument];
-  readonly marketSource: { Busi?: TileSource<Busi>, Resi?: TileSource<Resi>, Monument?: TileSource<Monument> } = {};
+  readonly marketSource: { Busi?: TileSource<Busi>, Resi?: TileSource<Resi>, Monument?: TileSource<Monument> }[] = [{},{}];
   /** return the market with given Source.hex; or undefined if not from market. */
   fromMarket(fromHex: Hex) {
-    return Object.values(this.marketSource).find(src => fromHex === src.hex);
+    let rv: TileSource<Tile>;
+    this.marketSource.find(ms => {
+      return rv = Object.values(ms).find(src => fromHex === src.hex);
+    })
+    return rv;
   }
 
   logWriterLine0() {

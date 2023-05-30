@@ -72,7 +72,7 @@ export class GameSetup {
     Tile.allTiles = [];
     Meeple.allMeeples = [];
     Player.allPlayers = [];
-    Monument.serial = 0;
+    Monument.inst = [0, 0];
 
     let table = new Table(this.stage)        // EventDispatcher, ScaleCont, GUI-Player
     let gamePlay = new GamePlay(table, this) // hexMap, players, fillBag, gStats, mouse/keyboard->GamePlay

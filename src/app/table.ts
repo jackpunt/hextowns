@@ -9,7 +9,7 @@ import { Criminal, Police } from "./meeple";
 import { Player } from "./player";
 import type { StatsPanel } from "./stats";
 import { PlayerColor, playerColor0, playerColor1, playerColors, TP } from "./table-params";
-import { AuctionTile, Busi, Monument, NoDragTile, Resi, Tile, TileBag } from "./tile";
+import { AuctionTile, NoDragTile, Tile, TileBag } from "./tile";
 import { TileSource } from "./tile-source";
 //import { TablePlanner } from "./planner";
 
@@ -286,7 +286,7 @@ export class Table extends EventDispatcher  {
       return hex
     }
 
-    const col0 = 7, row0 = 0, nm = TP.auctionMerge;
+    const col0 = 6, row0 = 0, nm = TP.auctionMerge;
     const splitRowHex = (name: string, ndx: number) => {
       return ndx < nm ? topRowHex(name, col0 + ndx, row0, -TP.hexRad * 2) : // shift UP 2 when split
         ndx < 2 * nm ? topRowHex(name, col0 + ndx - nm, row0) :             // stay DOWN when split
@@ -308,19 +308,6 @@ export class Table extends EventDispatcher  {
       }
     });
 
-    const locs = { Busi: [4, 0], Resi: [5, 0], Monument: [4, -1] };
-
-    gamePlay.marketTypes.forEach((type, ndx) => {
-      const [col, row] = locs[type.name];
-      const hex = topRowHex(type.name, col, row); // Busi/Resi-MarketHex
-      const source = gamePlay.marketSource[type.name] = new TileSource<Tile>(type, undefined, hex);
-      for (let i = 0; i < TP.inMarket[type.name]; i++) {
-        source.availUnit(new type());
-      }
-      source.nextUnit();
-      this.addCostCounter(hex, type.name, 1, true);  // Busi/Resi/Monument market
-    })
-
     this.hexMap.update();
 
     this.buttonsForPlayer.length = 0; // TODO: maybe deconstruct
@@ -328,7 +315,9 @@ export class Table extends EventDispatcher  {
       this.layoutButtonsAndCounters(p);
       p.makePlayerBits();
       const offcc = 0;
+      // column index for Hex in topRow(row = -1)
       const colf1 = (ndx = 7, offc = offcc) => (pIndex == 0 ? (ndx - offc) - 1 : 14 - (ndx - offc));
+      // column index for Hex in 2ndRow(row = 0)
       const colf2 = (ndx = 7, offc = offcc) => (pIndex == 0 ? (ndx - offc) : 14 - (ndx - offc));
 
       const leaderHexes = p.allLeaders.map((meep, ndx) => topRowHex(meep.Aname, colf1(ndx), -1))
@@ -355,6 +344,21 @@ export class Table extends EventDispatcher  {
         this.addCostCounter(rhex, `rCost-${i}`, 1, false); // reserveHexes[plyr]
         this.reserveHexes[pIndex].push(rhex);
       }
+
+      const locs = { Busi: [4, 0], Resi: [3, 0], Monument: [4, -1] };
+
+      gamePlay.marketTypes.forEach((type, ndx) => {
+        const [col, row] = locs[type.name];
+        const cc = (row == -1) ? colf1(col) : colf2(col);
+        const hex = topRowHex(type.name, cc, row); // Busi/Resi-MarketHex
+        const source = gamePlay.marketSource[pIndex][type.name] = new TileSource<Tile>(type, p, hex);
+        for (let i = 0; i < TP.inMarket[type.name]; i++) {
+          source.availUnit(new type(p));
+        }
+        source.nextUnit();
+        this.addCostCounter(hex, type.name, 1, p);  // Busi/Resi/Monument market
+      })
+
 
       {
         const bText = p.balanceText, parent = this.scaleCont;
