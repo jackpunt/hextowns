@@ -10,6 +10,7 @@ import { IPlanner, newPlanner } from "./plan-proxy"
 import { CenterText } from "./shapes"
 import { PlayerColor, TP, playerColors } from "./table-params"
 import { Civic, Tile, TownRules, TownStart } from "./tile"
+import { UnitSource } from "./tile-source";
 
 export class Player {
   static allPlayers: Player[] = [];
@@ -45,6 +46,9 @@ export class Player {
   get tiles() { return Tile.allTiles.filter(t => !(t instanceof Meeple) && t.player == this) }
   get allLeaders() { return this.meeples.filter(m => m instanceof Leader && m.player == this) as Leader[] }
   get allPolice() { return this.meeples.filter(m => m instanceof Police && m.player == this) as Police[] }
+
+  policeSource: UnitSource<Police>;
+  criminalSource: UnitSource<Criminal>;
 
   readonly balanceText = new CenterText('[...]')
 

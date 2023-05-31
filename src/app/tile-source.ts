@@ -34,7 +34,6 @@ export class TileSource<T extends Tile> {
 
   /** enroll a new Unit to this source. */
   newUnit(unit: T) {
-      unit.homeHex = this.hex;
       this.allUnits.push(unit);
       this.availUnit(unit);
     }

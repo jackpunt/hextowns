@@ -88,28 +88,18 @@ export class Meeple extends Tile {
   override makeShape(): PaintableShape { return new MeepleShape(this.player); }
 
   /** start of turn: unmoved */
-  faceUp() {
-    this.overShape.visible = false;
-    this.startHex = this.hex;
-    this.updateCache()
-    GP.gamePlay.hexMap.update();
-  }
-
-  /** when moved, show grey overlay */
-  faceDown() {
-    this.overShape.visible = true;
+  faceUp(up = true) {
+    this.overShape.visible = !up;
+    if (up) this.startHex = this.hex; // set at start of turn.
     this.updateCache()
     GP.gamePlay.hexMap.update();
   }
 
   override moveTo(hex: Hex): Hex {
-    if (hex.meep) hex.meep.x += 10; // make double occupancy apparent [gamePlay.unMove()]
+    if (hex?.meep) hex.meep.x += 10; // make double occupancy apparent [gamePlay.unMove()]
     const fromHex = this.hex;
     const toHex = super.moveTo(hex);
-    if (toHex.isOnMap) {
-      if (fromHex.isOnMap && toHex !== this.startHex) { this.faceDown(); }
-      else { this.faceUp(); }
-    }
+    this.faceUp(!toHex?.isOnMap || !fromHex.isOnMap || toHex === this.startHex);
     return hex;
   }
    // Meeple
@@ -163,7 +153,7 @@ export class Meeple extends Tile {
     targetHex.tile?.setInfRays(infP);
     this.setInfRays(infP);
   }
-  override sendHome(): void {
+  override sendHome(): void { // Meeple
     this.faceUp();
     super.sendHome()
   }
@@ -233,57 +223,69 @@ export class Priest extends Leader {
   }
 }
 
+class SourcedMeeple extends Meeple {
 
-export class Police extends Meeple {
-  static source: UnitSource<Police>[] = [];
-
-  static makeSource(player: Player, hex: Hex2, n = TP.policePerPlayer) {
-    const source = Police.source[player.index] = new UnitSource(Police, player, hex)
-    for (let i = 0; i < n; i++) {
-      source.newUnit(new Police(player, i + 1));
-    }
+  static makeSource0<TS extends UnitSource<SourcedMeeple>, T extends SourcedMeeple>(stype: new(type, p, hex) => TS, type: new(p: Player, n: number) => T, player: Player, hex: Hex2, n = 0) {
+    const source = new stype(type, player, hex);
+    type['source'][player.index] = source; // static source: TS = [];
+    for (let i = 0; i < n; i++) source.newUnit(new type(player, i + 1))
     source.nextUnit();  // unit.moveTo(source.hex)
+    return source;
+  }
+  //readonly source: UnitSource<SourcedMeeple>;
+  constructor(readonly source: UnitSource<SourcedMeeple>, Aname: string, player?: Player, inf?: MeepleInf, vp?: number, cost?: number, econ?: number) {
+    super(Aname, player, inf, vp, cost, econ);
   }
 
-  // Police
-  constructor(player: Player, index: number) {
-    super(`P-${index}`, player, 1, 0, TP.policeCost, TP.policeEcon);
-  }
-
-  override paint(pColor = this.player?.color ?? criminalColor) {
-    const [ss, rs] = [4, 4];
+  paintRings(pColor: PlayerColor, rColor = C.BLACK, ss = 4, rs = 4) {
     const r = (this.baseShape as MeepleShape).radius, colorn = TP.colorScheme[pColor];
-    const g = this.baseShape.paint(colorn); // [2, 1]
-    g.ss(ss).s(C.briteGold).dc(0, this.y0, r - rs) // stroke a colored ring inside black ring
+    const g = this.baseShape.paint(colorn);   // [2, 1]
+    g.ss(ss).s(rColor).dc(0, this.y0, r - rs) // stroke a colored ring inside black ring
     this.updateCache();
   }
 
   override moveTo(hex: Hex) {
-    const source = Police.source[this.player.index]
+    const source = this.source;
     const fromHex = this.hex;
-    const toHex = super.moveTo(hex);
-    if (fromHex === source.hex && fromHex !== toHex) {
-      source.nextUnit()   // Police: shift; moveTo(source.hex); update source counter
+    const toHex = super.moveTo(hex);  // collides with source.hex.meep
+    if (fromHex === this.source.hex && fromHex !== toHex) {
+      source.nextUnit()   // shift; moveTo(source.hex); update source counter
     }
     return hex;
   }
 
-  override isLegalTarget(hex: Hex) { // Police
-    if (!super.isLegalTarget(hex)) return false;
-    let sourceHex = Police.source[this.player.index].hex;
-    if (this.hex === sourceHex && !((hex.tile instanceof PS) && hex.tile.player === this.player)) return false;
-    return true;
-  }
-
-  override sendHome(): void {
-    super.sendHome();
-    const source = Police.source[this.player.index]
+  override sendHome(): void { // Criminal
+    super.sendHome();         // this.resetTile(); moveTo(this.homeHex = undefined)
+    const source = this.source;
     source.availUnit(this);
     if (!source.hex.meep) source.nextUnit();
   }
 }
 
-class CriminalSource extends UnitSource<Criminal> {
+export class Police extends SourcedMeeple {
+  static source: UnitSource<Police>[] = [];
+
+  static makeSource(player: Player, hex: Hex2, n = TP.policePerPlayer) {
+    return SourcedMeeple.makeSource0(UnitSource, Police, player, hex, TP.policePerPlayer);
+  }
+
+  // Police
+  constructor(player: Player, serial: number) {
+    super(Police.source[player.index], `P-${serial}`, player, 1, 0, TP.policeCost, TP.policeEcon);
+  }
+
+  override paint(pColor = this.player?.color ?? criminalColor) {
+    this.paintRings(pColor, C.briteGold, 4, 4);
+  }
+
+  override isLegalTarget(hex: Hex) { // Police
+    if (!super.isLegalTarget(hex)) return false;
+    if (this.hex === this.source.hex && !((hex.tile instanceof PS) && hex.tile.player === this.player)) return false;
+    return true;
+  }
+}
+
+export class CriminalSource extends UnitSource<Criminal> {
   override availUnit(unit: Criminal): void {
     super.availUnit(unit);
     unit.autoCrime = false;
@@ -300,15 +302,11 @@ class CriminalSource extends UnitSource<Criminal> {
  *
  * Owned & Operated by Player, to destroy Tiles of the opposition.
  */
-export class Criminal extends Meeple {
+export class Criminal extends SourcedMeeple {
   static source: CriminalSource[] = [];
 
   static makeSource(player: Player, hex: Hex2, n = TP.criminalPerPlayer) {
-    const source = Criminal.source[player.index] = new CriminalSource(Criminal, player, hex)
-    for (let i = 0; i < n; i++) {
-      source.newUnit(new Criminal(player, i + 1));
-    }
-    source.nextUnit(); // moveTo(source.hex)
+    return Criminal.source[player.index] = SourcedMeeple.makeSource0(CriminalSource, Criminal, player, hex, n);
   }
 
   autoCrime = false;  // set true for zero-econ for this unit.
@@ -316,33 +314,20 @@ export class Criminal extends Meeple {
   override get econ(): number { return this.autoCrime ? 0 : super.econ; }
 
   constructor(player: Player, serial: number) {
-    super(`C-${serial}`, player, 1, 0, TP.criminalCost, TP.criminalEcon)
+    super(Criminal.source[player.index], `C-${serial}`, player, 1, 0, TP.criminalCost, TP.criminalEcon)
   }
 
   override get infColor(): PlayerColor { return criminalColor; }
 
   override paint(pColor = this.player?.color ?? criminalColor) {
-    const [ss, rs] = this.autoCrime ? [4, 4]: [2, 3] ;
-    const r = (this.baseShape as MeepleShape).radius, colorn = TP.colorScheme[pColor];
-    const g = this.baseShape.paint(colorn);   // [2, 1]
-    g.ss(ss).s(C.black).dc(0, this.y0, r - rs) // stroke a colored ring inside black ring
-    this.updateCache();
+    this.paintRings(pColor, C.black, ...this.autoCrime ? [4, 4]: [2, 3]);
   }
 
   override moveTo(hex: Hex) {
-    const source = Criminal.source[this.player.index];
-    const fromHex = this.hex;
+    if (this.hex === this.source.hex && this.autoCrime) this.paint();
     const toHex = super.moveTo(hex);
-    if (fromHex === source.hex) {
-      if (this.autoCrime) {
-        this.paint();
-      }
-      if (fromHex !== toHex) {
-        source.nextUnit()   // Criminal: shift; moveTo(source.hex); update source counter
-      }
-    }
-    const gamePlay = GP.gamePlay, curPlayer = gamePlay.curPlayer;
-    if (toHex === gamePlay.recycleHex && this.player !== curPlayer) {
+    const curPlayer = GP.gamePlay.curPlayer;
+    if (toHex === GP.gamePlay.recycleHex && this.player !== curPlayer) {
       curPlayer.coins -= this.econ;   // capturing player gets this Criminal's salary (0 if autoCrime)
     }
     return toHex;
@@ -367,12 +352,5 @@ export class Criminal extends Meeple {
       ((hex.meep instanceof Criminal) && hex.meep.player === plyr))
       ) return true;
     return false;
-  }
-
-  override sendHome(): void {
-    super.sendHome(); // this.resetTile(); moveTo(this.homeHex)
-    const source = Criminal.source[this.player.index];
-    source.availUnit(this);
-    if (!source.hex.meep) source.nextUnit();
   }
 }

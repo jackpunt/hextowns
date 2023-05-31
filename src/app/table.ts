@@ -331,24 +331,17 @@ export class Table extends EventDispatcher  {
         meep.homeHex = meep.civicTile.homeHex = homeHex;
         this.addCostCounter(homeHex, `${meep.Aname}-c`, 1, p); // leaderHex[plyr]
       })
-      let col0 = 0;
+      let col0 = -1;
 
       const academyHex = topRowHex(`Academy:${pIndex}`, colf(col0++, 0));
       this.addCostCounter(academyHex, undefined, -1, false); // academyHex[plyr]: no Counter, no incr, no repaint
-      Police.makeSource(p, academyHex, TP.policePerPlayer);
+      p.policeSource = Police.makeSource(p, academyHex, TP.policePerPlayer);
 
       const crimeHex = topRowHex(`Barbs:${pIndex}`, colf(col0++, 0));
       this.addCostCounter(crimeHex, undefined, -1, false);
-      Criminal.makeSource(p, crimeHex, TP.criminalPerPlayer);
+      p.criminalSource = Criminal.makeSource(p, crimeHex, TP.criminalPerPlayer);
 
-      this.reserveHexes[pIndex] = [];
-      for (let i = 0; i < TP.reserveSlots; i++) {
-        const rhex = topRowHex(`Reserve:${pIndex}-${i}`, colf(col0++, 0));
-        this.addCostCounter(rhex, `rCost-${i}`, 1, false); // reserveHexes[plyr]
-        this.reserveHexes[pIndex].push(rhex);
-      }
-
-      const locs = { Busi: [4, 0], Resi: [3, 0], Monument: [4, -1] };
+      const locs = { Busi: [col0++, 0], Resi: [col0++, 0], Monument: [col0, -1] };
 
       gamePlay.marketTypes.forEach((type, ndx) => {
         const [col, row] = locs[type.name];
@@ -360,6 +353,13 @@ export class Table extends EventDispatcher  {
         source.nextUnit();
         this.addCostCounter(hex, type.name, 1, p);  // Busi/Resi/Monument market
       })
+
+      this.reserveHexes[pIndex] = [];
+      for (let i = 0; i < TP.reserveSlots; i++) {
+        const rhex = topRowHex(`Reserve:${pIndex}-${i}`, colf(col0++, 0));
+        this.addCostCounter(rhex, `rCost-${i}`, 1, false); // reserveHexes[plyr]
+        this.reserveHexes[pIndex].push(rhex);
+      }
 
 
       {

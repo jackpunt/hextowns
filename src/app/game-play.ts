@@ -1,11 +1,11 @@
 import { json } from "@thegraid/common-lib";
 import { KeyBinder, S, Undo, stime } from "@thegraid/easeljs-lib";
-import { Container, Text } from "@thegraid/easeljs-module";
+import { Container } from "@thegraid/easeljs-module";
 import { CostIncCounter } from "./counters";
 import { GameSetup } from "./game-setup";
 import { Hex, HexMap, IHex } from "./hex";
 import { H } from "./hex-intfs";
-import { Criminal, Leader, Meeple, Police } from "./meeple";
+import { Criminal, Leader, Meeple } from "./meeple";
 import type { Planner } from "./plan-proxy";
 import { Player } from "./player";
 import { CenterText } from "./shapes";
@@ -14,7 +14,7 @@ import { LogWriter } from "./stream-writer";
 import { AuctionShifter, DragContext, Table } from "./table";
 import { PlayerColor, PlayerColorRecord, TP, criminalColor, otherColor, playerColorRecord, playerColors, } from "./table-params";
 import { AuctionBonus, AuctionTile, BonusTile, Busi, Monument, Resi, Tile, TownRules } from "./tile";
-import { NC } from "./choosers";
+//import { NC } from "./choosers";
 import { TileSource } from "./tile-source";
 
 class HexEvent {}
@@ -457,11 +457,11 @@ export class GamePlay0 {
   }
 
   placePolice(hex: Hex) {
-    return this.placeMeep0(Police.source[this.curPlayerNdx].hex.meep, hex);
+    return this.placeMeep0(this.curPlayer.policeSource.hex.meep, hex);
   }
 
   placeCriminal(hex: Hex) {
-    return this.placeMeep0(Criminal.source[this.curPlayerNdx].hexMeep, hex);
+    return this.placeMeep0(this.curPlayer.criminalSource.hex.meep, hex);
   }
 }
 
@@ -517,7 +517,6 @@ export class GamePlay extends GamePlay0 {
     meep.autoCrime = true;           // no econ charge to curPlayer
     const targetHex = this.autoCrimeTarget(meep);
     this.placeMeep(meep, targetHex, true); // meep.player == undefined --> no failToPayCost()
-    // meep.player = this.crimePlayer;  // autoCrime: not owned by curPlayer
     this.logText(`AutoCrime: ${meep}`)
     this.processAttacks(meep.infColor);
   }
