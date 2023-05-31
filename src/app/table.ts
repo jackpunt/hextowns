@@ -531,7 +531,7 @@ export class Table extends EventDispatcher  {
     // initialize Players & TownStart & draw pile
     let dragger = this.dragger;
     // All Tiles (Civics, Resi, Busi, PStation, Lake, & Meeple) are Draggable:
-    Tile.allTiles.forEach(tile => {
+    Tile.allTiles.filter(tile => !(tile instanceof NoDragTile)).forEach(tile => {
       dragger.makeDragable(tile, this, this.dragFunc, this.dropFunc);
       dragger.clickToDrag(tile, true); // also enable clickToDrag;
     })
@@ -598,13 +598,10 @@ export class Table extends EventDispatcher  {
   }
 
   dragStart(tile: Tile, hex: Hex2, ctx: DragContext) {
-    if (tile instanceof NoDragTile) {
-      this.stopDragging();
-    } else
     // press SHIFT to capture [recycle] opponent's Criminals or Tiles
     if (!tile.canBeMovedBy(this.gamePlay.curPlayer, ctx)) {
-      console.log(stime(this, `.dragStart: Not your tile: ${tile.Aname}`), 'ctx=',{...ctx});
-      this.logText(`Not your tile: ${tile.Aname}`)
+      console.log(stime(this, `.dragStart: Not your tile: ${tile}`), 'ctx=',{...ctx});
+      this.logText(`Not your tile: ${tile}`)
       this.stopDragging();
     } else {
       // mark legal targets for tile; SHIFT for all hexes, if payCost
@@ -615,7 +612,7 @@ export class Table extends EventDispatcher  {
       this.hexMap.update();
       if (nLegal == 0) {
         const [infR, coinR] = this.gamePlay.getInfR(tile);
-        this.logText(`No placement for ${tile.Aname} infR=${infR} coinR=${coinR}`)
+        this.logText(`No placement for ${tile} infR=${infR} coinR=${coinR}`)
         if (!isRecycle) {
           this.stopDragging();
           return;
@@ -852,7 +849,6 @@ export class AuctionShifter implements IAuctionShifter {
   tileNames(pIndex: number): string {
     const names: string[] = [];
     for (let i = pIndex * this.nm; i <= this.maxndx; i = (i == this.nm - 1) ? (2 * this.nm) : (i + 1)) {
-    //for (let i = pIndex * this.nm; i <= this.maxndx; i = this.getNdx(i + 1)) {
       names.push(this.tiles[i]?.Aname ?? '---');
     }
     return names.reduce((pv, cv, ci) => `${pv}${ci === 0 ? '' : ', '}${cv}`);

@@ -1,21 +1,20 @@
 import { C, F, S } from "@thegraid/common-lib";
 import { Shape, Text } from "@thegraid/easeljs-module";
-import { NoZeroCounter } from "./counters";
 import { GP } from "./game-play";
 import type { Hex, Hex2, HexMap } from "./hex";
 import { H } from "./hex-intfs";
 import type { Player } from "./player";
-import { C1, HexShape, InfRays, PaintableShape } from "./shapes";
+import { C1, InfRays, PaintableShape } from "./shapes";
 import type { DragContext } from "./table";
 import { PlayerColor, TP, criminalColor } from "./table-params";
 import { Church, Civic, Courthouse, PS, Tile, TownStart, University } from "./tile";
-import { TileSource, UnitSource } from "./tile-source";
+import { UnitSource } from "./tile-source";
 
 class MeepleShape extends Shape implements PaintableShape {
   static fillColor = 'rgba(225,225,225,.7)';
   static overColor = 'rgba(120,210,120,.5)'; // transparent light green
 
-  constructor(public player: Player, public radius = TP.hexRad * .4, public y0 = TP.meepleRad) {
+  constructor(public player: Player, public radius = TP.meepleRad, public y0 = TP.meepleY0) {
     super()
     this.paint();
     this.overShape = this.makeOverlay();
@@ -46,6 +45,7 @@ export class Meeple extends Tile {
   readonly colorValues = C.nameToRgba("blue"); // with alpha component
   get y0() { return (this.baseShape as MeepleShape).y0; }
   get overShape() { return (this.baseShape as MeepleShape).overShape; }
+  override get recycleVerb() { return 'dismissed'; }
 
   /**
    * Meeple - Leader, Police, Criminal
@@ -66,7 +66,7 @@ export class Meeple extends Tile {
     this.player = player;
     let { x, y, width, height } = this.baseShape.getBounds();
     this.nameText.visible = true;
-    this.nameText.y = y + height/2 - Tile.textSize/2;
+    this.nameText.y = y + height / 2;
     this.cache(x, y, width, height);
     this.paint();
     Meeple.allMeeples.push(this);
@@ -147,7 +147,7 @@ export class Meeple extends Tile {
   }
 
   override showCostMark(show?: boolean): void {
-    super.showCostMark(show, -.2);
+    super.showCostMark(show, -.4);
   }
 
   override dragStart(hex: Hex2, ctx: DragContext, ): void {
@@ -277,7 +277,7 @@ export class Police extends Meeple {
 
   override sendHome(): void {
     super.sendHome();
-    let source = Police.source[this.player.index]
+    const source = Police.source[this.player.index]
     source.availUnit(this);
     if (!source.hex.meep) source.nextUnit();
   }

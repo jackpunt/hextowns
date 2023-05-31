@@ -1,4 +1,4 @@
-import { C, F, ImageLoader, className, stime } from "@thegraid/common-lib";
+import { C, F, ImageLoader, S, className, stime } from "@thegraid/common-lib";
 import { ValueEvent } from "@thegraid/easeljs-lib";
 import { Bitmap, Container, DisplayObject, EventDispatcher, MouseEvent, Shape, Text } from "@thegraid/easeljs-module";
 import type { Debt } from "./debt";
@@ -120,6 +120,7 @@ class Tile0 extends Container {
 
   public player: Player;
   get infColor() { return this.player?.color }
+  get recycleVerb(): string { return 'demolished'; }
 
   /** name in set of filenames loaded in GameSetup */
   addImageBitmap(name: string) {
@@ -275,12 +276,16 @@ export class Tile extends Tile0 {
     if (!Aname) this.Aname = `${className(this)}-${Tile.serial++}`;
     const rad = this.radius;
     this.cache(-rad, -rad, 2 * rad, 2 * rad);
-    this.addChild(this.baseShape)       // index = 0
-    this.nameText = this.addNameText()   // index = 1
-    this.infText = this.addNameText('', TP.hexRad)
-    if (inf > 0) this.setInfRays(inf)
+    this.addChild(this.baseShape);        // index = 0
+    this.nameText = this.addNameText();   // index = 1
+    this.infText = this.addNameText('', rad / 2)
+    if (inf > 0) this.setInfRays(inf);
     if (_vp > 0) this.drawStar();
-    this.paint()
+    this.paint();
+  }
+
+  override toString(): string {
+    return `${this.Aname}@${this.hex?.Aname ?? '?'}`;
   }
 
   /** name in set of filenames loaded in GameSetup */
@@ -335,10 +340,9 @@ export class Tile extends Tile0 {
     };
   }
 
-  addNameText(name = this.Aname, y0 = TP.hexRad / 2) {
-    let nameText = new Text(name, F.fontSpec(Tile.textSize))
-    nameText.textAlign = 'center'
-    nameText.y = (y0 - Tile.textSize) * .55;
+  addNameText(name = this.Aname, y0 = this.radius / 2) {
+    let nameText = new CenterText(name, Tile.textSize);
+    nameText.y = y0;         // Meeple overrides in constructor!
     nameText.visible = false
     this.addChild(nameText);
     return nameText;
@@ -350,9 +354,18 @@ export class Tile extends Tile0 {
     this.updateCache()
   }
 
-  onRightClick(evt: MouseEvent) {
-    console.log(stime(this, `.rightclick:`), this.Aname, evt)
+  rightClickable() {
+    this.on(S.click, (evt: MouseEvent) => {
+      const nevt = evt.nativeEvent;
+      if (nevt.button != 2) return;
+      this.onRightClick(evt);
+      nevt.preventDefault();           // evt is non-cancelable, but stop the native event...
+      nevt.stopImmediatePropagation(); // TODO: prevent Dragger.clickToDrag() when button !== 0
+    }, this, false, {}, true);
+  }
 
+  onRightClick(evt: MouseEvent) {
+    console.log(stime(this, `.rightclick: ${this}`), this);
   }
 
   // Tile
@@ -443,7 +456,7 @@ export class Tile extends Tile0 {
   }
 }
 
-/** Marker class */
+/** Marker class: a Tile that is not draggable */
 export class NoDragTile extends Tile {}
 
 /**
@@ -677,15 +690,15 @@ export class AuctionTile extends Tile {
   }
 
   flipOwner(player: Player, gamePlay = GP.gamePlay) {
-    gamePlay.logText(`Flip ${this.Aname}@${this.hex.Aname} to ${player.colorn}`)
+    gamePlay.logText(`Flip ${this} to ${player.colorn}`)
     this.debt?.sendHome(); // foreclose any mortgage
+    if (this.infP > 0) {
+      gamePlay.decrInfluence(this.hex, this.infP, this.player.color)
+      gamePlay.decrInfluence(this.hex, this.infP, player.color)
+    }
     this.player = player;  // Flip ownership
     this.paint(player.color);
     player.updateCounters();
-    // Assert: AuctionTile.inf == 0; [unless we make an InfBonus(brib) attached to tile/hex]
-    // Assert: Civic Tile does not get flipped.
-    // Therefore: Flip does not change the propagated influence
-    if (this.infP > 0) debugger; // propagateDecr(ex-color), propagateIncr(new-color)
     gamePlay.hexMap.update();
   }
 
@@ -707,7 +720,7 @@ export class AuctionTile extends Tile {
     }
 
     const targetTile = targetHex.tile; // generally undefined; except BonusTile (or ReserveHexes.tile)
-    const info = [ctx.targetHex.Aname, this.Aname, this.bonus];
+    const info = [this.Aname, ctx.targetHex.Aname, this.bonus];
     const reserveTiles = gamePlay.reserveTiles[pIndex];
     const reserveHexes = gamePlay.reserveHexes[pIndex];
     const auctionTiles = gamePlay.auctionTiles;

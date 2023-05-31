@@ -51,6 +51,8 @@ export class Debt extends Tile {
     this.tile?.updateCache();
   }
 
+  override get recycleVerb() { return 'paid-off'; }
+
   override makeShape(): PaintableShape {
     const shape = new HexShape(this.radius * .5);
     shape.y += this.radius * .3
@@ -59,6 +61,11 @@ export class Debt extends Tile {
   override paint(pColor?: PlayerColor, colorn?: string): void {
     super.paint(pColor, Debt.debtRust); // TODO: override paint() --> solid hexagon (also: with Counter)
   }
+
+  override toString(): string {
+    return `${super.toString()}-$${this.balance}`;
+  }
+
   override textVis(vis?: boolean): void {
     super.textVis(vis);
     this.tile?.updateCache();
@@ -87,13 +94,15 @@ export class Debt extends Tile {
 
   /** show loanLimit of Tile under Debt. */
   override dragFunc0(hex: Hex2, ctx: DragContext): void {
-    const loan = (hex?.tile?.player === GP.gamePlay.curPlayer) && hex?.tile?.loanLimit;
-    this.balance = loan ?? 0;
+    if (!this.player) {
+      const loan = (hex?.tile?.player === GP.gamePlay.curPlayer) ? hex.tile.loanLimit : 0;
+      this.balance = this.player ? this.balance : loan; // force updateCache(); tile?.updateCache();
+    }
     super.dragFunc0(hex, ctx);
   }
 
   override dropFunc(targetHex: Hex2, ctx: DragContext): void {
-    this.balance = 0;
+    if (!this.player) this.balance = 0; // reset temporary loanLimit
     super.dropFunc(targetHex, ctx);
   }
   /** never showCostMark */
@@ -137,10 +146,11 @@ export class Debt extends Tile {
     let source = Debt.source; //[this.player.index]
     if (this.tile) {
       this.tile.player.coins -= this.balance;
-      console.log(stime(this, `.sendHome: ${this.tile.player} foreclosed:`), this.balance);
+      console.log(stime(this, `.sendHome: ${this.tile.player.Aname} paid-off: $${this.balance}`));
     }
     this.balance = 0;
     this.tile = undefined;
+    this.player = undefined;
     super.sendHome();
     source.availUnit(this);
     if (!source.hex.tile) source.nextUnit();

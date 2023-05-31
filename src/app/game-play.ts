@@ -384,11 +384,11 @@ export class GamePlay0 {
       tile.hex = fromHex;        // briefly, until moveTo(toHex)
     }
     if (toHex == this.recycleHex) {
+      this.logText(`Recycle ${tile} from ${fromHex.Aname}`)
       this.recycleTile(tile);    // Score capture; log; return to homeHex
-      this.logText(`Recycle ${tile.Aname} from ${fromHex.Aname}`)
     } else {
       tile.moveTo(toHex);  // placeTile(tile, hex) --> moveTo(hex)
-      if (toHex !== fromHex) this.logText(`Place ${tile.Aname}@${toHex.Aname}`)
+      if (toHex !== fromHex) this.logText(`Place ${tile}`)
       if (toHex.isOnMap) {
         if (!tile.player) tile.player = this.curPlayer; // for Market tiles; also for [auto] Criminals
         this.incrInfluence(tile.hex, infColor);
@@ -399,14 +399,14 @@ export class GamePlay0 {
   logDisposition(tile: Tile, verb: string) {
     const cp = this.curPlayer
     const loc = tile.hex?.isOnMap ? 'onMap' : 'offMap';
-    const info = { name: tile.Aname, fromHex: tile.hex?.Aname, cp: cp.colorn, caps: cp.captures, tile }
+    const info = { Aname: tile.Aname, fromHex: tile.hex?.Aname, cp: cp.colorn, caps: cp.captures, tile: {...tile} }
     console.log(stime(this, `.recycleTile[${loc}]: ${verb}`), info);
-    this.logText(`${cp.Aname} ${verb} ${tile.Aname}@${tile.hex.Aname}`);
+    this.logText(`${cp.Aname} ${verb} ${tile}`);
   }
 
   recycleTile(tile: Tile) {
-    if (!tile) return;
-    let verb = undefined;
+    if (!tile) return;  // TODO: delegate all this to Tile.recycled(): verb ?
+    let verb = tile.recycleVerb ?? 'recycled';
     if (tile.hex?.isOnMap) {
       if (tile.player !== this.curPlayer) {
         this.curPlayer.captures++;
@@ -415,7 +415,6 @@ export class GamePlay0 {
         this.curPlayer.coins -= tile.econ;  // dismiss Meeple, claw-back salary.
       }
     }
-    verb = (tile instanceof Meeple) ? 'dismissed' : 'removed';
     this.logDisposition(tile, verb);
     tile.sendHome();  // recycleTile
   }
@@ -519,7 +518,7 @@ export class GamePlay extends GamePlay0 {
     const targetHex = this.autoCrimeTarget(meep);
     this.placeMeep(meep, targetHex, true); // meep.player == undefined --> no failToPayCost()
     // meep.player = this.crimePlayer;  // autoCrime: not owned by curPlayer
-    this.logText(`AutoCrime: ${meep.Aname}@${targetHex.Aname}`)
+    this.logText(`AutoCrime: ${meep}`)
     this.processAttacks(meep.infColor);
   }
 
