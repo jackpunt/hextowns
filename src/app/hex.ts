@@ -443,11 +443,12 @@ export class MapCont extends Container {
   constructor(public hexMap: HexMap) {
     super()
   }
-  static cNames = ['hexCont', 'infCont', 'tileCont', 'markCont', 'counterCont'];
+  static cNames = ['hexCont', 'infCont', 'tileCont', 'markCont', 'capCont', 'counterCont'];
   hexCont: Container     // hex shapes on bottom stats: addChild(dsText), parent.rotation
   infCont: Container     // infMark below tileCont; Hex2.showInf
   tileCont: Container    // Tiles & Meeples on Hex2/HexMap.
-  markCont: Container    // showMark over Hex2; CapMark, LegalMark
+  markCont: Container    // showMark over Hex2; LegalMark
+  capCont: Container     // for tile.capMark
   counterCont: Container // counters for AuctionCont
 }
 

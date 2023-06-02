@@ -12,13 +12,24 @@ import { UnitSource } from "./tile-source";
 
 class MeepleShape extends Shape implements PaintableShape {
   static fillColor = 'rgba(225,225,225,.7)';
-  static overColor = 'rgba(120,210,120,.5)'; // transparent light green
+  static backColor = 'rgba(210,210,120,.5)'; // transparent light green
 
   constructor(public player: Player, public radius = TP.meepleRad, public y0 = TP.meepleY0) {
     super()
     this.paint();
-    this.overShape = this.makeOverlay();
+    this.backSide = this.makeOverlay();
   }
+
+  backSide: Shape;  // visible when Meeple is 'faceDown' after a move.
+  makeOverlay() {
+    let {x, y, width: w, height: h} = this.getBounds();
+    const over = new Shape();
+    over.graphics.f(MeepleShape.backColor).dc(x + w / 2, y + h / 2, w / 2)
+    over.visible = false;
+    over.name = over[S.Aname] = 'backSide';
+    return over;
+  }
+
   /** stroke a ring of colorn, stroke-width = 2, r = radius-2; fill disk with (~WHITE,.7) */
   paint(colorn = this.player?.colorn ?? C1.grey) {
     const x0 = 0, y0 = this.y0, r = this.radius, ss = 2, rs = 1;
@@ -26,15 +37,6 @@ class MeepleShape extends Shape implements PaintableShape {
     g.f(MeepleShape.fillColor).dc(x0, y0, r - 1)  // disk
     this.setBounds(x0 - r, y0 - r, 2 * r, 2 * r)
     return g
-  }
-  overShape: Shape;  // visible when Meeple is 'faceDown' after a move.
-  makeOverlay() {
-    let {x, y, width: w, height: h} = this.getBounds();
-    const over = new Shape();
-    over.graphics.f(MeepleShape.overColor).dc(x + w / 2, y + h / 2, w / 2)
-    over.visible = false;
-    over.name = over[S.Aname] = 'overShape';
-    return over;
   }
 }
 
@@ -44,7 +46,7 @@ export class Meeple extends Tile {
 
   readonly colorValues = C.nameToRgba("blue"); // with alpha component
   get y0() { return (this.baseShape as MeepleShape).y0; }
-  get overShape() { return (this.baseShape as MeepleShape).overShape; }
+  get backSide() { return (this.baseShape as MeepleShape).backSide; }
   override get recycleVerb() { return 'dismissed'; }
 
   /**
@@ -62,7 +64,7 @@ export class Meeple extends Tile {
     econ = -6, // Econ required: -2 for Police, -3 for Criminal [place, not maintain]
   ) {
     super(player, Aname, inf, vp, cost, econ);
-    this.addChild(this.overShape);
+    this.addChild(this.backSide);
     this.player = player;
     let { x, y, width, height } = this.baseShape.getBounds();
     this.nameText.visible = true;
@@ -89,7 +91,7 @@ export class Meeple extends Tile {
 
   /** start of turn: unmoved */
   faceUp(up = true) {
-    this.overShape.visible = !up;
+    this.backSide.visible = !up;
     if (up) this.startHex = this.hex; // set at start of turn.
     this.updateCache()
     GP.gamePlay.hexMap.update();
@@ -99,10 +101,17 @@ export class Meeple extends Tile {
     if (hex?.meep) hex.meep.x += 10; // make double occupancy apparent [gamePlay.unMove()]
     const fromHex = this.hex;
     const toHex = super.moveTo(hex);
-    this.faceUp(!toHex?.isOnMap || !fromHex.isOnMap || toHex === this.startHex);
+    this.faceUp(!!toHex && (!toHex?.isOnMap || !fromHex?.isOnMap || toHex === this.startHex));
     return hex;
   }
-   // Meeple
+
+  override canBeMovedBy(player: Player, ctx: DragContext): boolean {
+    if (!super.canBeMovedBy(player, ctx)) return false;
+    if (this.backSide.visible && !ctx.lastShift) return false; // no move if not faceUp
+    return true;
+  }
+
+  // Meeple
   /** decorate with influence rays (playerColorn)
    * @param inf 0 ... n (see also: this.infColor)
    */
@@ -126,7 +135,7 @@ export class Meeple extends Tile {
     return H.infDirs.find(dir => this.hex.hexesInDir(dir).includes(hex)) ? true : false;
   }
 
-  override isLegalTarget(hex: Hex) {  // Meeple
+  override isLegalTarget(hex: Hex, ctx?: DragContext) {  // Meeple
     if (!hex) return false;
     if (hex.meep) return false;    // no move onto meeple
     if (GP.gamePlay.failToPayCost(this, hex, false)) return false;
@@ -140,7 +149,7 @@ export class Meeple extends Tile {
     super.showCostMark(show, -.4);
   }
 
-  override dragStart(hex: Hex2, ctx: DragContext, ): void {
+  override dragStart(hex: Hex2, ctx?: DragContext): void {
     super.dragStart(hex, ctx);
     this.hex.tile?.setInfRays(this.hex.tile.inf); // removing meeple influence
     this.setInfRays(this.inf);  // show influence rays on this meeple
@@ -148,11 +157,9 @@ export class Meeple extends Tile {
 
   // Meeple
   override dropFunc(targetHex: Hex2, ctx: DragContext): void {
-    GP.gamePlay.placeMeep(this, targetHex); // Drop
-    const infP = this.hex?.getInfP(this.infColor) ?? 0;
-    targetHex.tile?.setInfRays(infP);
-    this.setInfRays(infP);
+    GP.gamePlay.placeMeep(this, targetHex); // Drop: isOnMap or recycleHex
   }
+
   override sendHome(): void { // Meeple
     this.faceUp();
     super.sendHome()
@@ -192,8 +199,8 @@ export class Leader extends Meeple {
     civic.paint();
   }
 
-  override isLegalTarget(hex: Hex) { // Leader
-    if (!super.isLegalTarget(hex)) return false;
+  override isLegalTarget(hex: Hex, ctx?: DragContext) { // Leader
+    if (!super.isLegalTarget(hex, ctx)) return false;
     if (!this.hex.isOnMap && (hex !== this.civicTile.hex)) return false; // deploy ONLY to civicTile.
     return true
   }
@@ -237,8 +244,8 @@ class SourcedMeeple extends Meeple {
     super(Aname, player, inf, vp, cost, econ);
   }
 
-  paintRings(pColor: PlayerColor, rColor = C.BLACK, ss = 4, rs = 4) {
-    const r = (this.baseShape as MeepleShape).radius, colorn = TP.colorScheme[pColor];
+  paintRings(colorn: string, rColor = C.BLACK, ss = 4, rs = 4) {
+    const r = (this.baseShape as MeepleShape).radius
     const g = this.baseShape.paint(colorn);   // [2, 1]
     g.ss(ss).s(rColor).dc(0, this.y0, r - rs) // stroke a colored ring inside black ring
     this.updateCache();
@@ -273,13 +280,12 @@ export class Police extends SourcedMeeple {
   constructor(player: Player, serial: number) {
     super(Police.source[player.index], `P-${serial}`, player, 1, 0, TP.policeCost, TP.policeEcon);
   }
-
-  override paint(pColor = this.player?.color ?? criminalColor) {
-    this.paintRings(pColor, C.briteGold, 4, 4);
+  override paint(pColor = this.player?.color, colorn = pColor ? TP.colorScheme[pColor] : C1.grey) {
+    this.paintRings(colorn, C.briteGold, 4, 4);
   }
 
-  override isLegalTarget(hex: Hex) { // Police
-    if (!super.isLegalTarget(hex)) return false;
+  override isLegalTarget(hex: Hex, ctx?: DragContext) { // Police
+    if (!super.isLegalTarget(hex, ctx)) return false;
     if (this.hex === this.source.hex && !((hex.tile instanceof PS) && hex.tile.player === this.player)) return false;
     return true;
   }
@@ -319,8 +325,8 @@ export class Criminal extends SourcedMeeple {
 
   override get infColor(): PlayerColor { return criminalColor; }
 
-  override paint(pColor = this.player?.color ?? criminalColor) {
-    this.paintRings(pColor, C.black, ...this.autoCrime ? [4, 4]: [2, 3]);
+  override paint(pColor = this.player?.color, colorn = pColor ? TP.colorScheme[pColor] : C1.grey) {
+    this.paintRings(colorn, C.black, ...this.autoCrime ? [4, 4]: [2, 3]);
   }
 
   override moveTo(hex: Hex) {
@@ -333,18 +339,14 @@ export class Criminal extends SourcedMeeple {
     return toHex;
   }
 
-  override canBeMovedBy(player: Player, ctx: DragContext): boolean {
-    // TODO: allow to player move some autoCrime criminals
-    if (!super.canBeMovedBy(player, ctx)) return false;
-    return true;
-  }
-
-  override isLegalTarget(hex: Hex): boolean { // Criminal
-    if (!super.isLegalTarget(hex)) return false;
+  override isLegalTarget(hex: Hex, ctx?: DragContext): boolean { // Criminal
+    if (!super.isLegalTarget(hex, ctx)) return false;
     let plyr = this.player ?? GP.gamePlay.curPlayer; // owner or soon-to-be owner
     // must NOT be on or adj to plyr's Tile:
-    if (hex.tile?.player == plyr) return false;
-    if (hex.findLinkHex(hex => hex.tile?.player == plyr)) return false;
+    if (hex.tile?.player === plyr) return false;
+    if (hex.findLinkHex(hex => hex.tile?.player === plyr)) return false;
+    // if fromSource, must be to empty cell:
+    if (this.hex === this.source.hex && hex.tile) return false;
     // must be on or adj to otherPlayer Tile OR aligned Criminal:
     if (hex.tile?.player && hex.tile.player !== plyr) return true;
     if (hex.findLinkHex(hex =>

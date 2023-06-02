@@ -153,15 +153,13 @@ class Tile0 extends Container {
     return hexMap.hexUnderPoint(pt.x, pt.y)
   }
 
-  lastColor: PlayerColor;
   /** paint with PlayerColor; updateCache()
    * @param pColor the 'short' PlayerColor
    * @param colorn the actual color (default = TP.colorScheme[pColor])
    */
-  paint(pColor = this.lastColor, colorn = pColor ? TP.colorScheme[pColor] : C1.grey) {
-    this.lastColor = pColor;
+  paint(pColor = this.player?.color, colorn = pColor ? TP.colorScheme[pColor] : C1.grey) {
     this.baseShape.paint(colorn); // recache baseShape
-    this.updateCache()
+    this.updateCache();
   }
 
   // Looks just like the Bonus star!
@@ -271,16 +269,20 @@ export class Tile extends Tile0 {
     public readonly _econ: number = 1,
   ) {
     super()
-    this.player = player;
     Tile.allTiles.push(this);
     if (!Aname) this.Aname = `${className(this)}-${Tile.serial++}`;
     const rad = this.radius;
     this.cache(-rad, -rad, 2 * rad, 2 * rad);
-    this.addChild(this.baseShape);        // index = 0
-    this.nameText = this.addNameText();   // index = 1
-    this.infText = this.addNameText('', rad / 2)
+    this.addChild(this.baseShape);               // index = 0
+    this.nameText = this.addNameText(rad / 4);   // index = 1
+    this.infText = this.addNameText(rad / 2, '');// index = 2
     if (inf > 0) this.setInfRays(inf);
     if (_vp > 0) this.drawStar();
+    this.setPlayerAndPaint(player);
+  }
+
+  setPlayerAndPaint(player: Player) {
+    this.player = player;
     this.paint();
   }
 
@@ -329,18 +331,19 @@ export class Tile extends Tile0 {
 
   setCapMark(pc: PlayerColor, capMark = CapMark) {
     const vis = this.isThreat[pc];
-    let mark = this.capMarks[pc]
+    let mark = this.capMarks[pc];
     if (vis && !mark) {
       mark = this.capMarks[pc] = new capMark(pc);
     }
-    if (mark) {
-      this.addChild(mark);
-      mark.visible = vis;
-      this.updateCache()
-    };
+    if (mark) mark.visible = vis;
+    // put CapMark on its own Container, so we can disable them en masse
+    const cont = this.hex?.map.mapCont.capCont;
+    if (mark && cont && vis) {
+      mark.setXY(pc, this, cont);
+    }
   }
 
-  addNameText(name = this.Aname, y0 = this.radius / 2) {
+  addNameText(y0 = this.radius / 2, name = this.Aname) {
     let nameText = new CenterText(name, Tile.textSize);
     nameText.y = y0;         // Meeple overrides in constructor!
     nameText.visible = false
@@ -428,17 +431,15 @@ export class Tile extends Tile0 {
    * Override in AuctionTile, Civic, Meeple/Leader
    * @param hex a potential targetHex (table.hexUnderPoint(dragObj.xy))
    */
-  isLegalTarget(hex: Hex) {
+  isLegalTarget(hex: Hex, ctx?: DragContext) {
     if (!hex) return false;
     if (hex.tile
       && !(hex.tile instanceof BonusTile)
       && !(GP.gamePlay.reserveHexesP.includes(hex))
     ) return false; // note: from AuctionHexes to Reserve overrides this.
-    if (hex.meep && (hex.meep.player !== GP.gamePlay.curPlayer)) return false;
+    if (hex.meep && !(hex.meep.player === GP.gamePlay.curPlayer)) return false;
     if (GP.gamePlay.failToPayCost(this, hex, false)) return false;
-    // if (hex.isLegalTarget)
-    // TODO: when auto-capture is working, re-assert no dragging.
-    // if ((this.hex as Hex2).isOnMap) return false;
+    if ((this.hex as Hex2).isOnMap && !ctx?.lastShift) return false;
     return true;
   }
 
@@ -487,8 +488,8 @@ export class Civic extends Tile {
     player.civicTiles.push(this);
   }
 
-  override isLegalTarget(hex: Hex) { // Civic
-    if (!super.isLegalTarget(hex)) return false; // check cost & influence (& balance)
+  override isLegalTarget(hex: Hex, ctx?: DragContext) { // Civic
+    if (!super.isLegalTarget(hex, ctx)) return false; // check cost & influence (& balance)
     if (hex == GP.gamePlay.recycleHex) return true;
     if (!hex.isOnMap) return false;
     return true;
@@ -669,8 +670,8 @@ export class AuctionTile extends Tile {
   }
 
 
-  override isLegalTarget(toHex: Hex): boolean { // AuctionTile
-    if (!super.isLegalTarget(toHex)) return false; // allows dropping on occupied reserveHexes
+  override isLegalTarget(toHex: Hex, ctx?: DragContext): boolean { // AuctionTile
+    if (!super.isLegalTarget(toHex, ctx)) return false; // allows dropping on occupied reserveHexes
     const gamePlay = GP.gamePlay;
     if (!toHex.isOnMap) {
       if (gamePlay.recycleHex === toHex) return true; // && this.hex.isOnMap (OH! recycle from AuctionHexes)
@@ -678,15 +679,21 @@ export class AuctionTile extends Tile {
       // AuctionTile can go toReserve:
       if (reserveHexes.includes(toHex)) return true;
       // TODO: during dev/testing: allow return to auctionHexes, if fromReserve
-      if (gamePlay.auctionHexes.includes(toHex as Hex2)
+      if (ctx?.lastShift
+        && gamePlay.auctionHexes.includes(toHex as Hex2)
         && reserveHexes.includes(this.hex)) return true;
       return false;
     }
-    // cannot place on Tile (unless BonusTile) or other's meep (AuctionTile can go under out meep)
-    if (toHex.tile && !(toHex.tile instanceof BonusTile)) return false;
-    if (toHex.meep && toHex.meep.player !== gamePlay.curPlayer) return false;
+    // Now consider toHex.isOnMap:
+    if (ctx.lastShift) return true; // Shift key makes all isOnMap legal!
+    // Cannot move a tile that is already on the map:
+    if (this.hex.isOnMap) return false;
     if (gamePlay.failToBalance(this)) return false;
-    return true
+    // cannot place on meep of other Player or Criminal (AuctionTile can go under own meep)
+    if (toHex.meep && (toHex.meep.infColor !== gamePlay.curPlayer.color)) return false;
+    // [newly] placed tile must be adjacent to existing tile of player:
+    if (!toHex.findLinkHex(hex => hex.tile?.player === this.player)) return false;
+    return true;
   }
 
   flipOwner(player: Player, gamePlay = GP.gamePlay) {
@@ -696,8 +703,7 @@ export class AuctionTile extends Tile {
       gamePlay.decrInfluence(this.hex, this.infP, this.player.color)
       gamePlay.decrInfluence(this.hex, this.infP, player.color)
     }
-    this.player = player;  // Flip ownership
-    this.paint(player.color);
+    this.setPlayerAndPaint(player);  // Flip ownership
     player.updateCounters();
     gamePlay.hexMap.update();
   }
@@ -746,9 +752,7 @@ export class AuctionTile extends Tile {
     if (auctionNdx2 >= 0) {
       auctionTiles[auctionNdx2]?.moveTo(ctx.originHex);  // if something there, swap it to fromHex
       auctionTiles[auctionNdx2] = this;
-      this.player = undefined;
-      this.paint(player.color);
-      this.updateCache();
+      this.setPlayerAndPaint(player);
     }
     // add to reserveTiles:
     const rIndex2 = reserveHexes.indexOf(toHex)
@@ -785,6 +789,7 @@ export class AuctionTile extends Tile {
     }
   }
 }
+
 export class Monument extends AuctionTile {
   static inst = [0,0];
   static fibcost = [1, 1, 2, 3, 5, 8, 13, 21];

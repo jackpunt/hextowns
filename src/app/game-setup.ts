@@ -134,18 +134,19 @@ export class GameSetup {
     gui.spec('load').onChange = (item: ParamItem) => {
       gui.setValue(item)
     }
-    let infName = "inf:sac"
+    const infName = "inf:cap"
     gui.makeParamSpec(infName, ['1:1', '1:0', '0:1', '0:0'], { name: infName, target: table, fontColor: 'green' })
     let infSpec = gui.spec(infName);
     table[infSpec.fieldName] = infSpec.choices[0].text
     infSpec.onChange = (item: ParamItem) => {
       let v = item.value as string
       table.showInf = v.startsWith('1')
-      table.showSac = v.endsWith('1')
+      //table.showSac = v.endsWith('1')
+      table.showCap = v.endsWith('1')
     }
     gui.spec("colorScheme").onChange = (item: ParamItem) => {
       gui.setValue(item)
-      Tile.allTiles.forEach(tile => tile.paint(tile.player?.color)); // all Tiles have a player?
+      Tile.allTiles.forEach(tile => tile.paint()); // tile.player or C1.grey
       this.gamePlay.paintForPlayer();  // re-paint ActionCont tiles
       Meeple.allMeeples.forEach(meep => meep.setInfRays());
       InfMark.setInfGraphics();

@@ -356,41 +356,44 @@ export class GamePlay0 {
   }
 
   /** Meeple.dropFunc() --> place Meeple (to Map, reserve; not Recycle) */
-  placeMeep(meep: Meeple, toHex: Hex, autoCrime = false) {
-    if (!autoCrime && this.failToPayCost(meep, toHex)) {
-      meep.moveTo(meep.hex);  // abort; return to fromHex
-      return;
-    }
-    this.placeEither(meep, toHex);
+  // from Meeple.dropFunc, recruitAction, autoCrime, unmove2
+  placeMeep(meep: Meeple, toHex: Hex, payCost = true) {
+    const fromHex = meep.hex;
+    this.placeEither(meep, toHex, payCost); // meep.hex = toHex (OR homeHex; incl undefined)
+    // update InfRays on fromHex & toHex & meep;
+    fromHex?.tile?.setInfRays(fromHex.getInfP(meep.infColor) ?? 0);
+    const infP = meep.hex?.getInfP(meep.infColor) ?? 0;
+    meep.hex?.tile?.setInfRays(infP);
+    meep.setInfRays(infP);
   }
 
-  // from tile.dropFunc()
+  // from tile.dropFunc, buildAction, placeTown
   /** Tile.dropFunc() --> place Tile (to Map, reserve, ~>auction; not Recycle) */
-  placeTile(tile: Tile, toHex: Hex) {
-    if (toHex.isOnMap && this.failToBalance(tile) || this.failToPayCost(tile, toHex)) {
-      // unlikely, now that we check in dragStart...
+  placeTile(tile: Tile, toHex: Hex, payCost = true) {
+    this.placeEither(tile, toHex, payCost);
+  }
+
+  placeEither(tile: Tile, toHex: Hex, payCost = true) {
+    // commit to pay, and verify payment made:
+    if (payCost && this.failToPayCost(tile, toHex)) {
       tile.moveTo(tile.hex); // abort; return to fromHex
       return;
     }
-    this.placeEither(tile, toHex);
-  }
-
-  placeEither(tile: Tile, toHex: Hex) {
     // update influence on map:
     const fromHex = tile.hex, infColor = tile.infColor || this.curPlayer.color;
-    if (fromHex.isOnMap && (tile.inf !== 0)) {
+    if (fromHex?.isOnMap && (tile.inf !== 0)) {
       tile.hex = undefined;      // hex.tile OR hex.meep = undefined; remove tile's infP
       this.decrInfluence(fromHex, tile.inf, infColor);
       tile.hex = fromHex;        // briefly, until moveTo(toHex)
     }
-    if (toHex == this.recycleHex) {
-      this.logText(`Recycle ${tile} from ${fromHex.Aname}`)
+    if (toHex === this.recycleHex) {
+      this.logText(`Recycle ${tile} from ${fromHex?.Aname || '?'}`)
       this.recycleTile(tile);    // Score capture; log; return to homeHex
     } else {
-      tile.moveTo(toHex);  // placeTile(tile, hex) --> moveTo(hex)
+      tile.moveTo(toHex);  // placeEither(tile, hex) --> moveTo(hex)
       if (toHex !== fromHex) this.logText(`Place ${tile}`)
-      if (toHex.isOnMap) {
-        if (!tile.player) tile.player = this.curPlayer; // for Market tiles; also for [auto] Criminals
+      if (toHex?.isOnMap) {
+        // if (!tile.player) tile.player = this.curPlayer; // was for Market tiles; also for [auto] Criminals
         this.incrInfluence(tile.hex, infColor);
       }
     }
@@ -516,7 +519,7 @@ export class GamePlay extends GamePlay0 {
     if (!meep) return;               // no Criminals available
     meep.autoCrime = true;           // no econ charge to curPlayer
     const targetHex = this.autoCrimeTarget(meep);
-    this.placeMeep(meep, targetHex, true); // meep.player == undefined --> no failToPayCost()
+    this.placeMeep(meep, targetHex, false); // meep.player == undefined --> no failToPayCost()
     this.logText(`AutoCrime: ${meep}`)
     this.processAttacks(meep.infColor);
   }
@@ -538,15 +541,25 @@ export class GamePlay extends GamePlay0 {
     }));
   }
 
-  // do we may need to unMove meeples in the proper order? lest we get 2 meeps on a hex? (apparently not)
-  // move police from station, place new police in station; unMove will place *both* in the station.
-  // perhaps one of them should recycle back to the academy...
-  // perhpas the startHex should be the academy? and use recycle/sendHome to reclaim the salary?
+  // do we may need to unMove meeples in the proper order? lest we get 2 meeps on a hex?
+  // meepA -> hexC, meepB -> hexA; undo: meepA -> hexA (collides with meepB), meepB -> hexB
+  // Assert: if meepA.startHex is occupied by meepB, then meepB is NOT on meepB.startHex;
+  // So: recurse to move meepB to its startHex;
+  // Note: with multiple/illegal moves, meepA -> hexB, meepB -> hexA; infinite recurse
+  // So: remove meepA from hexB before moving meepB -> hexB
   unMove() {
+
+    const unmove2 = (meepA: Meeple) => {
+      this.placeMeep(meepA, undefined, false);  // take meepA off the map; meepA.startHex = undefined!!
+      const meepB = meepA.startHex.meep;
+      if (meepB) unmove2(meepB);         // move meepB to hexB
+      this.placeMeep(meepA, meepA.startHex, false); // unMove update influence; Note: no unMove for Hire! (sendHome)
+      meepA.faceUp();
+    }
+
     this.curPlayer.meeples.forEach(meep => {
       if (meep.hex?.isOnMap && meep.startHex && meep.startHex !== meep.hex ) {
-        this.placeMeep(meep, meep.startHex); // unMove update influence; Note: no unMove for Hire! (sendHome)
-        meep.faceUp();
+        unmove2(meep);
       }
     })
     this.assessThreats();
@@ -644,7 +657,7 @@ export class GamePlay extends GamePlay0 {
   }
 
   override placeEither(tile: Tile, toHex: Hex): void {
-    const info = { tile, fromHex: tile.hex, toHex, hexInf: toHex.infStr };
+    const info = { tile, fromHex: tile.hex, toHex, infStr: toHex?.infStr ?? '?' };
     if (toHex !== tile.hex) console.log(stime(this, `.placeEither:`), info);
     super.placeEither(tile, toHex);
   }
@@ -764,8 +777,7 @@ export class GamePlay extends GamePlay0 {
     this.costIncHexCounters.forEach(cic => {
       let plyr = (cic.repaint instanceof Player) ? cic.repaint : this.curPlayer;
       if (cic.repaint !== false) {
-        cic.hex.tile?.paint(plyr.color); //
-        cic.hex.meep?.paint(plyr.color); // flipping criminals!
+        cic.hex.tile?.setPlayerAndPaint(plyr);
       }
     })
   }

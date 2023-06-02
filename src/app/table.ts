@@ -180,6 +180,9 @@ export class Table extends EventDispatcher  {
     this.toggleText(false)         // set initial visibility
   }
 
+  set showCap(val) { (this.hexMap.mapCont.capCont.visible = val)}
+  get showCap() { return this.hexMap.mapCont.capCont.visible}
+
   set showInf(val) { (this.hexMap.mapCont.infCont.visible = val) ? this.markAllSacrifice() : this.unmarkAllSacrifice() }
   get showInf() { return this.hexMap.mapCont.infCont.visible }
   _showSac = true
@@ -341,7 +344,7 @@ export class Table extends EventDispatcher  {
       this.addCostCounter(crimeHex, undefined, -1, false);
       p.criminalSource = Criminal.makeSource(p, crimeHex, TP.criminalPerPlayer);
 
-      const locs = { Busi: [col0++, 0], Resi: [col0++, 0], Monument: [col0, -1] };
+      const locs = { Busi: [col0++, 0], Resi: [col0++, 0], Monument: [col0 + 1, -1] };
 
       gamePlay.marketTypes.forEach((type, ndx) => {
         const [col, row] = locs[type.name];
@@ -379,8 +382,8 @@ export class Table extends EventDispatcher  {
     {
       // postition turnLog & turnText
       let parent = this.scaleCont
-      let rhex = this.hexMap.getCornerHex('W') as Hex2;
-      let rhpt = rhex.cont.parent.localToLocal(rhex.x - 8 * this.hexMap.colWidth, rhex.y, parent)
+      let rhex = this.hexMap[7][0] as Hex2; //getCornerHex('W') as Hex2;
+      let rhpt = rhex.cont.parent.localToLocal(rhex.x - 9 * this.hexMap.colWidth, rhex.y, parent)
       this.turnLog.x = rhpt.x; this.turnLog.y = rhpt.y;
       this.textLog.x = rhpt.x; this.textLog.y = rhpt.y + this.turnLog.height(Player.allPlayers.length + 1);
 
@@ -606,7 +609,7 @@ export class Table extends EventDispatcher  {
     } else {
       // mark legal targets for tile; SHIFT for all hexes, if payCost
       let nLegal = 0;    // hexMap & homeRowHexes & recycleHex & debtHex
-      this.forEachTargetHex(hex => nLegal += (hex.isLegal = tile.isLegalTarget(hex)) ? 1 : 0, false);
+      this.forEachTargetHex(hex => nLegal += (hex.isLegal = tile.isLegalTarget(hex, ctx)) ? 1 : 0, false);
       const isRecycle = this.gamePlay.setIsLegalRecycle(tile, ctx) ? true : false;
       tile.showCostMark();  // <=== fix this !
       this.hexMap.update();
@@ -815,7 +818,7 @@ export class AuctionShifter implements IAuctionShifter {
     const nm = this.nm, tiles = this.tiles
     const tile = this.tileBag.selectOne();
     const hexes = this.hexes
-    tile.paint(Player.allPlayers[pIndex]?.color)
+    tile.setPlayerAndPaint(Player.allPlayers[pIndex]);
 
     // put tile in slot-n (move previous tile to n+1)
     let shift1 = (tile: AuctionTile, n: number) => {

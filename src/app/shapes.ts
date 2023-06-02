@@ -2,7 +2,8 @@ import { C, F, XY } from "@thegraid/common-lib";
 import { Container, Graphics, Shape, Text } from "@thegraid/easeljs-module";
 import type { Hex2 } from "./hex";
 import { H, HexDir } from "./hex-intfs";
-import { PlayerColor, TP, playerColorRecord } from "./table-params";
+import { PlayerColor, PlayerColorRecord, TP, playerColorRecord } from "./table-params";
+import type { Tile } from "./tile";
 
 export class C1 {
   static GREY = 'grey';
@@ -105,30 +106,44 @@ export class TileShape extends HexShape {
   }
 }
 
+function mulPCR(b: XY, w: XY, c: XY, scale: number) {
+  const rv: PlayerColorRecord<XY> = playerColorRecord();
+  const pcr = playerColorRecord(b, w, c);
+  Object.keys(pcr).forEach((pc: PlayerColor) => { rv[pc] = { x: pcr[pc].x * scale, y: pcr[pc].y * scale } });
+  return rv;
+}
+
 /** CapMark indicates if hex can be or has been captured. */
 export class CapMark extends Shape {
-  static capColor = H.capColor1 // dynamic bind in GamePlay.doProtoMove()
-  static capSize = TP.hexRad/4   // depends on HexMap.height
-  static xyOffset = playerColorRecord<XY>({ x: -.5, y: .5 }, { x: .5, y: .5 }, { x: 0, y: -.6 })
+  static capColor = H.capColor1    // dynamic bind in GamePlay.doProtoMove()
+  static capSize = TP.hexRad / 4   // depends on HexMap.height
+  static xyOffset = mulPCR({ x: -.5, y: .4 }, { x: .5, y: .4 }, { x: 0, y: -.6 }, TP.hexRad);
   constructor(pc: PlayerColor, vis = true, xy = CapMark.xyOffset[pc], rad = TP.hexRad) {
     super()
     this.visible = vis;
     this.mouseEnabled = false;
     this.paint(TP.colorScheme[pc]);
-    this.x = xy.x * rad;
-    this.y = xy.y * rad;
+    this.setXY(pc);
   }
+
+  setXY(pc: PlayerColor, tile?: Tile, cont?: Container, xyOff = CapMark.xyOffset) {
+    const xy = xyOff[pc];
+    tile?.localToLocal(xy.x, xy.y, cont, this);
+    cont?.addChild(this);
+  }
+
   // for each Player: hex.tile
   paint(color = CapMark.capColor, vis = true) {
     this.graphics.c().f(color).dp(0, 0, CapMark.capSize, 6, 0, 30);
     this.visible = vis;
   }
 }
-export class MeepCapMark extends CapMark {
-  static override xyOffset = playerColorRecord<XY>({ x: -.6, y: .5 }, { x: .6, y: .5 }, { x: 0, y: 1.5 })
 
-  constructor(pc: PlayerColor, vis = true, xy = MeepCapMark.xyOffset[pc], rad = TP.meepleRad) {
-    super(pc, vis, xy, rad)
+export class MeepCapMark extends CapMark {
+  static override xyOffset = mulPCR({ x: -.6, y: .4 }, { x: .6, y: .4 }, { x: 0, y: 1.5 }, TP.meepleRad);
+
+  override setXY(pc: PlayerColor, tile?: Tile, cont?: Container, xyOff = MeepCapMark.xyOffset) {
+    super.setXY(pc, tile, cont, xyOff);
   }
 }
 

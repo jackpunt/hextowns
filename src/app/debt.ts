@@ -112,7 +112,7 @@ export class Debt extends Tile {
     return this.hex.isOnMap;
   }
 
-  override isLegalTarget(hex: Hex): boolean {
+  override isLegalTarget(hex: Hex, ctx?: DragContext): boolean {
     if (!hex.isOnMap) return false;
     if (this.balance > 0) return false;
     if (hex?.tile?.player !== GP.gamePlay.curPlayer) return false;
