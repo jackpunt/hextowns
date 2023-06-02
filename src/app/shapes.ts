@@ -106,6 +106,32 @@ export class TileShape extends HexShape {
   }
 }
 
+
+/** add to Tile to indicate nB, fB, nR, fR.
+ * nB is blue disk, fB is blue circle.
+ * nR is tan disk, fR is tan circle.
+ */
+export class BalMark extends Container {
+  static bColor = 'rgba(133,193,233,.6)';
+  static rColor = 'rgba(200,180,160,.6)';
+
+  constructor(tile: Tile) {
+    super();
+    const { nB, fB, nR, fR } = tile, rad = TP.hexRad * H.sqrt3 / 2;
+    this.addChild(this.aMark(nB, fB, -rad * .7, 0, BalMark.bColor));
+    this.addChild(this.aMark(nR, fR, +rad * .7, 0, BalMark.rColor));
+  }
+
+  aMark(n = 0, f = 0, x = 0, y = 0, color = C.black, rad = TP.hexRad * .2) {
+    if (n + f <= 0) return undefined;
+    const mark = new Shape(), g = mark.graphics;
+    const ss = (n > 0) ? 0 : 4, rs = rad - ss / 2;
+    if (n) { g.f(color) } else { g.ss(ss).s(color) };
+    g.dc(x, y, rs);
+    return mark;
+  }
+}
+
 function mulPCR(b: XY, w: XY, c: XY, scale: number) {
   const rv: PlayerColorRecord<XY> = playerColorRecord();
   const pcr = playerColorRecord(b, w, c);

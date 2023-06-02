@@ -6,7 +6,7 @@ import { GP } from "./game-play";
 import { Hex, Hex2, HexMap } from "./hex";
 import { H } from "./hex-intfs";
 import type { Player } from "./player";
-import { C1, CapMark, CenterText, InfRays, InfShape, PaintableShape, TileShape } from "./shapes";
+import { BalMark, C1, CapMark, CenterText, InfRays, InfShape, PaintableShape, TileShape } from "./shapes";
 import { DragContext } from "./table";
 import { PlayerColor, PlayerColorRecord, TP, playerColorRecord, playerColorsC } from "./table-params";
 
@@ -278,6 +278,7 @@ export class Tile extends Tile0 {
     this.infText = this.addNameText(rad / 2, '');// index = 2
     if (inf > 0) this.setInfRays(inf);
     if (_vp > 0) this.drawStar();
+    this.addChild(new BalMark(this));
     this.setPlayerAndPaint(player);
   }
 
