@@ -95,8 +95,8 @@ export class Debt extends Tile {
   /** show loanLimit of Tile under Debt. */
   override dragFunc0(hex: Hex2, ctx: DragContext): void {
     if (!this.player) {
-      const loan = (hex?.tile?.player === GP.gamePlay.curPlayer) ? hex.tile.loanLimit : 0;
-      this.balance = this.player ? this.balance : loan; // force updateCache(); tile?.updateCache();
+      const loan = (hex?.tile?.player === GP.gamePlay.curPlayer && !hex.tile.debt) ? hex.tile.loanLimit : 0;
+      if (this.balance !== loan) this.balance = loan; // updateCache(); tile?.updateCache();
     }
     super.dragFunc0(hex, ctx);
   }
@@ -122,19 +122,14 @@ export class Debt extends Tile {
   }
 
   // nextUnit() --> unit.moveTo(source.hex)
-  override moveTo(toHex: Hex) {
+  override moveTo(toHex: Hex | undefined) {
     const source = Debt.source; //[this.player.index]
-    const fromHex = this.hex;
-    if (toHex === fromHex) {
-      this.tile = toHex.tile;
-      return toHex;
-    }
-    const tile = toHex.tile;
-    if (!tile) debugger;        // sendHome...?
-    this.tile = tile;           // super.moveTo(hex);    // super.moveTo(hex);
-    if (this.tile?.player) {
-      this.balance = tile?.loanLimit ?? 0;
-      this.tile.player.coins += this.balance;
+    const fromHex = this.hex, fromTile = this.tile;
+    const tile = this.tile = toHex?.tile, player = tile?.player; // undefined when recycle/sendHome;
+    if (tile !== fromTile && !!player) {       // if (tile && player) make a Loan to player
+      this.balance = tile.loanLimit ?? 0;
+      player.coins += this.balance;
+      this.player = player;
     }
     if (fromHex === source.hex) {
       source.nextUnit();
@@ -151,7 +146,7 @@ export class Debt extends Tile {
     this.balance = 0;
     this.tile = undefined;
     this.player = undefined;
-    super.sendHome();
+    super.sendHome();       // resetTile; moveTo(homeHex)
     source.availUnit(this);
     if (!source.hex.tile) source.nextUnit();
   }

@@ -395,7 +395,7 @@ export class Tile extends Tile0 {
   sendHome() {
     this.resetTile();
     this.moveTo(this.homeHex) // override for AucionTile.tileBag & UnitSource<Meeple>
-    if (!this.homeHex) this.parent.removeChild(this);
+    if (!this.homeHex) this.parent?.removeChild(this);
   }
 
   /**

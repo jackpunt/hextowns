@@ -324,7 +324,7 @@ export class GamePlay0 {
     if (tile.hex === toHex) return false;  // no payment; recompute influence
     if (this.preGame) return false;
     // Can't fail if not going onto the Map:
-    if (!(!tile.hex.isOnMap && (toHex.isOnMap || toReserve))) return false;
+    if (!(!tile.hex?.isOnMap && (toHex?.isOnMap || toReserve))) return false;
     // curPlayer && NOT FROM Map && TO [Map or Reserve]
     const [infR, coinR] = this.getInfR(tile); // assert coinR >= 0
     let bribR = 0;
@@ -656,10 +656,10 @@ export class GamePlay extends GamePlay0 {
     this.makeMove(true, undefined, 1)
   }
 
-  override placeEither(tile: Tile, toHex: Hex): void {
+  override placeEither(tile: Tile, toHex: Hex, payCost = true): void {
     const info = { tile, fromHex: tile.hex, toHex, infStr: toHex?.infStr ?? '?' };
     if (toHex !== tile.hex) console.log(stime(this, `.placeEither:`), info);
-    super.placeEither(tile, toHex);
+    super.placeEither(tile, toHex, payCost);
   }
 
   /**
