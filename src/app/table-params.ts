@@ -19,7 +19,7 @@ export function buildURL(scheme = 'wss', host = TP.ghost, domain = TP.gdomain, p
 export class TP {
   // negative Econ is charged as cost when recruited.
   static leaderEcon = -6;
-  static policeEcon = -2;
+  static policeEcon = -3;
   static criminalEcon = -3;
   // Meeples: pay with econ; no inf cost, place in Civic/PStation, or crime zone.
   static leaderCost = 0; // increased by [bonus('star') + costInc] == 1 + -leaderEcon

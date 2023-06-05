@@ -1,5 +1,5 @@
 import { C, F, S } from "@thegraid/common-lib";
-import { Shape, Text } from "@thegraid/easeljs-module";
+import { DisplayObject, Shape, Text } from "@thegraid/easeljs-module";
 import { GP } from "./game-play";
 import type { Hex, Hex2, HexMap } from "./hex";
 import { H } from "./hex-intfs";
@@ -149,8 +149,20 @@ export class Meeple extends Tile {
     super.showCostMark(show, -.4);
   }
 
-  override dragStart(hex: Hex2, ctx?: DragContext): void {
-    super.dragStart(hex, ctx);
+  override drawStar() {
+    const mark = super.drawStar();
+    mark.y -= .2 * TP.hexRad;
+    return mark;
+  }
+
+  override drawEcon(econ?: number) {
+    const mark = super.drawEcon(econ);
+    mark.visible = false;
+    return mark;
+  }
+
+  override dragStart(ctx?: DragContext): void {
+    super.dragStart(ctx);
     this.hex.tile?.setInfRays(this.hex.tile.inf); // removing meeple influence
     this.setInfRays(this.inf);  // show influence rays on this meeple
   }
@@ -185,7 +197,7 @@ export class Leader extends Meeple {
   constructor(tile: Civic, abbrev: string) {  // Leader(name, player, inf, vp, cost, econ)
     super(`${abbrev}:${tile.player.index}`, tile.player, 1, 1, TP.leaderCost, TP.leaderEcon);
     this.civicTile = tile;
-    this.drawStar();
+    this.addChild(this.nameText); // on top
     this.paint();
     this.markCivicWithLetter();
   }

@@ -11,6 +11,7 @@ export type NsDir = Exclude<HexDir, 'E' | 'W'>
 export namespace H {
   export const degToRadians = Math.PI / 180;
   export const sqrt3 = Math.sqrt(3)  // 1.7320508075688772
+  export const sqrt3_2 = H.sqrt3 / 2;
   export const infin = String.fromCodePoint(0x221E)
   export const C: 'C' = "C"; // not a HexDir, but identifies a Center
   export const N: HexDir = "N"

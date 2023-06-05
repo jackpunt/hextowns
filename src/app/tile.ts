@@ -9,9 +9,10 @@ import type { Player } from "./player";
 import { BalMark, C1, CapMark, CenterText, InfRays, InfShape, PaintableShape, TileShape } from "./shapes";
 import { DragContext } from "./table";
 import { PlayerColor, PlayerColorRecord, TP, playerColorRecord, playerColorsC } from "./table-params";
+import { Meeple } from "./meeple";
 
-export type Bonus = 'star' | 'brib' | 'actn' | 'econ' | 'Bank' | 'Lake' | 'Star';
-export type AuctionBonus = Exclude<Bonus, 'Bank' | 'Lake' | 'Star'>;
+export type Bonus = 'star' | 'brib' | 'actn' | 'econ' | 'Bank' | 'Lake' | 'Star' | 'Econ';
+export type AuctionBonus = Exclude<Bonus, 'Bank' | 'Lake' | 'Star' | 'Econ'>;
 type BonusObj = { [key in AuctionBonus]: boolean}
 
 type BonusInfo<T extends DisplayObject> = {
@@ -24,45 +25,58 @@ export class BonusMark extends Container {
 
   static bonusInfo: BonusInfo<DisplayObject>[] = [
     {
-      type: 'Bank', dtype: Text, x: 0, y: -2.6, size: TP.hexRad / 3, paint: (t: Text, info) => {
+      // mark the AdjBonus for Bank
+      type: 'Bank', dtype: CenterText, x: 0, y: -1.9, size: TP.hexRad / 3, paint: (t: Text, info) => {
         t.text = '$'
         t.color = C.GREEN
-        t.textAlign = 'center'
         t.font = F.fontSpec(info.size)
         t.x = info.x * info.size
         t.y = info.y * info.size
       }
     },
+    // mark the AdjBonus for Lake
     {
-      type: 'Lake', dtype: Shape, x: 0, y: -2.7, size: TP.hexRad / 4, paint: (s: Shape, info, tilt = 90) => {
+      type: 'Lake', dtype: Shape, x: 0, y: -2.5, size: TP.hexRad / 4, paint: (s: Shape, info, tilt = 90) => {
         s.graphics.f(C.briteGold).dp(info.x, info.y, 1, 5, 2, tilt)
         s.scaleX = s.scaleY = info.size;
       }
     },
+    // drawStar when vp > 0
     {
-      type: 'Star', dtype: Shape, x: 0, y: 1.2, size: TP.hexRad / 3, paint: (s: Shape, info, tilt = -90) => {
+      type: 'Star', dtype: Shape, x: 0, y: 1.3, size: TP.hexRad / 3, paint: (s: Shape, info, tilt = -90) => {
         s.graphics.f(C.briteGold).dp(info.x, info.y, 1, 5, 2, tilt)
         s.scaleX = s.scaleY = info.size;
       }
     },
+    // drawEcon when econ > 0
+    {
+      type: 'Econ', dtype: CenterText, x: 0, y: 1.3, size: TP.hexRad / 3, paint: (t: Text, info) => {
+        t.text = '$'
+        t.color = C.GREEN
+        t.font = F.fontSpec(info.size)
+        t.x = info.x * info.size
+        t.y = info.y * info.size
+      }
+    },
+    // Bonus mark for any ActionTile
     {
       type: 'star', dtype: Shape, x: 0, y: 0, size: TP.hexRad / 3, paint: (s: Shape, info, tilt = -90) => {
         s.graphics.f(C.briteGold).dp(info.x, info.y, 1, 5, 2, tilt)
         s.scaleX = s.scaleY = info.size;
       }
     },
+    // Bonus mark for any AuctionTile
     {
-      type: 'econ', dtype: Text, x: 0, y: -1.6, size: TP.hexRad / 2, paint: (t: Text, info) => {
+      type: 'econ', dtype: CenterText, x: 0, y: -1.1, size: TP.hexRad / 2, paint: (t: Text, info) => {
         t.text = '$'
         t.color = C.GREEN
-        t.textAlign = 'center'
         t.font = F.fontSpec(info.size)
         t.x = info.x * info.size
         t.y = info.y * info.size
       }
     },
     {
-      type: 'brib', dtype: InfShape, x: 1.3, y: -1.3, size: TP.hexRad/4, paint: (c: Container, info) => {
+      type: 'brib', dtype: InfShape, x: 1.4, y: -1.3, size: TP.hexRad/4, paint: (c: Container, info) => {
         c.scaleX = c.scaleY = .25;
         c.x = info.x * info.size;
         c.y = info.y * info.size;
@@ -123,7 +137,7 @@ class Tile0 extends Container {
   get recycleVerb(): string { return 'demolished'; }
 
   /** name in set of filenames loaded in GameSetup */
-  addImageBitmap(name: string) {
+  addImageBitmap(name: string, at = this.numChildren - 1) {
     const img = Tile0.loader.imageMap.get(name), bm = new Bitmap(img);
     const width = TP.hexRad, scale = width / Math.max(img.height, img.width);
     bm.scaleX = bm.scaleY = scale;
@@ -131,7 +145,7 @@ class Tile0 extends Container {
     bm.x = -sw / 2;
     bm.y = -sh / 2;
     bm.y -= Tile.textSize / 2;
-    this.addChildAt(bm, 1)
+    this.addChildAt(bm, at);
     return bm;
   }
 
@@ -164,16 +178,25 @@ class Tile0 extends Container {
 
   // Looks just like the Bonus star!
   drawStar() {
-    const star = this.addChildAt(new Shape(), 1);
     const info = BonusMark.bonusMap.get('Star');
-    info.paint(star, info);
+    const mark = this.addChild(new info.dtype());
+    info.paint(mark, info);
     this.updateCache();
-    return star;
+    return mark;
+  }
+
+  drawEcon(econ = 1) {
+    const info = BonusMark.bonusMap.get('Econ');
+    const mark = this.addChild(new info.dtype()) as Text;
+    info.paint(mark, info);
+    if (econ < 0) mark.text = `${econ}`;
+    this.updateCache();
+    return mark;
   }
 
   readonly bonus: BonusObj = { star: false, brib: false, actn: false, econ: false }
   addBonus(type: AuctionBonus) {
-    let mark = new BonusMark(type);
+    const mark = new BonusMark(type);
     this.bonus[type] = true;
     this.addChildAt(mark, this.numChildren -1);
     this.paint();
@@ -273,12 +296,13 @@ export class Tile extends Tile0 {
     if (!Aname) this.Aname = `${className(this)}-${Tile.serial++}`;
     const rad = this.radius;
     this.cache(-rad, -rad, 2 * rad, 2 * rad);
-    this.addChild(this.baseShape);               // index = 0
-    this.nameText = this.addNameText(rad / 4);   // index = 1
-    this.infText = this.addNameText(rad / 2, '');// index = 2
+    this.addChild(this.baseShape);
+    this.addChild(new BalMark(this));
     if (inf > 0) this.setInfRays(inf);
     if (_vp > 0) this.drawStar();
-    this.addChild(new BalMark(this));
+    if (_econ !== 0) this.drawEcon(_econ);
+    this.nameText = this.addNameText(rad / 4);
+    this.infText = this.addNameText(rad / 2, '');
     this.setPlayerAndPaint(player);
   }
 
@@ -292,9 +316,9 @@ export class Tile extends Tile0 {
   }
 
   /** name in set of filenames loaded in GameSetup */
-  override addImageBitmap(name: string) {
-    let bm = super.addImageBitmap(name)
-    this.updateCache()
+  override addImageBitmap(name: string, at = 2) {
+    let bm = super.addImageBitmap(name, at);
+    this.updateCache();
     return bm;
   }
 
@@ -421,7 +445,7 @@ export class Tile extends Tile0 {
   }
 
   /** override as necessary. */
-  dragStart(hex: Hex2, ctx: DragContext) {
+  dragStart(ctx: DragContext) {
     this.clearThreats();  // when lifting a Tile from map, hide the CapMarks
   }
 
@@ -430,17 +454,19 @@ export class Tile extends Tile0 {
 
   /**
    * Override in AuctionTile, Civic, Meeple/Leader
-   * @param hex a potential targetHex (table.hexUnderPoint(dragObj.xy))
+   * @param toHex a potential targetHex (table.hexUnderPoint(dragObj.xy))
    */
-  isLegalTarget(hex: Hex, ctx?: DragContext) {
-    if (!hex) return false;
-    if (hex.tile
-      && !(hex.tile instanceof BonusTile)
-      && !(GP.gamePlay.reserveHexesP.includes(hex))
+  isLegalTarget(toHex: Hex, ctx?: DragContext) {
+    if (!toHex) return false;
+    if (toHex.tile
+      && !(toHex.tile instanceof BonusTile)
+      && !(GP.gamePlay.reserveHexesP.includes(toHex))
     ) return false; // note: from AuctionHexes to Reserve overrides this.
-    if (hex.meep && !(hex.meep.player === GP.gamePlay.curPlayer)) return false;
-    if (GP.gamePlay.failToPayCost(this, hex, false)) return false;
+    if (toHex.meep && !(toHex.meep.player === GP.gamePlay.curPlayer)) return false;
+    if (GP.gamePlay.failToPayCost(this, toHex, false)) return false;
     if ((this.hex as Hex2).isOnMap && !ctx?.lastShift) return false;
+    // [newly] placed tile must be adjacent to an existing [non-BonusTile] Tile:
+    if (!toHex.findLinkHex(hex => (hex.tile?.player !== undefined ))) return false;
     return true;
   }
 
@@ -473,7 +499,7 @@ export class BonusTile extends Tile {
   constructor(
     public type: AuctionBonus | undefined,
   ) {
-    super(undefined, undefined, 0, 0, 0, 0);
+    super(undefined, undefined, 0, 0, 0, 0); // BonusTile
     if (type) this.addBonus(type);
   }
   // Maybe augment sendHome to transfer Bonus to hex.tile??
@@ -482,7 +508,7 @@ export class BonusTile extends Tile {
 // Leader.civicTile -> Civic; Civic does not point to its leader...
 export class Civic extends Tile {
   constructor(player: Player, type: string, image: string, inf = 1, vp = 1, cost = 2, econ = 1) {
-    super(player, `${type}:${player.index}`, inf, vp, cost, econ);
+    super(player, `${type}:${player.index}`, inf, vp, cost, econ); // CivicTile
     this.player = player;
     this.loanLimit = 10;
     this.addImageBitmap(image);
@@ -638,7 +664,7 @@ export class AuctionTile extends Tile {
 
   /** AuctionTile */
   constructor(player: Player, Aname?: string, inf?: number, vp?: number, cost?: number, econ?: number) {
-    super(player, Aname, inf, vp, cost, econ)
+    super(player, Aname, inf, vp, cost, econ);  // AuctionTile
   }
 
   sendToBag() {
@@ -692,8 +718,6 @@ export class AuctionTile extends Tile {
     if (gamePlay.failToBalance(this)) return false;
     // cannot place on meep of other Player or Criminal (AuctionTile can go under own meep)
     if (toHex.meep && (toHex.meep.infColor !== gamePlay.curPlayer.color)) return false;
-    // [newly] placed tile must be adjacent to existing tile of player:
-    if (!toHex.findLinkHex(hex => hex.tile?.player === this.player)) return false;
     return true;
   }
 

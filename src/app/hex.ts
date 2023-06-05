@@ -31,7 +31,7 @@ export class InfMark extends Shape {
     let alpha = '.85'
     let lightgreyA = C.nameToRgbaString('lightgrey', '.5')
     let c = C.nameToRgbaString(TP.colorScheme[sc], alpha)
-    let r = TP.hexRad * H.sqrt3 / 2 - 1, [w, xo] = InfMark.wxoAry[sc];
+    let r = TP.hexRad * H.sqrt3_2 - 1, [w, xo] = InfMark.wxoAry[sc];
 
     let gStroke = (color: string, w: number) => {
       return g.ss(w).s(color).mt(xo, r).lt(xo, -r)
@@ -434,7 +434,7 @@ export class Hex2 extends Hex {
   }
   /** location of edge point in dir; in parent coordinates. */
   edgePoint(dir: HexDir) {
-    let a = H.dirRot[dir] * H.degToRadians, h = this.radius * H.sqrt3 / 2
+    let a = H.dirRot[dir] * H.degToRadians, h = this.radius * H.sqrt3_2
     return new Point(this.x + Math.sin(a) * h, this.y - Math.cos(a) * h)
   }
 }

@@ -368,7 +368,7 @@ export class Table extends EventDispatcher  {
       {
         const bText = p.balanceText, parent = this.scaleCont;
         const hexC2 = this.hexMap[8][colf2(2, 0)] as Hex2, hexR1 = this.hexMap[1][3] as Hex2;
-        const x = hexC2.x, y = hexR1.y - .3 * TP.hexRad * H.sqrt3;;
+        const x = hexC2.x, y = hexR1.y - .3 * TP.hexRad * H.sqrt3;
         hexC2.cont.parent.localToLocal(x, y, parent, bText);
         parent.addChild(bText);
       }
@@ -397,8 +397,8 @@ export class Table extends EventDispatcher  {
   }
 
   makeRecycleHex(hexMap: HexMap, row: number, col: number) {
-    const name = 'Recycle', tile = new Tile(undefined, name)
-    const image = tile.addImageBitmap(name); // scale to hexMap.
+    const name = 'Recycle', recycleTile = new Tile(undefined, name)
+    const image = recycleTile.addImageBitmap(name); // scale to hexMap.
     image.y = -TP.hexRad / 2; // recenter
     const hex = new Hex2(hexMap, row, col, name);
     hex.rcText.visible = hex.distText.visible = false;
@@ -410,7 +410,7 @@ export class Table extends EventDispatcher  {
 
   makeDebtHex(hexMap: HexMap, row: number, col: number) {
     const hex = new Hex2(hexMap, row, col, 'Debt');
-    const debtTile = new NoDragTile(undefined, 'debt');
+    const debtTile = new NoDragTile(undefined, 'debt', 0, 0, 0, 0);
     debtTile.paint(undefined, C.debtRust);
     debtTile.moveTo(hex);
     // Note: debtTile is not draggable, but its children are!
@@ -434,7 +434,7 @@ export class Table extends EventDispatcher  {
     const ptc = chex.cont.parent.localToLocal(cx, cy, parent)
     const { x: ex, y: ey, h: eh } = ehex.xywh();
     const pte = chex.cont.parent.localToLocal(ex, ey, parent)
-    const cont = new Container(), offx = TP.hexRad * H.sqrt3 / 2;
+    const cont = new Container(), offx = TP.hexRad * H.sqrt3_2;
     cont.x = ptc.x + [offx, -offx][index];
     cont.y = pte.y;
     cont.visible = false;
@@ -460,7 +460,7 @@ export class Table extends EventDispatcher  {
   layoutCounters(player: Player, cont: Container, rowy: (row: number) => number) {
     const index = player.index, dir = [1, -1][index];
     const counterCont = this.scaleCont;
-    let layoutCounter = (name: string, color: string, rowy: number, colx = 1, incr = true,
+    const layoutCounter = (name: string, color: string, rowy: number, colx = 1, incr = true,
       claz = NumCounterBox) => {
       //: new (name?: string, iv?: string | number, color?: string, fSize?: number) => NumCounter
       const cname = `${name}Counter`, fSize = TP.hexRad * .75;
@@ -492,7 +492,8 @@ export class Table extends EventDispatcher  {
   // Done: enable other player buttons
   */
   doButton(label: string) {
-    let player = this.gamePlay.curPlayer, pIndex = player.index, actionsTaken = 0;
+    const player = this.gamePlay.curPlayer, pIndex = player.index
+    let actionsTaken = 0;
     console.log(stime(this, `.doButton:`), label)
     switch (label) {
       case 'Start': {
@@ -532,7 +533,7 @@ export class Table extends EventDispatcher  {
 
   startGame() {
     // initialize Players & TownStart & draw pile
-    let dragger = this.dragger;
+    const dragger = this.dragger;
     // All Tiles (Civics, Resi, Busi, PStation, Lake, & Meeple) are Draggable:
     Tile.allTiles.filter(tile => !(tile instanceof NoDragTile)).forEach(tile => {
       dragger.makeDragable(tile, this, this.dragFunc, this.dropFunc);
@@ -555,29 +556,30 @@ export class Table extends EventDispatcher  {
 
   hexUnderObj(dragObj: DisplayObject) {
     if (dragObj instanceof Tile) return dragObj.hexUnderObj(this.hexMap);
-    let pt = dragObj.parent.localToLocal(dragObj.x, dragObj.y, this.hexMap.mapCont.hexCont)
+    const pt = dragObj.parent.localToLocal(dragObj.x, dragObj.y, this.hexMap.mapCont.hexCont)
     return this.hexMap.hexUnderPoint(pt.x, pt.y)
   }
 
   dragContext: DragContext;
   dragFunc(tile: Tile, info: DragInfo) {
-    const hex = this.hexUnderObj(tile)
+    const hex = this.hexUnderObj(tile);
     let ctx = this.dragContext;
 
     if (info?.first) {
+      const event = info.event?.nativeEvent;
       ctx = this.dragContext = {
-        tile: tile,
-        originHex: tile.hex as Hex2,      // where Tile was picked
-        targetHex: tile.hex as Hex2,      // last isLegalTarget() or originHex
-        lastShift: info.event?.nativeEvent?.shiftKey,
-        lastCtrl: info.event?.nativeEvent?.ctrlKey,
+        tile: tile,                  // ASSERT: hex === tile.hex
+        originHex: hex,              // where Tile was picked
+        targetHex: hex,              // last isLegalTarget() or originHex
+        lastShift: event?.shiftKey,
+        lastCtrl:  event?.ctrlKey,
         info: info,
       }
-      this.dragStart(tile, hex, ctx);     // mark isLegal
-      if (!ctx.tile) return; // stopDragging() was invoked
+      this.dragStart(tile, ctx);     // canBeMoved, isLegalTarget, tile.dragStart(ctx);
+      if (!ctx.tile) return;         // stopDragging() was invoked
     }
-    this.checkShift(hex, ctx)
-    tile.dragFunc0(hex, this.dragContext)
+    this.checkShift(hex, ctx);
+    tile.dragFunc0(hex, ctx);
   }
 
   // invoke dragShift 'event' if shift state changes
@@ -600,28 +602,29 @@ export class Table extends EventDispatcher  {
     if (inclRecycle) fn(this.gamePlay.recycleHex as Hex2);
   }
 
-  dragStart(tile: Tile, hex: Hex2, ctx: DragContext) {
+  dragStart(tile: Tile, ctx: DragContext) {
     // press SHIFT to capture [recycle] opponent's Criminals or Tiles
+    const infStr = tile?.hex?.infStr ?? '';
     if (!tile.canBeMovedBy(this.gamePlay.curPlayer, ctx)) {
-      console.log(stime(this, `.dragStart: Not your tile: ${tile}`), 'ctx=',{...ctx});
-      this.logText(`Not your tile: ${tile}`)
+      console.log(stime(this, `.dragStart: Not your tile: ${tile} ${infStr},`), 'ctx=',{...ctx});
+      this.logText(`Not your tile: ${tile} ${infStr}`)
       this.stopDragging();
     } else {
       // mark legal targets for tile; SHIFT for all hexes, if payCost
       let nLegal = 0;    // hexMap & homeRowHexes & recycleHex & debtHex
-      this.forEachTargetHex(hex => nLegal += (hex.isLegal = tile.isLegalTarget(hex, ctx)) ? 1 : 0, false);
+      this.forEachTargetHex(hex => nLegal += (hex.isLegal = tile.isLegalTarget(hex, ctx) && hex !== tile.hex) ? 1 : 0, false);
       const isRecycle = this.gamePlay.setIsLegalRecycle(tile, ctx) ? true : false;
-      tile.showCostMark();  // <=== fix this !
+      if (!tile.hex.isOnMap) tile.showCostMark();
       this.hexMap.update();
-      if (nLegal == 0) {
+      if (nLegal === 0) {
         const [infR, coinR] = this.gamePlay.getInfR(tile);
-        this.logText(`No placement for ${tile} infR=${infR} coinR=${coinR}`)
+        this.logText(`No placement for ${tile} ${infStr} infR=${infR} coinR=${coinR}`)
         if (!isRecycle) {
           this.stopDragging();
           return;
         }
       }
-      else tile.dragStart(hex, ctx)
+      else tile.dragStart(ctx)
     }
   }
 
@@ -799,6 +802,10 @@ export class AuctionShifter implements IAuctionShifter {
     public nm = TP.auctionMerge,  // merge per-player arrays of length nm into nm * 2; nm-1 --> nm * 2
   ) {
     this.maxndx = tiles.length - 1; // Note: tiles.length = TP.auctionSlots + nm;
+  }
+
+  drawTile(type: new () => Tile) {
+    return this.tileBag.find((tile, ndx, bag) => (tile instanceof type) && (bag.splice(ndx, 1), true));
   }
 
   /** process out-shifted tile... */

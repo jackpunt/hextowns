@@ -27,7 +27,7 @@ export class Infl extends Tile {
   }
 
   constructor(player: Player, serial: number) {
-    super(player, `Debt:${player?.index}-${serial}`, 0, 0, 0, 0);
+    super(player, `Infl:${player?.index}-${serial}`, 0, 0, 0, 0);
     this.counter.attachToContainer(this, {x: 0, y: this.baseShape.y});
   }
 

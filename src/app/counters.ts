@@ -114,7 +114,7 @@ export class CostIncCounter extends NumCounter {
   ) {
     super(name, 0, 'grey', TP.hexRad / 2)
     const counterCont = hex.mapCont.counterCont;
-    const xy = hex.cont.localToLocal(0, TP.hexRad * H.sqrt3 / 2, counterCont);
+    const xy = hex.cont.localToLocal(0, TP.hexRad * H.sqrt3_2, counterCont);
     this.attachToContainer(counterCont, xy);
   }
   protected override makeBox(color: string, high: number, wide: number): DisplayObject {
