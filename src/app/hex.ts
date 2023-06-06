@@ -296,7 +296,6 @@ export class Hex2 extends Hex {
   distColor: string // district color of hexShape (paintHexShape)
   distText: Text    // shown on this.cont
   rcText: Text      // shown on this.cont
-  stoneIdText: Text     // shown on this.map.markCont
   infm: Record<PlayerColor, INFM> = playerColorRecord({}, {}, {})
 
   override get tile() { return super.tile; }
@@ -331,7 +330,7 @@ export class Hex2 extends Hex {
    */
   constructor(map: HexMap, row: number, col: number, name?: string) {
     super(map, row, col, name);
-    map.mapCont.hexCont.addChild(this.cont)
+    map?.mapCont.hexCont.addChild(this.cont);
     let { x, y, w, h } = this.xywh(this.radius, undefined, row, col); // include margin space between hexes
     this.x += x
     this.y += y
@@ -343,11 +342,8 @@ export class Hex2 extends Hex {
     this.setHexColor('grey')  // new Hex2: until setHexColor(by district)
     this.hexShape.name = this.Aname
 
-    this.stoneIdText = new Text('', F.fontSpec(26))
-    this.stoneIdText.textAlign = 'center'; this.stoneIdText.regY = -20
-
-    let rc = `${row!=undefined?row:''},${col!=undefined?col:''}`, tdy = -25
-    let rct = this.rcText = new Text(rc, F.fontSpec(26), 'white'); // radius/2 ?
+    const rc = `${row!=undefined?row:''},${col!=undefined?col:''}`, tdy = -25
+    const rct = this.rcText = new Text(rc, F.fontSpec(26), 'white'); // radius/2 ?
     rct.textAlign = 'center'; rct.y = tdy // based on fontSize? & radius
     this.cont.addChild(rct)
 

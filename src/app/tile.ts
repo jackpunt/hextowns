@@ -6,7 +6,7 @@ import { GP } from "./game-play";
 import { Hex, Hex2, HexMap } from "./hex";
 import { H } from "./hex-intfs";
 import type { Player } from "./player";
-import { BalMark, C1, CapMark, CenterText, InfRays, InfShape, PaintableShape, TileShape } from "./shapes";
+import { BalMark, C1, CapMark, CenterText, HexShape, InfRays, InfShape, PaintableShape, TileShape } from "./shapes";
 import { DragContext } from "./table";
 import { PlayerColor, PlayerColorRecord, TP, playerColorRecord, playerColorsC } from "./table-params";
 import { Meeple } from "./meeple";
@@ -157,13 +157,13 @@ class Tile0 extends Container {
    * also: addBitmapImage()
    */
   makeShape(): PaintableShape {
-    return new TileShape(this.radius)
+    return new TileShape(this.radius);
   }
 
   /** will override for Meeple's xy offset. */
   hexUnderObj(hexMap: HexMap) {
-    let dragObj = this;
-    let pt = dragObj.parent.localToLocal(dragObj.x, dragObj.y, hexMap.mapCont.hexCont)
+    const dragObj = this;
+    const pt = dragObj.parent.localToLocal(dragObj.x, dragObj.y, hexMap.mapCont.hexCont)
     return hexMap.hexUnderPoint(pt.x, pt.y)
   }
 
@@ -235,7 +235,6 @@ class Tile0 extends Container {
 
 export class Tile extends Tile0 {
   static allTiles: Tile[] = [];
-  static serial = 0;    // serial number of each Tile created
 
   static textSize = 20;
   nameText: Text;
@@ -293,7 +292,7 @@ export class Tile extends Tile0 {
   ) {
     super()
     Tile.allTiles.push(this);
-    if (!Aname) this.Aname = `${className(this)}-${Tile.serial++}`;
+    if (!Aname) this.Aname = `${className(this)}-${Tile.allTiles.length}`;
     const rad = this.radius;
     this.cache(-rad, -rad, 2 * rad, 2 * rad);
     this.addChild(this.baseShape);
@@ -315,7 +314,9 @@ export class Tile extends Tile0 {
     return `${this.Aname}@${this.hex?.Aname ?? '?'}`;
   }
 
-  /** name in set of filenames loaded in GameSetup */
+  /** name in set of filenames loaded in GameSetup
+   * @param at = 2; above HexShape & BalMark
+   */
   override addImageBitmap(name: string, at = 2) {
     let bm = super.addImageBitmap(name, at);
     this.updateCache();
@@ -486,6 +487,15 @@ export class Tile extends Tile0 {
 
 /** Marker class: a Tile that is not draggable */
 export class NoDragTile extends Tile {}
+
+// Show Debt on plain WHITE tile:
+export class DebtTile extends NoDragTile {
+  override makeShape(): PaintableShape { return new HexShape(this.radius); }
+
+  override paint(pColor?: PlayerColor, colorn?: string): void {
+    super.paint(pColor, C.WHITE);
+  }
+}
 
 /**
  * Tiles placed on map (preGame) when replaced by another AuctionTile,

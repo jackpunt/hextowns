@@ -9,7 +9,7 @@ import { Criminal, Police } from "./meeple";
 import { Player } from "./player";
 import type { StatsPanel } from "./stats";
 import { PlayerColor, playerColor0, playerColor1, playerColors, TP } from "./table-params";
-import { AuctionTile, NoDragTile, Tile, TileBag } from "./tile";
+import { AuctionTile, DebtTile, NoDragTile, Tile, TileBag } from "./tile";
 import { TileSource } from "./tile-source";
 //import { TablePlanner } from "./planner";
 
@@ -29,6 +29,7 @@ export interface DragContext {
   lastCtrl: boolean;    // true if control key is down
   info: DragInfo;
   tile: Tile;           // the DisplayObject being dragged
+  nLegal?: number;       // number of legal drop tiles (excluding recycle)
 }
 
 class TextLog extends Container {
@@ -397,9 +398,10 @@ export class Table extends EventDispatcher  {
   }
 
   makeRecycleHex(hexMap: HexMap, row: number, col: number) {
-    const name = 'Recycle', recycleTile = new Tile(undefined, name)
-    const image = recycleTile.addImageBitmap(name); // scale to hexMap.
+    const name = 'Recycle'
+    const image = new Tile(undefined, name).addImageBitmap(name); // ignore Tile, get image.
     image.y = -TP.hexRad / 2; // recenter
+
     const hex = new Hex2(hexMap, row, col, name);
     hex.rcText.visible = hex.distText.visible = false;
     hex.setHexColor(C.WHITE);
@@ -409,19 +411,22 @@ export class Table extends EventDispatcher  {
   }
 
   makeDebtHex(hexMap: HexMap, row: number, col: number) {
-    const hex = new Hex2(hexMap, row, col, 'Debt');
-    const debtTile = new NoDragTile(undefined, 'debt', 0, 0, 0, 0);
-    debtTile.paint(undefined, C.debtRust);
-    debtTile.moveTo(hex);
-    // Note: debtTile is not draggable, but its children are!
+    const debtHex = new Hex2(hexMap, row, col, 'Debt');
+    debtHex.rcText.visible = debtHex.distText.visible = false;
 
-    hex.rcText.visible = hex.distText.visible = false;
-    hex.setHexColor(C.grey);
-    hex.cont.updateCache();
+    // Note: debtTile is not draggable, but its children are!
+    const debtTile = new DebtTile(undefined, 'debt', 0, 0, 0, 0);
+    debtTile.moveTo(debtHex);
 
     const availDebt = 30;
-    Debt.makeSource(hex, availDebt);
-    return hex;
+    Debt.makeSource(debtHex, availDebt);
+    return debtHex;
+  }
+
+  makeEventHex() {
+    const hex = new Hex2(undefined, 0, 0);
+    const eventTile = new NoDragTile(undefined, 'event', 0, 0, 0, 0);
+    eventTile.paint(undefined, )
   }
 
   readonly buttonsForPlayer: Container[] = [];
@@ -574,6 +579,7 @@ export class Table extends EventDispatcher  {
         lastShift: event?.shiftKey,
         lastCtrl:  event?.ctrlKey,
         info: info,
+        nLegal: 0,
       }
       this.dragStart(tile, ctx);     // canBeMoved, isLegalTarget, tile.dragStart(ctx);
       if (!ctx.tile) return;         // stopDragging() was invoked
@@ -611,20 +617,21 @@ export class Table extends EventDispatcher  {
       this.stopDragging();
     } else {
       // mark legal targets for tile; SHIFT for all hexes, if payCost
-      let nLegal = 0;    // hexMap & homeRowHexes & recycleHex & debtHex
-      this.forEachTargetHex(hex => nLegal += (hex.isLegal = tile.isLegalTarget(hex, ctx) && hex !== tile.hex) ? 1 : 0, false);
-      const isRecycle = this.gamePlay.setIsLegalRecycle(tile, ctx) ? true : false;
+      // hexMap & homeRowHexes & recycleHex & debtHex
+      this.forEachTargetHex(hex => ctx.nLegal += (hex.isLegal = tile.isLegalTarget(hex, ctx) && hex !== tile.hex) ? 1 : 0, false);
+      this.gamePlay.setIsLegalRecycle(tile, ctx); // always true [06/05/2023]
+      tile.dragStart(ctx);  // which *could* reset okRecycle/nLegal ?
+      // TODO: move to Tile.dragStart()?
       if (!tile.hex.isOnMap) tile.showCostMark();
       this.hexMap.update();
-      if (nLegal === 0) {
+      if (ctx.nLegal === 0) {
         const [infR, coinR] = this.gamePlay.getInfR(tile);
         this.logText(`No placement for ${tile} ${infStr} infR=${infR} coinR=${coinR}`)
-        if (!isRecycle) {
-          this.stopDragging();
+        if (!this.gamePlay.recycleHex.isLegal) {
+          this.stopDragging(); // actually, maybe let it drag, so we can see beneath...
           return;
         }
       }
-      else tile.dragStart(ctx)
     }
   }
 
@@ -646,7 +653,7 @@ export class Table extends EventDispatcher  {
   stopDragging(target: Hex2 = this.dragContext.originHex) {
     //console.log(stime(this, `.stopDragging: dragObj=`), this.dragger.dragCont.getChildAt(0), {noMove, isDragging: this.isDragging()})
     if (!this.isDragging()) return
-    target && (this.dragContext.targetHex = target)
+    if (target) this.dragContext.targetHex = target;
     this.dragger.stopDrag(); // ---> dropFunc(this.dragContext.tile, info)
   }
 
@@ -804,7 +811,7 @@ export class AuctionShifter implements IAuctionShifter {
     this.maxndx = tiles.length - 1; // Note: tiles.length = TP.auctionSlots + nm;
   }
 
-  drawTile(type: new () => Tile) {
+  drawTile(type: new (...args) => Tile) {
     return this.tileBag.find((tile, ndx, bag) => (tile instanceof type) && (bag.splice(ndx, 1), true));
   }
 

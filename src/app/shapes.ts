@@ -39,7 +39,7 @@ export class HexShape extends Shape implements PaintableShape {
 
   /** draw a Hexagon 1/60th inside the given radius */
   paint(color: string) {
-    let g = this.graphics.c(), tilt = H.dirRot[this.tiltDir];
+    const g = this.graphics.c(), tilt = H.dirRot[this.tiltDir];
     return g.f(color).dp(0, 0, Math.floor(this.radius * 59 / 60), 6, 0, tilt);
   }
 }
@@ -55,11 +55,11 @@ export class InfRays extends Container {
    */
   constructor(inf = 1, infColor?: PlayerColor, y0 = .7, xw = 3) {
     super()
-    let color = infColor ? TP.colorScheme[infColor] : C.WHITE;
-    let rad = TP.hexRad, y1 = y0 * rad, y2 = .9 * rad;
-    let xs = [[0], [-.1 * rad, +.1 * rad], [-.1 * rad, 0, +.1 * rad]][Math.abs(inf) - 1];
+    const color = infColor ? TP.colorScheme[infColor] : C.WHITE;
+    const rad = TP.hexRad, y1 = y0 * rad, y2 = .9 * rad;
+    const xs = [[0], [-.1 * rad, +.1 * rad], [-.1 * rad, 0, +.1 * rad]][Math.abs(inf) - 1];
     H.ewDirs.forEach(dir => {
-      let sl = new Shape(), gl = sl.graphics
+      const sl = new Shape(), gl = sl.graphics
       gl.ss(xw).s(color)
       xs.forEach(x => gl.mt(x, y1).lt(x, y2))
       sl.rotation = H.dirRot[dir]
@@ -73,7 +73,7 @@ export class InfShape extends Container {
   /** hexagon scaled by TP.hexRad/4 */
   constructor(bgColor = 'grey') {
     super()
-    let s = new Shape(), c = this;
+    const s = new Shape(), c = this;
     s.graphics.f(bgColor).dp(0, 0, TP.hexRad, 6, 0, 30)
     c.addChild(s)
     c.addChild(new InfRays(1, undefined, .3, 10)) // short & wide; it gets scaled down

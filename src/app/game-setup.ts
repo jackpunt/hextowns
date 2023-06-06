@@ -68,7 +68,6 @@ export class GameSetup {
    * @param ext Extensions from URL
    */
   startup(ext: string[] = []) {
-    Tile.serial = 0;
     Tile.allTiles = [];
     Meeple.allMeeples = [];
     Player.allPlayers = [];
