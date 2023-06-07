@@ -424,14 +424,8 @@ export class Table extends EventDispatcher  {
     return debtHex;
   }
 
-  makeEventHex(hexMap: HexMap, row = -1., col = 5.5) {
-    const eventCont = this.hexMap.mapCont.eventCont;
-    const eventHex = new EventHex(hexMap, row, col, 'eventHex'); // on hexMap.mapCont.hexCont;
-    // hexCont.parent.localToLocal(eventHex.x, eventHex.y, eventCont, hexCont); // from hexCont to eventCont
-    eventCont.addChild(eventHex.cont);
-    eventHex.setHexColor('transparent');
-    eventCont.stage?.update();
-
+  makeEventHex(hexMap: HexMap, row = -1., col = 6.5, scale = 2.5) {
+    const eventHex = new EventHex(hexMap, row, col, 'eventHex', scale); // on hexMap.mapCont.hexCont;
     return eventHex;
   }
 

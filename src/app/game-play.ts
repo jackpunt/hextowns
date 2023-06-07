@@ -247,7 +247,7 @@ export class GamePlay0 {
   playerBalance(player: Player, ivec = [0, 0, 0, 0]) {
     let [nBusi, fBusi, nResi, fResi] = ivec;
     this.hexMap.forEachHex(hex => {
-      let tile = hex.tile;
+      const tile = hex.tile;
       if (tile && tile.player == player) {
         nBusi += tile.nB;
         fBusi += tile.fB;
@@ -627,9 +627,7 @@ export class GamePlay extends GamePlay0 {
 
   drawTile(type: new (...args) => Tile) {
     const tile = this.shifter.drawTile(type);
-    tile.player = this.curPlayer;
-    tile.paint();
-    // TODO: put it on a special hex?
+    tile.setPlayerAndPaint(this.curPlayer);
     tile.moveTo(this.eventHex);
     this.hexMap.update();
   }

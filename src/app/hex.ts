@@ -117,6 +117,7 @@ export class Hex {
   _tile: Tile;
   get tile() { return this._tile; }
   set tile(tile: Tile) { this._tile = tile; } // override in Hex2!
+  // Note: set hex.tile mostly invoked from: tile.hex = hex;
 
   _meep: Meeple;
   get meep() { return this._meep; }
@@ -279,6 +280,7 @@ export class Hex2 extends Hex {
   readonly radius = TP.hexRad;                // determines width & height
   readonly hexShape = this.makeHexShape();    // shown on this.cont: colored hexagon
   get mapCont() { return this.map.mapCont; }
+  get markCont() { return this.mapCont.markCont; }
 
   get x() { return this.cont.x}
   set x(v: number) { this.cont.x = v}
@@ -300,27 +302,25 @@ export class Hex2 extends Hex {
 
   override get tile() { return super.tile; }
   override set tile(tile: Tile) {
-    const cont: Container = this.map.mapCont.tileCont;
-    // if (this.tile !== undefined) cont.removeChild(this.tile)
-    let k = true;
+    const cont: Container = this.map.mapCont.tileCont, x = this.x, y = this.y;
+    let k = true;      // debug double tile
     if (k && tile !== undefined && this.tile !== undefined) debugger;
     super.tile = tile  // this._tile = tile
     if (tile !== undefined) {
-      tile.x = this.x; tile.y = this.y;
-      cont.addChild(tile)
-      if (this.meep) cont.addChildAt(tile, cont.getChildIndex(this.meep))
+      tile.x = x; tile.y = y;
+      cont.addChildAt(tile, 0); // under hex.meep (and various Text)
     }
   }
 
   override get meep() { return super.meep; }
   override set meep(meep: Meeple) {
-    let cont: Container = this.map.mapCont.tileCont
-    //if (this.meep !== undefined) cont.removeChild(this.meep) // remove meep [from prior location]
+    const cont: Container = this.map.mapCont.tileCont, x = this.x, y = this.y;
+    let k = true;     // debug double meep
+    if (k && meep !== undefined && this.meep !== undefined) debugger;
     super.meep = meep // this._meep = meep    super.meep = meep
     if (meep !== undefined) {
-      meep.x = this.x; meep.y = this.y;
-      cont.addChild(meep)
-      // then put tile under meep
+      meep.x = x; meep.y = y;
+      cont.addChild(meep);      // tile will go under meep
     }
   }
 
@@ -442,22 +442,19 @@ export class Hex2 extends Hex {
 }
 
 export class EventHex extends Hex2 {
-  constructor(map: HexMap, row: number, col: number, name?: string) {
+  constructor(map: HexMap, row: number, col: number, name?: string, scale = 2) {
     super(map, row, col, name);
-    this.cont.scaleX = this.cont.scaleY = 2;
+    this.showText(false);
+    this.setHexColor('transparent');
+    // show Mark and Tile enlarged:
+    this.mapCont.eventCont.scaleX = this.mapCont.eventCont.scaleY = scale;
   }
+  override get markCont() { return this.mapCont.eventCont; }
   override get tile() { return super.tile; }
   override set tile(tile: Tile) {
-    // const cont: Container = this.map.mapCont.tileCont, x = this.x, y = this.y;
-    const cont: Container = this.cont, x = 0, y = 0;
-    let k = true;
-    if (k && tile !== undefined && this.tile !== undefined) debugger;
     super.tile = tile  // this._tile = tile; tile.x/y = this.x/y;
-    if (tile !== undefined) {
-      tile.x = x; tile.y = y;
-      cont.addChild(tile)
-      cont.updateCache();
-    }
+    tile?.parent.localToLocal(this.x, this.y, this.mapCont.eventCont, tile);
+    this.mapCont.eventCont.addChild(tile); // to top
   }
 }
 
@@ -638,32 +635,20 @@ export class HexMap extends Array<Array<Hex>> implements HexM {
     this.forEachHex<K>(hex => fn(hex) && rv.push(hex))
     return rv
   }
+
   /** make this.mark visible above the given Hex */
   showMark(hex?: Hex) {
     const mark = this.mark
     if (!hex) {  // || hex.Aname === S_Skip || hex.Aname === S_Resign) {
-      if (mark.visible) {
-        mark.visible = false;
-        mark.parent.updateCache();
-        this.update();
-      }
+      mark.visible = false;
     } else if (hex instanceof Hex2) {
       mark.visible = true;
-      const oldParent = mark.parent, newParent = hex.cont;
-      if (oldParent !== newParent) {
-        oldParent?.removeChild(mark);
-        if (oldParent?.cacheID !== undefined) {
-          oldParent.updateCache();
-        }
-        mark.x = mark.y = 0;
-        newParent.addChild(mark);
-        if (newParent.cacheID !== undefined) {
-          newParent.updateCache();
-        }
-        this.update();
-      }
+      hex.cont.localToLocal(0, 0, hex.markCont, mark);
+      hex.markCont.addChild(mark);
+      this.update();
     }
   }
+
   /** neighborhood topology, E-W & N-S orientation; even(n0) & odd(n1) rows: */
   ewEvenRow: TopoEW = {
     NE: { dc: 0, dr: -1 }, E: { dc: 1, dr: 0 }, SE: { dc: 0, dr: 1 },

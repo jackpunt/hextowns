@@ -1,7 +1,7 @@
 import { C, F, S } from "@thegraid/common-lib";
-import { DisplayObject, Shape, Text } from "@thegraid/easeljs-module";
+import { Shape, Text } from "@thegraid/easeljs-module";
 import { GP } from "./game-play";
-import type { Hex, Hex2, HexMap } from "./hex";
+import type { Hex, Hex2 } from "./hex";
 import { H } from "./hex-intfs";
 import type { Player } from "./player";
 import { C1, InfRays, PaintableShape } from "./shapes";
