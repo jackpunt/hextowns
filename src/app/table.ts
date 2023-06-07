@@ -3,13 +3,13 @@ import { Container, DisplayObject, EventDispatcher, Graphics, MouseEvent, Shape,
 import { ButtonBox, CostIncCounter, NumCounter, NumCounterBox, PerRoundCounter } from "./counters";
 import { Debt } from "./debt";
 import type { GamePlay } from "./game-play";
-import { Hex, Hex2, HexMap, IHex } from "./hex";
+import { EventHex, Hex, Hex2, HexMap, IHex } from "./hex";
 import { H, XYWH } from "./hex-intfs";
 import { Criminal, Police } from "./meeple";
 import { Player } from "./player";
 import type { StatsPanel } from "./stats";
 import { PlayerColor, playerColor0, playerColor1, playerColors, TP } from "./table-params";
-import { AuctionTile, DebtTile, NoDragTile, Tile, TileBag } from "./tile";
+import { AuctionTile, WhiteTile, NoDragTile, Tile, TileBag } from "./tile";
 import { TileSource } from "./tile-source";
 //import { TablePlanner } from "./planner";
 
@@ -367,6 +367,7 @@ export class Table extends EventDispatcher  {
 
 
       {
+        // Show Player's balance text:
         const bText = p.balanceText, parent = this.scaleCont;
         const hexC2 = this.hexMap[8][colf2(2, 0)] as Hex2, hexR1 = this.hexMap[1][3] as Hex2;
         const x = hexC2.x, y = hexR1.y - .3 * TP.hexRad * H.sqrt3;
@@ -378,7 +379,7 @@ export class Table extends EventDispatcher  {
 
     this.gamePlay.recycleHex = this.makeRecycleHex(hexMap, 5, -.5);
     this.gamePlay.debtHex = this.makeDebtHex(hexMap, 5, 13.5);
-
+    this.gamePlay.eventHex = this.makeEventHex(hexMap);
     this.hexMap.update();
     {
       // postition turnLog & turnText
@@ -415,7 +416,7 @@ export class Table extends EventDispatcher  {
     debtHex.rcText.visible = debtHex.distText.visible = false;
 
     // Note: debtTile is not draggable, but its children are!
-    const debtTile = new DebtTile(undefined, 'debt', 0, 0, 0, 0);
+    const debtTile = new WhiteTile(undefined, 'debt', 0, 0, 0, 0);
     debtTile.moveTo(debtHex);
 
     const availDebt = 30;
@@ -423,10 +424,15 @@ export class Table extends EventDispatcher  {
     return debtHex;
   }
 
-  makeEventHex() {
-    const hex = new Hex2(undefined, 0, 0);
-    const eventTile = new NoDragTile(undefined, 'event', 0, 0, 0, 0);
-    eventTile.paint(undefined, )
+  makeEventHex(hexMap: HexMap, row = -1., col = 5.5) {
+    const eventCont = this.hexMap.mapCont.eventCont;
+    const eventHex = new EventHex(hexMap, row, col, 'eventHex'); // on hexMap.mapCont.hexCont;
+    // hexCont.parent.localToLocal(eventHex.x, eventHex.y, eventCont, hexCont); // from hexCont to eventCont
+    eventCont.addChild(eventHex.cont);
+    eventHex.setHexColor('transparent');
+    eventCont.stage?.update();
+
+    return eventHex;
   }
 
   readonly buttonsForPlayer: Container[] = [];
@@ -560,22 +566,21 @@ export class Table extends EventDispatcher  {
   }
 
   hexUnderObj(dragObj: DisplayObject) {
-    if (dragObj instanceof Tile) return dragObj.hexUnderObj(this.hexMap);
-    const pt = dragObj.parent.localToLocal(dragObj.x, dragObj.y, this.hexMap.mapCont.hexCont)
-    return this.hexMap.hexUnderPoint(pt.x, pt.y)
+    const pt = dragObj.parent.localToLocal(dragObj.x, dragObj.y, this.hexMap.mapCont.hexCont);
+    return this.hexMap.hexUnderPoint(pt.x, pt.y);
   }
 
   dragContext: DragContext;
   dragFunc(tile: Tile, info: DragInfo) {
-    const hex = this.hexUnderObj(tile);
+    const hex = this.hexUnderObj(tile); // clickToDrag 'snaps' to non-original hex!
     let ctx = this.dragContext;
 
     if (info?.first) {
       const event = info.event?.nativeEvent;
       ctx = this.dragContext = {
         tile: tile,                  // ASSERT: hex === tile.hex
-        originHex: hex,              // where Tile was picked
-        targetHex: hex,              // last isLegalTarget() or originHex
+        originHex: tile.hex as Hex2, // where Tile was picked
+        targetHex: tile.hex as Hex2, // last isLegalTarget() or originHex
         lastShift: event?.shiftKey,
         lastCtrl:  event?.ctrlKey,
         info: info,
@@ -620,7 +625,8 @@ export class Table extends EventDispatcher  {
       // hexMap & homeRowHexes & recycleHex & debtHex
       this.forEachTargetHex(hex => ctx.nLegal += (hex.isLegal = tile.isLegalTarget(hex, ctx) && hex !== tile.hex) ? 1 : 0, false);
       this.gamePlay.setIsLegalRecycle(tile, ctx); // always true [06/05/2023]
-      tile.dragStart(ctx);  // which *could* reset okRecycle/nLegal ?
+      tile.dragStart(ctx);  // which *could* reset nLegal ?
+      this.gamePlay.eventHex.cont.updateCache();  // <--- QQQ: is this the right place? conditional?
       // TODO: move to Tile.dragStart()?
       if (!tile.hex.isOnMap) tile.showCostMark();
       this.hexMap.update();
@@ -658,7 +664,7 @@ export class Table extends EventDispatcher  {
   }
 
   /** attach supplied target to mouse-drag (default was CityMap.nextHex) */
-  dragTarget(target?: DisplayObject) {
+  dragTarget(target: DisplayObject = this.gamePlay.eventHex.tile) {
     if (this.isDragging()) {
       this.stopDragging(this.dragContext.targetHex) // drop and make move
     } else if (target) {
@@ -723,7 +729,7 @@ export class Table extends EventDispatcher  {
    */
   makeScaleCont(bindKeys: boolean): ScaleableContainer {
     /** scaleCont: a scalable background */
-    let scaleC = new ScaleableContainer(this.stage, this.scaleParams);
+    const scaleC = new ScaleableContainer(this.stage, this.scaleParams);
     this.dragger = new Dragger(scaleC)
     if (!!scaleC.stage.canvas) {
       // Special case of makeDragable; drag the parent of Dragger!
@@ -732,8 +738,8 @@ export class Table extends EventDispatcher  {
     }
     if (bindKeys) {
       this.bindKeysToScale("a", scaleC, 820, TP.hexRad)
-      KeyBinder.keyBinder.setKey(' ', {thisArg: this, func: this.dragTarget})
-      KeyBinder.keyBinder.setKey('S-Space', {thisArg: this, func: this.dragTarget})
+      KeyBinder.keyBinder.setKey('Space',   { thisArg: this, func: this.dragTarget })
+      KeyBinder.keyBinder.setKey('S-Space', { thisArg: this, func: this.dragTarget })
     }
     return scaleC
   }

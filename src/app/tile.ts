@@ -160,13 +160,6 @@ class Tile0 extends Container {
     return new TileShape(this.radius);
   }
 
-  /** will override for Meeple's xy offset. */
-  hexUnderObj(hexMap: HexMap) {
-    const dragObj = this;
-    const pt = dragObj.parent.localToLocal(dragObj.x, dragObj.y, hexMap.mapCont.hexCont)
-    return hexMap.hexUnderPoint(pt.x, pt.y)
-  }
-
   /** paint with PlayerColor; updateCache()
    * @param pColor the 'short' PlayerColor
    * @param colorn the actual color (default = TP.colorScheme[pColor])
@@ -437,8 +430,8 @@ export class Tile extends Tile0 {
   /** entry point from Table.dropFunc; delegate to this.dropFunc() */
   dropFunc0(hex: Hex2, ctx: DragContext) {
     this.dropFunc(ctx.targetHex, ctx);
-    ctx.targetHex.map.showMark(undefined);
     this.showCostMark(false); // QQQ: should this be in dropFunc() ??
+    ctx.targetHex.map.showMark(undefined);
   }
 
   canBeMovedBy(player: Player, ctx: DragContext) {
@@ -455,7 +448,7 @@ export class Tile extends Tile0 {
 
   /**
    * Override in AuctionTile, Civic, Meeple/Leader
-   * @param toHex a potential targetHex (table.hexUnderPoint(dragObj.xy))
+   * @param toHex a potential targetHex (table.hexUnderObj(dragObj.xy))
    */
   isLegalTarget(toHex: Hex, ctx?: DragContext) {
     if (!toHex) return false;
@@ -489,7 +482,7 @@ export class Tile extends Tile0 {
 export class NoDragTile extends Tile {}
 
 // Show Debt on plain WHITE tile:
-export class DebtTile extends NoDragTile {
+export class WhiteTile extends NoDragTile {
   override makeShape(): PaintableShape { return new HexShape(this.radius); }
 
   override paint(pColor?: PlayerColor, colorn?: string): void {

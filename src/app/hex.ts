@@ -102,21 +102,21 @@ export class Hex {
    */
   xywh(radius = TP.hexRad, nsAxis = true, row = this.row, col = this.col) {
     if (nsAxis) { // tiltDir = 'NE'; tilt = 30-degrees; nsTOPO
-      let h = 2 * radius, w = radius * H.sqrt3;  // h height of hexagon (long-vertical axis)
-      let x = (col + Math.abs(row % 2) / 2) * w;
-      let y = row * 1.5 * radius;   // dist between rows
+      const h = 2 * radius, w = radius * H.sqrt3;  // h height of hexagon (long-vertical axis)
+      const x = (col + Math.abs(row % 2) / 2) * w;
+      const y = row * 1.5 * radius;   // dist between rows
       return { x, y, w, h }
     } else { // tiltdir == 'N'; tile = 0-degrees; ewTOPO
-      let w = 2 * radius, h = radius * H.sqrt3 // radius * 1.732
-      let x = (col) * 1.5 * radius;
-      let y = (row + Math.abs(col % 2) / 2) * h;
+      const w = 2 * radius, h = radius * H.sqrt3 // radius * 1.732
+      const x = (col) * 1.5 * radius;
+      const y = (row + Math.abs(col % 2) / 2) * h;
       return { x, y, w, h }
     }
   }
 
   _tile: Tile;
   get tile() { return this._tile; }
-  set tile(tile: Tile) { this._tile = tile; }
+  set tile(tile: Tile) { this._tile = tile; } // override in Hex2!
 
   _meep: Meeple;
   get meep() { return this._meep; }
@@ -275,7 +275,9 @@ export class Hex {
 /** One Hex cell in the game, shown as a polyStar Shape */
 export class Hex2 extends Hex {
   // cont holds hexShape(color), rcText, distText, capMark
-  cont: HexCont = new HexCont(this) // Hex IS-A Hex0, HAS-A HexCont Container
+  readonly cont: HexCont = new HexCont(this); // Hex IS-A Hex0, HAS-A HexCont Container
+  readonly radius = TP.hexRad;                // determines width & height
+  readonly hexShape = this.makeHexShape();    // shown on this.cont: colored hexagon
   get mapCont() { return this.map.mapCont; }
 
   get x() { return this.cont.x}
@@ -291,8 +293,6 @@ export class Hex2 extends Hex {
     this._district = d    // cannot use super.district = d [causes recursion, IIRC]
     this.distText.text = `${d}`
   }
-  readonly radius = TP.hexRad;   // determines width & height
-  hexShape: HexShape   // shown on this.cont: colored hexagon
   distColor: string // district color of hexShape (paintHexShape)
   distText: Text    // shown on this.cont
   rcText: Text      // shown on this.cont
@@ -300,8 +300,10 @@ export class Hex2 extends Hex {
 
   override get tile() { return super.tile; }
   override set tile(tile: Tile) {
-    let cont: Container = this.map.mapCont.tileCont
+    const cont: Container = this.map.mapCont.tileCont;
     // if (this.tile !== undefined) cont.removeChild(this.tile)
+    let k = true;
+    if (k && tile !== undefined && this.tile !== undefined) debugger;
     super.tile = tile  // this._tile = tile
     if (tile !== undefined) {
       tile.x = this.x; tile.y = this.y;
@@ -330,26 +332,18 @@ export class Hex2 extends Hex {
    */
   constructor(map: HexMap, row: number, col: number, name?: string) {
     super(map, row, col, name);
+    this.initCont(row, col);
     map?.mapCont.hexCont.addChild(this.cont);
-    let { x, y, w, h } = this.xywh(this.radius, undefined, row, col); // include margin space between hexes
-    this.x += x
-    this.y += y
-    // initialize cache bounds:
-    this.cont.setBounds(-w / 2, -h / 2, w, h)
-    let b = this.cont.getBounds();
-    this.cont.cache(b.x, b.y, b.width, b.height);
-
-    this.setHexColor('grey')  // new Hex2: until setHexColor(by district)
     this.hexShape.name = this.Aname
 
-    const rc = `${row!=undefined?row:''},${col!=undefined?col:''}`, tdy = -25
+    const rc = `${row!=undefined?row:''},${col!=undefined?col:''}`, tdy = -25;
     const rct = this.rcText = new Text(rc, F.fontSpec(26), 'white'); // radius/2 ?
-    rct.textAlign = 'center'; rct.y = tdy // based on fontSize? & radius
-    this.cont.addChild(rct)
+    rct.textAlign = 'center'; rct.y = tdy; // based on fontSize? & radius
+    this.cont.addChild(rct);
 
     this.distText = new Text(``, F.fontSpec(20));
     this.distText.textAlign = 'center'; this.distText.y = tdy + 46 // yc + 26+20
-    this.cont.addChild(this.distText)
+    this.cont.addChild(this.distText);
     this.legalMark.setOnHex(this);
     this.showText(true); // & this.cache()
   }
@@ -369,6 +363,36 @@ export class Hex2 extends Hex {
   override set isLegal(v: boolean) {
     super.isLegal = v;
     this.legalMark.visible = v;
+  }
+
+  initCont(row: number, col: number) {
+    const cont = this.cont;
+    const { x, y, w, h } = this.xywh(this.radius, undefined, row, col); // include margin space between hexes
+    cont.x = x;
+    cont.y = y;
+    // initialize cache bounds:
+    cont.setBounds(-w / 2, -h / 2, w, h);
+    const b = cont.getBounds();
+    cont.cache(b.x, b.y, b.width, b.height);
+  }
+
+  makeHexShape() {
+    const hs = new HexShape(this.radius);
+    this.cont.addChildAt(hs, 0);
+    this.cont.hitArea = hs;
+    hs.paint('grey');
+    return hs;
+  }
+
+  /** set hexShape using color: draw border and fill
+   * @param color
+   * @param district if supplied, set this.district
+   */
+  setHexColor(color: string, district?: number | undefined) {
+    if (district !== undefined) this.district = district // hex.setHexColor update district
+    this.distColor = color;
+    this.hexShape.paint(color);
+    this.cont.updateCache();
   }
 
   override setInf(color: PlayerColor, dn: InfDir, inf: number): number {
@@ -393,27 +417,9 @@ export class Hex2 extends Hex {
       this.tile?.setCapMark(pc, CapMark);
       this.meep?.setCapMark(pc, MeepCapMark);
     });
-
   }
 
-  /** set hexShape using color: draw border and fill
-   * @param color
-   * @param district if supplied, set this.district
-   */
-  setHexColor(color: string, district?: number | undefined) {
-    if (district !== undefined) this.district = district // hex.setHexColor update district
-    this.distColor = color
-    let hexShape = this.hexShape || new HexShape()
-    hexShape.paint(color)
-    if (hexShape !== this.hexShape) {
-      this.cont.removeChild(this.hexShape)
-      this.cont.addChildAt(hexShape, 0)
-      this.cont.hitArea = hexShape
-      this.hexShape = hexShape
-      this.cont.updateCache()
-    }
-  }
-
+  // The following were created for the map in hexmarket:
   /** unit distance between Hexes: adjacent = 1; see also: radialDist */
   metricDist(hex: Hex): number {
     let { x: tx, y: ty } = this.xywh(1), { x: hx, y: hy } = hex.xywh(1)
@@ -435,17 +441,38 @@ export class Hex2 extends Hex {
   }
 }
 
+export class EventHex extends Hex2 {
+  constructor(map: HexMap, row: number, col: number, name?: string) {
+    super(map, row, col, name);
+    this.cont.scaleX = this.cont.scaleY = 2;
+  }
+  override get tile() { return super.tile; }
+  override set tile(tile: Tile) {
+    // const cont: Container = this.map.mapCont.tileCont, x = this.x, y = this.y;
+    const cont: Container = this.cont, x = 0, y = 0;
+    let k = true;
+    if (k && tile !== undefined && this.tile !== undefined) debugger;
+    super.tile = tile  // this._tile = tile; tile.x/y = this.x/y;
+    if (tile !== undefined) {
+      tile.x = x; tile.y = y;
+      cont.addChild(tile)
+      cont.updateCache();
+    }
+  }
+}
+
 export class MapCont extends Container {
   constructor(public hexMap: HexMap) {
     super()
   }
-  static cNames = ['hexCont', 'infCont', 'tileCont', 'markCont', 'capCont', 'counterCont'];
+  static cNames = ['hexCont', 'infCont', 'tileCont', 'markCont', 'capCont', 'counterCont', 'eventCont'];
   hexCont: Container     // hex shapes on bottom stats: addChild(dsText), parent.rotation
   infCont: Container     // infMark below tileCont; Hex2.showInf
   tileCont: Container    // Tiles & Meeples on Hex2/HexMap.
   markCont: Container    // showMark over Hex2; LegalMark
   capCont: Container     // for tile.capMark
   counterCont: Container // counters for AuctionCont
+  eventCont: Container   // the eventHex & and whatever Tile is on it...
 }
 
 export interface HexM {
@@ -611,16 +638,30 @@ export class HexMap extends Array<Array<Hex>> implements HexM {
     this.forEachHex<K>(hex => fn(hex) && rv.push(hex))
     return rv
   }
-  /** make this.mark visible above this Hex */
+  /** make this.mark visible above the given Hex */
   showMark(hex?: Hex) {
-    let mark = this.mark
-    if (!hex || hex.Aname === S_Skip || hex.Aname === S_Resign) {
-      mark.visible = false
+    const mark = this.mark
+    if (!hex) {  // || hex.Aname === S_Skip || hex.Aname === S_Resign) {
+      if (mark.visible) {
+        mark.visible = false;
+        mark.parent.updateCache();
+        this.update();
+      }
     } else if (hex instanceof Hex2) {
-      mark.x = hex.x
-      mark.y = hex.y
-      mark.visible = true
-      this.mapCont.markCont.addChild(mark)
+      mark.visible = true;
+      const oldParent = mark.parent, newParent = hex.cont;
+      if (oldParent !== newParent) {
+        oldParent?.removeChild(mark);
+        if (oldParent?.cacheID !== undefined) {
+          oldParent.updateCache();
+        }
+        mark.x = mark.y = 0;
+        newParent.addChild(mark);
+        if (newParent.cacheID !== undefined) {
+          newParent.updateCache();
+        }
+        this.update();
+      }
     }
   }
   /** neighborhood topology, E-W & N-S orientation; even(n0) & odd(n1) rows: */
@@ -766,6 +807,7 @@ export class HexMap extends Array<Array<Hex>> implements HexM {
   }
 
 }
+
 /** Marker class for HexMap used by GamePlayD */
 export class HexMapD extends HexMap {
 

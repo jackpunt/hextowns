@@ -14,8 +14,9 @@ class MeepleShape extends Shape implements PaintableShape {
   static fillColor = 'rgba(225,225,225,.7)';
   static backColor = 'rgba(210,210,120,.5)'; // transparent light green
 
-  constructor(public player: Player, public radius = TP.meepleRad, public y0 = TP.meepleY0) {
-    super()
+  constructor(public player: Player, public radius = TP.meepleRad) {
+    super();
+    this.y = TP.meepleY0;
     this.paint();
     this.backSide = this.makeOverlay();
   }
@@ -32,7 +33,7 @@ class MeepleShape extends Shape implements PaintableShape {
 
   /** stroke a ring of colorn, stroke-width = 2, r = radius-2; fill disk with (~WHITE,.7) */
   paint(colorn = this.player?.colorn ?? C1.grey) {
-    const x0 = 0, y0 = this.y0, r = this.radius, ss = 2, rs = 1;
+    const x0 = 0, y0 = 0, r = this.radius, ss = 2, rs = 1;
     const g = this.graphics.c().ss(ss).s(colorn).dc(x0, y0, r - rs);
     g.f(MeepleShape.fillColor).dc(x0, y0, r - 1)  // disk
     this.setBounds(x0 - r, y0 - r, 2 * r, 2 * r)
@@ -45,7 +46,6 @@ export class Meeple extends Tile {
   static allMeeples: Meeple[] = [];
 
   readonly colorValues = C.nameToRgba("blue"); // with alpha component
-  get y0() { return (this.baseShape as MeepleShape).y0; }
   get backSide() { return (this.baseShape as MeepleShape).backSide; }
   override get recycleVerb() { return 'dismissed'; }
 
@@ -66,9 +66,9 @@ export class Meeple extends Tile {
     super(player, Aname, inf, vp, cost, econ);
     this.addChild(this.backSide);
     this.player = player;
-    let { x, y, width, height } = this.baseShape.getBounds();
     this.nameText.visible = true;
-    this.nameText.y = y + height / 2;
+    this.nameText.y = this.baseShape.y;
+    let { x, y, width, height } = this.baseShape.getBounds();
     this.cache(x, y, width, height);
     this.paint();
     Meeple.allMeeples.push(this);
@@ -100,7 +100,7 @@ export class Meeple extends Tile {
   override moveTo(hex: Hex): Hex {
     if (hex?.meep) hex.meep.x += 10; // make double occupancy apparent [gamePlay.unMove()]
     const fromHex = this.hex;
-    const toHex = super.moveTo(hex);
+    const toHex = super.moveTo(hex); // this.x/y = hex.x/y;
     this.faceUp(!!toHex && (!toHex?.isOnMap || !fromHex?.isOnMap || toHex === this.startHex));
     return hex;
   }
@@ -122,13 +122,6 @@ export class Meeple extends Tile {
     }
     let radxy = -TP.hexRad, radwh = 2 * TP.hexRad
     this.cache(radxy, radxy, radwh, radwh)
-  }
-
-  /** here we override for Meeple's y0 offset. */
-  override hexUnderObj(hexMap: HexMap) {
-    let dragObj = this;
-    let pt = dragObj.parent.localToLocal(dragObj.x, dragObj.y + this.y0, hexMap.mapCont.hexCont)
-    return hexMap.hexUnderPoint(pt.x, pt.y)
   }
 
   isOnLine(hex: Hex) {
@@ -259,7 +252,7 @@ class SourcedMeeple extends Meeple {
   paintRings(colorn: string, rColor = C.BLACK, ss = 4, rs = 4) {
     const r = (this.baseShape as MeepleShape).radius
     const g = this.baseShape.paint(colorn);   // [2, 1]
-    g.ss(ss).s(rColor).dc(0, this.y0, r - rs) // stroke a colored ring inside black ring
+    g.ss(ss).s(rColor).dc(0, 0, r - rs) // stroke a colored ring inside black ring
     this.updateCache();
   }
 

@@ -34,7 +34,7 @@ export class HexShape extends Shape implements PaintableShape {
     readonly radius = TP.hexRad,
     readonly tiltDir: HexDir = 'NE',
   ) {
-    super()
+    super();
   }
 
   /** draw a Hexagon 1/60th inside the given radius */

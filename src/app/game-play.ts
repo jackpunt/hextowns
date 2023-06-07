@@ -3,9 +3,9 @@ import { KeyBinder, S, Undo, stime } from "@thegraid/easeljs-lib";
 import { Container } from "@thegraid/easeljs-module";
 import { CostIncCounter } from "./counters";
 import { GameSetup } from "./game-setup";
-import { Hex, HexMap, IHex } from "./hex";
+import { Hex, Hex2, HexMap, IHex } from "./hex";
 import { H } from "./hex-intfs";
-import { Criminal, Leader, Meeple } from "./meeple";
+import { Criminal, Leader, Meeple, Police } from "./meeple";
 import type { Planner } from "./plan-proxy";
 import { Player } from "./player";
 import { CenterText } from "./shapes";
@@ -13,7 +13,7 @@ import { GameStats, TableStats } from "./stats";
 import { LogWriter } from "./stream-writer";
 import { AuctionShifter, DragContext, Table } from "./table";
 import { PlayerColor, PlayerColorRecord, TP, criminalColor, otherColor, playerColorRecord, playerColors, } from "./table-params";
-import { AuctionBonus, AuctionTile, BonusTile, Busi, Monument, Resi, Tile, TownRules } from "./tile";
+import { AuctionBonus, AuctionTile, Bank, BonusTile, Busi, Lake, Monument, Resi, Tile, TownRules } from "./tile";
 //import { NC } from "./choosers";
 import { TileSource } from "./tile-source";
 
@@ -114,6 +114,7 @@ export class GamePlay0 {
 
   recycleHex: Hex;          // set by Table.layoutTable()
   debtHex: Hex;             // set by Table.layoutTable()
+  eventHex: Hex2;
 
   crimePlayer: Player;
   turnNumber: number = 0    // = history.lenth + 1 [by this.setNextPlayer]
@@ -515,7 +516,7 @@ export class GamePlay extends GamePlay0 {
   override autoCrime(force = false) {
     // no autoCrime until all Players have 3 VPs.
     if (!force && this.allPlayers.find(plyr => plyr.econs < TP.econForCrime)) return; // poverty
-    const meep = Criminal.source[this.curPlayerNdx].hexMeep;   // TODO: use per-player Criminal source
+    const meep = Criminal.source[this.curPlayerNdx].hexMeep;
     if (!meep) return;               // no Criminals available
     meep.autoCrime = true;           // no econ charge to curPlayer
     const targetHex = this.autoCrimeTarget(meep);
@@ -604,6 +605,11 @@ export class GamePlay extends GamePlay0 {
     KeyBinder.keyBinder.setKey('i', { thisArg: this, func: () => {table.showInf = !table.showInf; this.hexMap.update() } })
     KeyBinder.keyBinder.setKey('M-C', { thisArg: this, func: this.autoCrime, argVal: true })// S-M-C (force)
     KeyBinder.keyBinder.setKey('S-?', { thisArg: this, func: () => console.log(stime(this, `.inTheBag:`), this.shifter.tileBag.inTheBag()) })
+    KeyBinder.keyBinder.setKey('S-B', { thisArg: this, func: () => this.drawTile(Busi) })
+    KeyBinder.keyBinder.setKey('S-R', { thisArg: this, func: () => this.drawTile(Resi) })
+    KeyBinder.keyBinder.setKey('S-K', { thisArg: this, func: () => this.drawTile(Bank) })
+    KeyBinder.keyBinder.setKey('S-L', { thisArg: this, func: () => this.drawTile(Lake) })
+    KeyBinder.keyBinder.setKey('S-P', { thisArg: this, func: () => this.drawTile(Police) })
 
     // diagnostics:
     //KeyBinder.keyBinder.setKey('x', { thisArg: this, func: () => {this.table.enableHexInspector(); }})
@@ -619,8 +625,15 @@ export class GamePlay extends GamePlay0 {
     table.skipShape.on(S.click, () => this.skipMove(), this)
   }
 
+  drawTile(type: new (...args) => Tile) {
+    const tile = this.shifter.drawTile(type);
+    tile.player = this.curPlayer;
+    tile.paint();
+    // TODO: put it on a special hex?
+    tile.moveTo(this.eventHex);
+    this.hexMap.update();
+  }
   useReferee = true
-
 
   async waitPaused(p = this.curPlayer, ident = '') {
     this.hexMap.update()
