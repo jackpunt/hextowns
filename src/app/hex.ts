@@ -4,7 +4,7 @@ import { EwDir, H, HexAxis, HexDir, InfDir, NsDir } from "./hex-intfs";
 import type { Meeple } from "./meeple";
 import { CapMark, HexShape, LegalMark, MeepCapMark } from "./shapes";
 import { PlayerColor, PlayerColorRecord, TP, playerColorRecord, playerColorRecordF, playerColorsC } from "./table-params";
-import type { Tile } from "./tile";
+import { BonusTile, Tile } from "./tile";
 
 export const S_Resign = 'Hex@Resign'
 export const S_Skip = 'Hex@skip '
@@ -303,7 +303,7 @@ export class Hex2 extends Hex {
   override get tile() { return super.tile; }
   override set tile(tile: Tile) {
     const cont: Container = this.map.mapCont.tileCont, x = this.x, y = this.y;
-    let k = true;      // debug double tile
+    let k = !(tile instanceof BonusTile);      // debug double tile: BonusTile!
     if (k && tile !== undefined && this.tile !== undefined) debugger;
     super.tile = tile  // this._tile = tile
     if (tile !== undefined) {

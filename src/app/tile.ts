@@ -452,15 +452,15 @@ export class Tile extends Tile0 {
    */
   isLegalTarget(toHex: Hex, ctx?: DragContext) {
     if (!toHex) return false;
-    if (toHex.tile
+    if (!!toHex.tile
       && !(toHex.tile instanceof BonusTile)
-      && !(GP.gamePlay.reserveHexesP.includes(toHex))
+      && !(GP.gamePlay.playerReserveHexes.includes(toHex))
     ) return false; // note: from AuctionHexes to Reserve overrides this.
     if (toHex.meep && !(toHex.meep.player === GP.gamePlay.curPlayer)) return false;
     if (GP.gamePlay.failToPayCost(this, toHex, false)) return false;
     if ((this.hex as Hex2).isOnMap && !ctx?.lastShift) return false;
     // [newly] placed tile must be adjacent to an existing [non-BonusTile] Tile:
-    if (!toHex.findLinkHex(hex => (hex.tile?.player !== undefined ))) return false;
+    if (TP.placeAdjacent && toHex.isOnMap && !toHex.findLinkHex(hex => (hex.tile?.player !== undefined ))) return false;
     return true;
   }
 
@@ -705,7 +705,7 @@ export class AuctionTile extends Tile {
     const gamePlay = GP.gamePlay;
     if (!toHex.isOnMap) {
       if (gamePlay.recycleHex === toHex) return true; // && this.hex.isOnMap (OH! recycle from AuctionHexes)
-      const reserveHexes = gamePlay.reserveHexesP;
+      const reserveHexes = gamePlay.playerReserveHexes;
       // AuctionTile can go toReserve:
       if (reserveHexes.includes(toHex)) return true;
       // TODO: during dev/testing: allow return to auctionHexes, if fromReserve

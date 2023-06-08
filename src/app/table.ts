@@ -1,6 +1,6 @@
 import { AT, C, Dragger, DragInfo, F, KeyBinder, S, ScaleableContainer, stime, XY } from "@thegraid/easeljs-lib";
 import { Container, DisplayObject, EventDispatcher, Graphics, MouseEvent, Shape, Stage, Text } from "@thegraid/easeljs-module";
-import { ButtonBox, CostIncCounter, NumCounter, NumCounterBox, PerRoundCounter } from "./counters";
+import { ButtonBox, CostIncCounter, DecimalCounter, NumCounter, NumCounterBox, PerRoundCounter } from "./counters";
 import { Debt } from "./debt";
 import type { GamePlay } from "./game-play";
 import { EventHex, Hex, Hex2, HexMap, IHex } from "./hex";
@@ -485,7 +485,7 @@ export class Table extends EventDispatcher  {
     layoutCounter('capture', 'lightblue', rowy(2));
     layoutCounter('brib', 'grey', rowy(3));
     layoutCounter('vp', C.briteGold, rowy(5), 1, false);
-    layoutCounter('totalVp', C.briteGold, rowy(4), 1, false, PerRoundCounter);
+    layoutCounter('totalVp', C.briteGold, rowy(4), 1, false, DecimalCounter);
   }
 
   /**
@@ -601,7 +601,7 @@ export class Table extends EventDispatcher  {
   }
 
   forEachTargetHex(fn: (hex: Hex2) => void, inclRecycle = true) {
-    for (let hex of this.homeRowHexes) { hex !== undefined && fn(hex) };
+    for (let hex of this.homeRowHexes) { if (hex !== undefined) fn(hex) };
     this.hexMap.forEachHex(fn);
     fn(this.gamePlay.debtHex as Hex2);
     if (inclRecycle) fn(this.gamePlay.recycleHex as Hex2);

@@ -47,6 +47,7 @@ export class TP {
   static policePerPlayer = 3;
   static textLogLines = 6;
 
+  static placeAdjacent = true;
   static alwaysShift = false;
   static parallelAttack = true;  // true --> N intersects S
   static allowSacrifice = true;

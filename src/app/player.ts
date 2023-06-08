@@ -1,5 +1,5 @@
 import { stime } from "@thegraid/common-lib"
-import { NumCounter, PerRoundCounter } from "./counters"
+import { DecimalCounter, NumCounter, PerRoundCounter } from "./counters"
 import { Debt } from "./debt"
 import { GamePlay, GamePlay0 } from "./game-play"
 import { GP } from "./game-play";
@@ -106,7 +106,7 @@ export class Player {
     })
     return vp
   }
-  totalVpCounter: PerRoundCounter;
+  totalVpCounter: DecimalCounter;
   get totalVps() { return this.totalVpCounter.getValue(); }
   get vpsPerRound() { return this.totalVpCounter.perRound; }
 

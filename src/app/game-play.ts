@@ -62,7 +62,7 @@ export class GamePlay0 {
 
   readonly reserveTiles: AuctionTile[][] = [[],[]];   // per player; 2-players, TP.reserveTiles
   readonly reserveHexes: Hex[][] = [[], []];          // target Hexes for reserving a Tile.
-  get reserveHexesP() { return this.reserveHexes[this.curPlayerNdx]; }
+  get playerReserveHexes() { return this.reserveHexes[this.curPlayerNdx]; }
 
   readonly marketTypes = [Busi, Resi, Monument];
   readonly marketSource: { Busi?: TileSource<Busi>, Resi?: TileSource<Resi>, Monument?: TileSource<Monument> }[] = [{},{}];
@@ -762,7 +762,7 @@ export class GamePlay extends GamePlay0 {
   }
 
   override endTurn(): void {
-    this.preGame || this.curPlayer.totalVpCounter.incValue(this.curPlayer.vps);
+    if (!this.preGame) this.curPlayer.totalVpCounter.incValue(this.curPlayer.vps);
     this.table.buttonsForPlayer[this.curPlayerNdx].visible = false;
     super.endTurn();   // shift(), roll()
   }

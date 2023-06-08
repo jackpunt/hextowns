@@ -90,6 +90,7 @@ export class DecimalCounter extends NumCounterBox {
   constructor(name: string, initValue?: string | number, color?: string, fontSize?: number, fontName?: string) {
     super(name, initValue, color, fontSize, fontName);
   }
+  get perRound() { return (this.value as number) / Math.max(1, Math.floor(GP.gamePlay.turnNumber / 2)); }
 
   override setBoxWithValue(value: number): void {
     super.setBoxWithValue(value.toFixed(this.decimal));
@@ -98,7 +99,6 @@ export class DecimalCounter extends NumCounterBox {
 
 export class PerRoundCounter extends DecimalCounter {
   override decimal = 1;
-  get perRound() { return (this.value as number) / Math.max(1, Math.floor(GP.gamePlay.turnNumber / 2)); }
   override setBoxWithValue(value: number): void {
     super.setBoxWithValue(this.perRound);
   }
