@@ -2,14 +2,14 @@ import { C, F, ImageLoader, S, className, stime } from "@thegraid/common-lib";
 import { ValueEvent } from "@thegraid/easeljs-lib";
 import { Bitmap, Container, DisplayObject, EventDispatcher, MouseEvent, Shape, Text } from "@thegraid/easeljs-module";
 import type { Debt } from "./debt";
+import { EventTile } from "./event-tile";
 import { GP } from "./game-play";
-import { Hex, Hex2, HexMap } from "./hex";
+import { Hex, Hex2 } from "./hex";
 import { H } from "./hex-intfs";
 import type { Player } from "./player";
 import { BalMark, C1, CapMark, CenterText, HexShape, InfRays, InfShape, PaintableShape, TileShape } from "./shapes";
-import { DragContext } from "./table";
+import { DragContext, Table } from "./table";
 import { PlayerColor, PlayerColorRecord, TP, playerColorRecord, playerColorsC } from "./table-params";
-import { Meeple } from "./meeple";
 
 export type Bonus = 'star' | 'brib' | 'actn' | 'econ' | 'Bank' | 'Lake' | 'Star' | 'Econ';
 export type AuctionBonus = Exclude<Bonus, 'Bank' | 'Lake' | 'Star' | 'Econ'>;
@@ -293,8 +293,8 @@ export class Tile extends Tile0 {
     if (inf > 0) this.setInfRays(inf);
     if (_vp > 0) this.drawStar();
     if (_econ !== 0) this.drawEcon(_econ);
-    this.nameText = this.addNameText(rad / 4);
-    this.infText = this.addNameText(rad / 2, '');
+    this.nameText = this.addTextChild(rad / 4);
+    this.infText = this.addTextChild(rad / 2, '');
     this.setPlayerAndPaint(player);
   }
 
@@ -306,6 +306,8 @@ export class Tile extends Tile0 {
   override toString(): string {
     return `${this.Aname}@${this.hex?.Aname ?? '?'}`;
   }
+
+  get andInfStr()  { return `${this} ${this.hex?.infStr ?? ''}`};
 
   /** name in set of filenames loaded in GameSetup
    * @param at = 2; above HexShape & BalMark
@@ -362,10 +364,10 @@ export class Tile extends Tile0 {
     }
   }
 
-  addNameText(y0 = this.radius / 2, name = this.Aname) {
+  addTextChild(y0 = this.radius / 2, name = this.Aname, vis = false) {
     let nameText = new CenterText(name, Tile.textSize);
     nameText.y = y0;         // Meeple overrides in constructor!
-    nameText.visible = false
+    nameText.visible = vis;
     this.addChild(nameText);
     return nameText;
   }
@@ -476,6 +478,20 @@ export class Tile extends Tile0 {
   dropFunc(targetHex: Hex2, ctx: DragContext) {
     GP.gamePlay.placeTile(this, targetHex);
   }
+
+  noLegal() {
+    const [infR, coinR] = GP.gamePlay.getInfR(this);
+    GP.gamePlay.logText(`No placement for ${this.andInfStr} infR=${infR} coinR=${coinR}`)
+  }
+
+  logRecycle(verb: string) {
+    const cp = GP.gamePlay.curPlayer;
+    const loc = this.hex?.isOnMap ? 'onMap' : 'offMap';
+    const info = { Aname: this.Aname, fromHex: this.hex?.Aname, cp: cp.colorn, caps: cp.captures, tile: {...this} }
+    console.log(stime(this, `.recycleTile[${loc}]: ${verb}`), info);
+    GP.gamePlay.logText(`${cp.Aname} ${verb} ${this}`, ` GamePlay.recycle`);
+  }
+
 }
 
 /** Marker class: a Tile that is not draggable */
@@ -594,7 +610,7 @@ export class Church extends Civic {
 }
 
 export class TileBag<T extends Tile> extends Array<T> {
-  static event = 'event';
+  static event = 'TileBagEvent';
   constructor() {
     super()
     EventDispatcher.initialize(this);  // so 'this' implements EventDispatcher
@@ -602,7 +618,7 @@ export class TileBag<T extends Tile> extends Array<T> {
 
   get asDispatcher() { return this as any as EventDispatcher; }
 
-  /** dispatch a ValueEvent to this EventDispatcher. */
+  /** dispatch a ValueEvent to this EventDispatcher; update TileBag counter/length. */
   dispatch(type: string = TileBag.event, value: number = this.length) {
     ValueEvent.dispatchValueEvent(this as any as EventDispatcher, type, value)
   }
@@ -614,11 +630,8 @@ export class TileBag<T extends Tile> extends Array<T> {
     return counts;
   }
 
-  takeType(type: new () => T) {
-    let index = -1;
-    const tile = this.find((t, i) => (t instanceof type) && (index = i, true));
-    if (!tile) return undefined;
-    this.splice(index, 1)
+  takeType(type: new (...args: any[]) => T) {
+    const tile = this.find((tile, ndx, bag) => (tile instanceof type) && (bag.splice(ndx, 1), true));
     this.dispatch();
     return tile;
   }
@@ -632,10 +645,9 @@ export class TileBag<T extends Tile> extends Array<T> {
     return tile;
   }
 
-  selectOne(remove = true) {
-    let index = Math.floor(Math.random() * this.length)
-    let tile = this.splice(index, 1)[0];
-    if (!remove) this.push(tile);
+  selectOne(remove = true, bag: T[] = this) {
+    const index = Math.floor(Math.random() * bag.length);
+    const tile = remove ? bag.splice(index, 1)[0] : bag[index];
     this.dispatch();
     return tile;
   }
@@ -647,21 +659,22 @@ export class TileBag<T extends Tile> extends Array<T> {
     return rv
   }
 }
+
 export class AuctionTile extends Tile {
 
   static fillBag(tileBag: TileBag<AuctionTile>) {
-    let addTiles = (n: number, type: new () => AuctionTile) => {
+    const addTiles = (n: number, type: new () => AuctionTile) => {
       for (let i = 0; i < n; i++) {
-        let tile = new type();
+        const tile = new type();
         tileBag.push(tile);
       }
     }
     tileBag.length = 0;
-    addTiles(TP.busiPerPlayer * 2 - TP.inMarket['Busi'], Busi)
-    addTiles(TP.resiPerPlayer * 2 - TP.inMarket['Resi'], Resi)
-    addTiles(TP.pstaPerPlayer * 2, PS)
-    addTiles(TP.bankPerPlayer * 2, Bank)
-    addTiles(TP.lakePerPlayer * 2, Lake)
+    addTiles(TP.busiPerPlayer * 2 - TP.inMarket['Busi'], Busi);
+    addTiles(TP.resiPerPlayer * 2 - TP.inMarket['Resi'], Resi);
+    addTiles(TP.pstaPerPlayer * 2, PS);
+    addTiles(TP.bankPerPlayer * 2, Bank);
+    addTiles(TP.lakePerPlayer * 2, Lake);
     tileBag.dispatch();
   }
 
@@ -725,7 +738,7 @@ export class AuctionTile extends Tile {
   }
 
   flipOwner(player: Player, gamePlay = GP.gamePlay) {
-    gamePlay.logText(`Flip ${this} to ${player.colorn}`)
+    gamePlay.logText(`Flip ${this} to ${player.colorn}`,` Tile.flipOwner`)
     this.debt?.sendHome(); // foreclose any mortgage
     if (this.infP > 0) {
       gamePlay.decrInfluence(this.hex, this.infP, this.player.color)
@@ -764,15 +777,11 @@ export class AuctionTile extends Tile {
     if (rIndex >= 0) {
       reserveTiles[rIndex] = undefined;
     }
-    // remove from auctionTiles:
-    const auctionNdx = auctionTiles.indexOf(this); // if from auctionTiles
-    if (auctionNdx >= 0) {
-      auctionTiles[auctionNdx] = undefined;
-      this.player = player;
-    }
+    gamePlay.removeFromAuction(this);
 
     // placeTile(this, targetHex); moveTo(targetHex);
     super.dropFunc(targetHex, ctx);  // set this.hex = targetHex, ctx.originHex.tile = undefined;
+    // TODO: move the stuff below to AuctionTile.moveTo()
     const toHex = this.hex as Hex2;  // where GamePlay.placeTile() put it (could be back to orig.hex)
 
     // add TO auctionTiles (from reserveHexes; see isLegalTarget) FOR TEST & DEV

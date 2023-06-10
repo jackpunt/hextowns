@@ -1,6 +1,6 @@
 import { AT, C, Dragger, DragInfo, F, KeyBinder, S, ScaleableContainer, stime, XY } from "@thegraid/easeljs-lib";
 import { Container, DisplayObject, EventDispatcher, Graphics, MouseEvent, Shape, Stage, Text } from "@thegraid/easeljs-module";
-import { ButtonBox, CostIncCounter, DecimalCounter, NumCounter, NumCounterBox, PerRoundCounter } from "./counters";
+import { ButtonBox, CostIncCounter, DecimalCounter, NumCounter, NumCounterBox } from "./counters";
 import { Debt } from "./debt";
 import type { GamePlay } from "./game-play";
 import { EventHex, Hex, Hex2, HexMap, IHex } from "./hex";
@@ -9,8 +9,9 @@ import { Criminal, Police } from "./meeple";
 import { Player } from "./player";
 import type { StatsPanel } from "./stats";
 import { PlayerColor, playerColor0, playerColor1, playerColors, TP } from "./table-params";
-import { AuctionTile, WhiteTile, NoDragTile, Tile, TileBag } from "./tile";
+import { NoDragTile, Tile, TileBag, WhiteTile } from "./tile";
 import { TileSource } from "./tile-source";
+import { BagType } from "./event-tile";
 //import { TablePlanner } from "./planner";
 
 
@@ -63,8 +64,8 @@ class TextLog extends Container {
     this.lines.forEach(tline => (tline.y = cy, cy += tline.getMeasuredLineHeight() + lead))
   }
 
-  log(line: string) {
-    console.log(stime(this, ` ${this.Aname}.log:`), line);
+  log(line: string, from = '') {
+    console.log(stime(this, `${from}:`), line);
     if (line === this.lastLine) {
       this.lines[this.lines.length - 1].text = `[${++this.nReps}] ${line}`;
     } else {
@@ -114,10 +115,10 @@ export class Table extends EventDispatcher  {
   turnLog = new TextLog('turnLog', 2);  // shows the last 2 start of turn lines
   textLog = new TextLog('textLog', TP.textLogLines); // show other interesting log strings.
   logTurn(line: string) {
-    this.turnLog.log(line);
+    this.turnLog.log(line); // in top two lines
   }
-  logText(line: string) {
-    this.textLog.log(`#${this.gamePlay.turnNumber}: ${line}`);
+  logText(line: string, from = '') {
+    this.textLog.log(`#${this.gamePlay.turnNumber}: ${line}`, from); // scrolling lines below
   }
   setupUndoButtons(xOffs: number, bSize: number, skipRad: number, bgr: XYWH) {
     let undoC = this.undoCont; undoC.name = "undo buttons" // holds the undo buttons.
@@ -528,7 +529,6 @@ export class Table extends EventDispatcher  {
       }
       case 'Done': {
         this.gamePlay.endTurn();
-        this.gamePlay.setNextPlayer();
         break
       }
     }
@@ -609,10 +609,9 @@ export class Table extends EventDispatcher  {
 
   dragStart(tile: Tile, ctx: DragContext) {
     // press SHIFT to capture [recycle] opponent's Criminals or Tiles
-    const infStr = tile?.hex?.infStr ?? '';
     if (!tile.canBeMovedBy(this.gamePlay.curPlayer, ctx)) {
-      console.log(stime(this, `.dragStart: Not your tile: ${tile} ${infStr},`), 'ctx=',{...ctx});
-      this.logText(`Not your tile: ${tile} ${infStr}`)
+      console.log(stime(this, `.dragStart: Not your tile: ${tile.andInfStr},`), 'ctx=',{...ctx});
+      this.logText(`Not your tile: ${tile.andInfStr}`)
       this.stopDragging();
     } else {
       // mark legal targets for tile; SHIFT for all hexes, if payCost
@@ -625,11 +624,9 @@ export class Table extends EventDispatcher  {
       if (!tile.hex.isOnMap) tile.showCostMark();
       this.hexMap.update();
       if (ctx.nLegal === 0) {
-        const [infR, coinR] = this.gamePlay.getInfR(tile);
-        this.logText(`No placement for ${tile} ${infStr} infR=${infR} coinR=${coinR}`)
+        tile.noLegal();
         if (!this.gamePlay.recycleHex.isLegal) {
           this.stopDragging(); // actually, maybe let it drag, so we can see beneath...
-          return;
         }
       }
     }
@@ -788,9 +785,9 @@ export class Table extends EventDispatcher  {
 export interface IAuctionShifter {
   hexes: Hex[];
   /** source of Tiles to shift into this auction. */
-  tileBag: TileBag<AuctionTile> & EventDispatcher;
+  tileBag: TileBag<BagType> & EventDispatcher;
   /** select a Tile (for curPlayer), shift it into auctionTiles */
-  shift(pIndex?: number, alwasyShift?: boolean): void;
+  shift(pIndex?: number, alwasyShift?: boolean, type?: new (...args: any[]) => BagType): void;
   /** names of tiles avail to given Player */
   tileNames(pIndex: number): string;
   /** return Player controlling AuctionTile in absolute-index (based on nMerge) */
@@ -802,10 +799,10 @@ export interface IAuctionShifter {
 export class AuctionShifter implements IAuctionShifter {
   readonly hexes: Hex[] = [];
   readonly maxndx: number;
-  readonly tileBag = new TileBag<AuctionTile>() as any as TileBag<AuctionTile> & EventDispatcher;
+  readonly tileBag = new TileBag<BagType>() as TileBag<BagType> & EventDispatcher;
 
   constructor(
-    readonly tiles: AuctionTile[],
+    readonly tiles: BagType[],
     public nm = TP.auctionMerge,  // merge per-player arrays of length nm into nm * 2; nm-1 --> nm * 2
   ) {
     this.maxndx = tiles.length - 1; // Note: tiles.length = TP.auctionSlots + nm;
@@ -816,9 +813,15 @@ export class AuctionShifter implements IAuctionShifter {
   }
 
   /** process out-shifted tile... */
-  outShift(tile: AuctionTile) {
+  outShift(tile: BagType) {
     tile.sendHome(); // less than recycleTile(tile); no log, no capture/coins
   }
+
+  /** player's leftmost tile; the latest tile selected and shifted in. */
+  tile0(pIndex: number) {
+    return this.tiles[pIndex * this.nm];
+  }
+
   isEmptySlot(pIndex: number) {
     const nm = this.nm, tiles = this.tiles;
     for (let n = pIndex * nm; n < tiles.length; n += (nm > 0 && n == nm - 1) ? nm + 1 : 1 ) {
@@ -827,15 +830,15 @@ export class AuctionShifter implements IAuctionShifter {
     return false;
   }
 
-  shift(pIndex = 0, alwaysShift = TP.alwaysShift) {
+  shift(pIndex = 0, alwaysShift = TP.alwaysShift, type?: new(...arg: any[]) => BagType) {
     if (!alwaysShift && !this.isEmptySlot(pIndex)) return; // nothing to shift
     const nm = this.nm, tiles = this.tiles
-    const tile = this.tileBag.selectOne();
+    const tile = type ? this.tileBag.takeType(type) : this.tileBag.selectOne();
     const hexes = this.hexes
-    tile.setPlayerAndPaint(Player.allPlayers[pIndex]);
+    tile?.setPlayerAndPaint(Player.allPlayers[pIndex]);
 
     // put tile in slot-n (move previous tile to n+1)
-    let shift1 = (tile: AuctionTile, n: number) => {
+    const shift1 = (tile: BagType, n: number) => {
       if (!!tiles[n]) {
         if (n < this.maxndx) {
           shift1(tiles[n], (nm > 0 && n == nm - 1) ? 2 * nm : n + 1);
@@ -844,9 +847,9 @@ export class AuctionShifter implements IAuctionShifter {
         }
         tiles[n] = undefined
       }
+      tile?.moveTo(hexes[n])
       // ASSERT: tiles[n] is undefined
       tiles[n] = tile;
-      tile.moveTo(hexes[n])
     }
     shift1(tile, pIndex * nm);  // [0, this.nm][pIndex]
     console.log(stime(this, `.shift`), tiles)
@@ -879,7 +882,7 @@ export class AuctionShifter2 extends AuctionShifter {
   tileCounter: NumCounter;  // number of Tiles in tileBag
 
   constructor(
-    tiles: AuctionTile[],
+    tiles: BagType[],
     readonly table: Table,
     newHex: (name: string, ndx: number) => Hex2,
   ) {

@@ -41,11 +41,13 @@ export class TP {
   static lakePerPlayer = 3;
   static bankPerPlayer = 3;
   static pstaPerPlayer = 3;
+  static eventsPerPlayer = 3;
   static inMarket = { Busi: 2, Resi: 2, Monument: 3 } as const;
   // 58 Baggable Tiles + 4 Civic Tiles per player.
   static criminalPerPlayer = 4;
   static policePerPlayer = 3;
   static textLogLines = 6;
+  static econsForEvents = 0;
 
   static placeAdjacent = true;
   static alwaysShift = false;

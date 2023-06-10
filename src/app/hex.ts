@@ -5,6 +5,7 @@ import type { Meeple } from "./meeple";
 import { CapMark, HexShape, LegalMark, MeepCapMark } from "./shapes";
 import { PlayerColor, PlayerColorRecord, TP, playerColorRecord, playerColorRecordF, playerColorsC } from "./table-params";
 import { BonusTile, Tile } from "./tile";
+import { GP } from "./game-play";
 
 export const S_Resign = 'Hex@Resign'
 export const S_Skip = 'Hex@skip '
@@ -303,7 +304,8 @@ export class Hex2 extends Hex {
   override get tile() { return super.tile; }
   override set tile(tile: Tile) {
     const cont: Container = this.map.mapCont.tileCont, x = this.x, y = this.y;
-    let k = !(tile instanceof BonusTile);      // debug double tile: BonusTile!
+    const res = GP.gamePlay.playerReserveHexes.includes(this);
+    const k = !(this.tile instanceof BonusTile || res);      // debug double tile; TODO: remove these checks
     if (k && tile !== undefined && this.tile !== undefined) debugger;
     super.tile = tile  // this._tile = tile
     if (tile !== undefined) {

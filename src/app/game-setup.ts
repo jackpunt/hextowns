@@ -7,8 +7,9 @@ import { Meeple } from "./meeple";
 import { Player } from "./player";
 import { StatsPanel, TableStats } from "./stats";
 import { Table } from "./table";
-import { criminalColor, TP } from "./table-params";
+import { TP } from "./table-params";
 import { Monument, Tile } from "./tile";
+import { EventTile, PolicyTile } from "./event-tile";
 
 /** show " R" for " N" */
 stime.anno = (obj: string | { constructor: { name: string; }; }) => {
@@ -72,20 +73,22 @@ export class GameSetup {
     Meeple.allMeeples = [];
     Player.allPlayers = [];
     Monument.inst = [0, 0];
+    EventTile.makeAllEvent();
+    PolicyTile.makeAllPolicy();
 
-    let table = new Table(this.stage)        // EventDispatcher, ScaleCont, GUI-Player
-    let gamePlay = new GamePlay(table, this) // hexMap, players, fillBag, gStats, mouse/keyboard->GamePlay
+    const table = new Table(this.stage)        // EventDispatcher, ScaleCont, GUI-Player
+    const gamePlay = new GamePlay(table, this) // hexMap, players, fillBag, gStats, mouse/keyboard->GamePlay
     this.gamePlay = gamePlay
     table.layoutTable(gamePlay)              // mutual injection, all the GUI components, fill hexMap
     gamePlay.forEachPlayer(p => p.newGame(gamePlay))        // make Planner *after* table & gamePlay are setup
     if (this.stage.canvas) {
-      let statsx = -300, statsy = 30
-      let statsPanel = this.makeStatsPanel(gamePlay.gStats, table.scaleCont, statsx, statsy)
+      const statsx = -300, statsy = 30
+      const statsPanel = this.makeStatsPanel(gamePlay.gStats, table.scaleCont, statsx, statsy)
       table.statsPanel = statsPanel
-      let guiy = statsPanel.y + statsPanel.ymax + statsPanel.lead * 2
+      const guiy = statsPanel.y + statsPanel.ymax + statsPanel.lead * 2
       console.groupCollapsed('initParamGUI')
       this.paramGUIs = this.makeParamGUI(table, table.scaleCont, statsx, guiy) // modify TP.params...
-      let [gui, gui2] = this.paramGUIs
+      const [gui, gui2] = this.paramGUIs
       // table.miniMap.mapCont.y = Math.max(gui.ymax, gui2.ymax) + gui.y + table.miniMap.wh.height / 2
       console.groupEnd()
     }
@@ -120,7 +123,7 @@ export class GameSetup {
     let restart = false
     const gui = new ParamGUI(TP, { textAlign: 'right'})
     const schemeAry = TP.schemeNames.map(n => { return { text: n, value: TP[n] } })
-    let setSize = (dpb: number, dop: number) => { restart && this.restart.call(this, dpb, dop) }
+    const setSize = (dpb: number, dop: number) => { restart && this.restart.call(this, dpb, dop) }
     gui.makeParamSpec("dbp", [3, 4, 5, 6], { fontColor: "green" })
     gui.makeParamSpec("dop", [0, 1, 2, 3], { fontColor: "green" })
     gui.makeParamSpec("offP", [true, false], { fontColor: "green" })
@@ -135,10 +138,10 @@ export class GameSetup {
     }
     const infName = "inf:cap"
     gui.makeParamSpec(infName, ['1:1', '1:0', '0:1', '0:0'], { name: infName, target: table, fontColor: 'green' })
-    let infSpec = gui.spec(infName);
+    const infSpec = gui.spec(infName);
     table[infSpec.fieldName] = infSpec.choices[0].text
     infSpec.onChange = (item: ParamItem) => {
-      let v = item.value as string
+      const v = item.value as string
       table.showInf = v.startsWith('1')
       //table.showSac = v.endsWith('1')
       table.showCap = v.endsWith('1')
@@ -164,7 +167,7 @@ export class GameSetup {
   }
   /** configures the AI player */
   makeParamGUI2(parent: Container, x: number, y: number) {
-    let gui = new ParamGUI(TP, { textAlign: 'center' })
+    const gui = new ParamGUI(TP, { textAlign: 'center' })
     gui.makeParamSpec("log", [-1, 0, 1, 2], { style: { textAlign: 'right' } }); TP.log
     gui.makeParamSpec("maxPlys", [1, 2, 3, 4, 5, 6, 7, 8], { fontColor: "blue" }); TP.maxPlys
     gui.makeParamSpec("maxBreadth", [5, 6, 7, 8, 9, 10], { fontColor: "blue" }); TP.maxBreadth
@@ -186,21 +189,21 @@ export class GameSetup {
   netStyle: DropdownStyle = { textAlign: 'right' };
   /** controls multiplayer network participation */
   makeNetworkGUI (parent: Container, x: number, y: number) {
-    let gui = this.netGUI = new ParamGUI(TP, this.netStyle)
+    const gui = this.netGUI = new ParamGUI(TP, this.netStyle)
     gui.makeParamSpec("Network", [" ", "new", "join", "no", "ref", "cnx"], { fontColor: "red" })
     gui.makeParamSpec("PlayerId", ["     ", 0, 1, 2, 3, "ref"], { chooser: PidChoice, fontColor: "red" })
     gui.makeParamSpec("networkGroup", [TP.networkGroup], { chooser: EBC, name: 'gid', fontColor: C.GREEN, style: { textColor: C.BLACK } }); TP.networkGroup
 
     gui.spec("Network").onChange = (item: ParamItem) => {
       if (['new', 'join', 'ref'].includes(item.value)) {
-        let group = (gui.findLine('networkGroup').chooser as EBC).editBox.innerText
+        const group = (gui.findLine('networkGroup').chooser as EBC).editBox.innerText
         // this.gamePlay.closeNetwork()
         // this.gamePlay.network(item.value, gui, group)
       }
       // if (item.value == "no") this.gamePlay.closeNetwork()     // provoked by ckey
     }
     (this.stage.canvas as HTMLCanvasElement)?.parentElement?.addEventListener('paste', (ev) => {
-      let text = ev.clipboardData?.getData('Text')
+      const text = ev.clipboardData?.getData('Text')
       ;(gui.findLine('networkGroup').chooser as EBC).setValue(text)
     });
     this.showNetworkGroup()
@@ -212,7 +215,7 @@ export class GameSetup {
   }
   showNetworkGroup(group_name = TP.networkGroup) {
     document.getElementById('group_name').innerText = group_name
-    let line = this.netGUI.findLine("networkGroup"), chooser = line?.chooser
+    const line = this.netGUI.findLine("networkGroup"), chooser = line?.chooser
     chooser?.setValue(group_name, chooser.items[0], undefined)
   }
 }

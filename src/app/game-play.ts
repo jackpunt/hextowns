@@ -13,9 +13,11 @@ import { GameStats, TableStats } from "./stats";
 import { LogWriter } from "./stream-writer";
 import { AuctionShifter, DragContext, Table } from "./table";
 import { PlayerColor, PlayerColorRecord, TP, criminalColor, otherColor, playerColorRecord, playerColors, } from "./table-params";
-import { AuctionBonus, AuctionTile, Bank, BonusTile, Busi, Lake, Monument, Resi, Tile, TownRules } from "./tile";
+import { AuctionBonus, AuctionTile, Bank, BonusTile, Busi, Lake, Monument, PS, Resi, Tile, TileBag, TownRules } from "./tile";
 //import { NC } from "./choosers";
 import { TileSource } from "./tile-source";
+import { BagType, EventTile } from "./event-tile";
+import { EzPromise } from "@thegraid/ezpromise";
 
 class HexEvent {}
 class Move{
@@ -56,7 +58,7 @@ export class GamePlay0 {
   readonly history: Move[] = []          // sequence of Move that bring board to its state
   readonly gStats: GameStats             // 'readonly' (set once by clone constructor)
   readonly redoMoves = []
-  readonly auctionTiles: AuctionTile[] = []     // per game
+  readonly auctionTiles: BagType[] = []     // per game
   shifter: AuctionShifter;
   get auctionHexes() { return this.shifter.hexes; }
 
@@ -73,6 +75,15 @@ export class GamePlay0 {
       return rv = Object.values(ms).find(src => fromHex === src.hex);
     })
     return rv;
+  }
+
+  removeFromAuction(tile: BagType) {
+    // remove from auctionTiles:
+    const auctionNdx = this.auctionTiles.indexOf(tile); // if from auctionTiles
+    if (auctionNdx >= 0) {
+      this.auctionTiles[auctionNdx] = undefined;
+      tile.player = this.curPlayer;
+    }
   }
 
   logWriterLine0() {
@@ -108,7 +119,7 @@ export class GamePlay0 {
     this.reserveTiles = [[],[]];
     this.dice = new Dice();
     this.shifter = new AuctionShifter(this.auctionTiles);
-    AuctionTile.fillBag(this.shifter.tileBag);              // put R/B/PS/L into draw bag.
+    AuctionTile.fillBag(this.shifter.tileBag as TileBag<AuctionTile>);              // put R/B/PS/L into draw bag.
     TownRules.inst.fillRulesBag();
   }
 
@@ -155,7 +166,7 @@ export class GamePlay0 {
 
   /** add Bonus to [first] AuctionTile */
   addBonus(type: AuctionBonus, tile?: AuctionTile) {
-    if (!tile) tile = this.auctionTiles[this.curPlayerNdx * TP.auctionMerge]
+    if (!tile) tile = this.auctionTiles[this.curPlayerNdx * TP.auctionMerge] as AuctionTile;
     tile.addBonus(type);
     this.hexMap.update()
   }
@@ -167,9 +178,10 @@ export class GamePlay0 {
     this.allPlayers.forEach((p, index, players) => f(p, index, players));
   }
 
-  logText(line: string) {
-    (this instanceof GamePlay) && this.table.logText(line);
+  logText(line: string, from = '') {
+    if (this instanceof GamePlay) this.table.logText(line, from);
   }
+
   permute(stack: any[]) {
     for (let i = 0, len = stack.length; i < len; i++) {
       let ndx: number = Math.floor(Math.random() * (len - i)) + i
@@ -189,20 +201,58 @@ export class GamePlay0 {
     });
   }
   shiftAuction(pNdx?: number, alwaysShift?: boolean) {
-    this.shifter.shift(pNdx, alwaysShift);
+    this.shifter.shift(pNdx, alwaysShift, this.nextShift);
+  }
+  shiftKey = -1;
+  get nextShift() { return [EventTile, Resi, Busi, PS, Lake, Bank][this.shiftKey]; }
+
+  eventInProcess: EzPromise<void>;
+  async awaitEvent(init: () => void) {
+    this.eventInProcess = new EzPromise<void>();
+    init(); // tile0.moveTo(eventHex);
+    return this.eventInProcess;
+  }
+  finishEvent() {
+    this.eventInProcess.fulfill();
   }
 
+  async processEventTile(tile0: EventTile) {
+    // manually D&D event (to Player.Policies or RecycleHex)
+    // EventTile.dropFunc will: gamePlay.finishEvent();
+    await this.awaitEvent(() => {
+      // tile0.setPlayerAndPaint(this.curPlayer);
+      tile0.moveTo(this.eventHex)
+    });
+  }
+
+  async shiftAndProcess(func?: () => void) {
+    this.shiftAuction();
+    const tile0 = this.shifter.tile0(this.curPlayerNdx);;
+    if (tile0 instanceof EventTile) {
+      await this.processEventTile(tile0);
+      this.shiftAndProcess(func);
+    } else {
+      if (func) func();
+    }
+  }
+
+  eventsInBag = false;
   /** when Player has completed their Action & maybe a hire. */
   endTurn() {
-    this.shiftAuction();
+    if (!this.eventsInBag && !Player.allPlayers.find(plyr => plyr.econs < TP.econsForEvents)) {
+      EventTile.addToBag(TP.eventsPerPlayer * 2, this.shifter.tileBag);
+      this.eventsInBag = true;
+      console.log(stime(this, `.endTurn: eventsInBag`), this.shifter.tileBag);
+    }
+    this.shiftAndProcess(() => this.endTurn2());
+  }
+  endTurn2() {
     this.rollDiceForBonus();
+    this.curPlayer.totalVps += this.curPlayer.vps;
+    this.setNextPlayer();
   }
 
-  assessThreats() {
-    this.hexMap.forEachHex(hex => hex.assessThreats()); // try ensure threats are correctly marked
-  }
-
-  setNextPlayer(plyr: Player): void {
+  setNextPlayer(plyr = this.otherPlayer()): void {
     this.preGame = false;
     this.turnNumber += 1 // this.history.length + 1
     this.curPlayer = plyr
@@ -210,6 +260,10 @@ export class GamePlay0 {
     this.curPlayer.actions = 0;
     this.curPlayer.newTurn();
     this.assessThreats();
+  }
+
+  assessThreats() {
+    this.hexMap.forEachHex(hex => hex.assessThreats()); // try ensure threats are correctly marked
   }
 
   /** Planner may override with alternative impl. */
@@ -371,6 +425,10 @@ export class GamePlay0 {
   // from tile.dropFunc, buildAction, placeTown
   /** Tile.dropFunc() --> place Tile (to Map, reserve, ~>auction; not Recycle) */
   placeTile(tile: Tile, toHex: Hex, payCost = true) {
+    if (!tile.hex.isOnMap && toHex.isOnMap) {
+      const player = this.curPlayer;
+      player.actionCounter.updateValue(player.actions -= 1);
+    }
     this.placeEither(tile, toHex, payCost);
   }
 
@@ -388,24 +446,17 @@ export class GamePlay0 {
       tile.hex = fromHex;        // briefly, until moveTo(toHex)
     }
     if (toHex === this.recycleHex) {
-      this.logText(`Recycle ${tile} from ${fromHex?.Aname || '?'}`)
+      this.logText(`Recycle ${tile} from ${fromHex?.Aname || '?'}`, ` gamePlay.placeEither`)
       this.recycleTile(tile);    // Score capture; log; return to homeHex
     } else {
       tile.moveTo(toHex);  // placeEither(tile, hex) --> moveTo(hex)
-      if (toHex !== fromHex) this.logText(`Place ${tile}`)
+      if (toHex !== fromHex) this.logText(`Place ${tile}`, ` gamePlay.placeEither`)
       if (toHex?.isOnMap) {
         // if (!tile.player) tile.player = this.curPlayer; // was for Market tiles; also for [auto] Criminals
         this.incrInfluence(tile.hex, infColor);
       }
     }
     Player.updateCounters();
-  }
-  logDisposition(tile: Tile, verb: string) {
-    const cp = this.curPlayer
-    const loc = tile.hex?.isOnMap ? 'onMap' : 'offMap';
-    const info = { Aname: tile.Aname, fromHex: tile.hex?.Aname, cp: cp.colorn, caps: cp.captures, tile: {...tile} }
-    console.log(stime(this, `.recycleTile[${loc}]: ${verb}`), info);
-    this.logText(`${cp.Aname} ${verb} ${tile}`);
   }
 
   recycleTile(tile: Tile) {
@@ -419,7 +470,7 @@ export class GamePlay0 {
         this.curPlayer.coins -= tile.econ;  // dismiss Meeple, claw-back salary.
       }
     }
-    this.logDisposition(tile, verb);
+    tile.logRecycle(verb);
     tile.sendHome();  // recycleTile
   }
 
@@ -609,7 +660,7 @@ export class GamePlay extends GamePlay0 {
     KeyBinder.keyBinder.setKey('S-R', { thisArg: this, func: () => this.drawTile(Resi) })
     KeyBinder.keyBinder.setKey('S-K', { thisArg: this, func: () => this.drawTile(Bank) })
     KeyBinder.keyBinder.setKey('S-L', { thisArg: this, func: () => this.drawTile(Lake) })
-    KeyBinder.keyBinder.setKey('S-P', { thisArg: this, func: () => this.drawTile(Police) })
+    KeyBinder.keyBinder.setKey('S-P', { thisArg: this, func: () => this.drawTile(PS) })
 
     // diagnostics:
     //KeyBinder.keyBinder.setKey('x', { thisArg: this, func: () => {this.table.enableHexInspector(); }})
@@ -625,8 +676,8 @@ export class GamePlay extends GamePlay0 {
     table.skipShape.on(S.click, () => this.skipMove(), this)
   }
 
-  drawTile(type: new (...args) => Tile) {
-    const tile = this.shifter.drawTile(type);
+  drawTile(type: new (...args: any[]) => AuctionTile) {
+    const tile = this.shifter.tileBag.takeType(type);
     tile.setPlayerAndPaint(this.curPlayer);
     tile.moveTo(this.eventHex);
     this.hexMap.update();
@@ -756,23 +807,23 @@ export class GamePlay extends GamePlay0 {
   /** for KeyBinding test */
   override shiftAuction(pNdx?: number, alwaysShift?: boolean) {
     super.shiftAuction(pNdx, alwaysShift);
-    this.paintForPlayer();
+    //this.paintForPlayer();
     this.updateCostCounters();
     this.hexMap.update();
   }
 
   override endTurn(): void {
-    if (!this.preGame) this.curPlayer.totalVpCounter.incValue(this.curPlayer.vps);
-    this.table.buttonsForPlayer[this.curPlayerNdx].visible = false;
     super.endTurn();   // shift(), roll()
+    this.curPlayer.totalVpCounter.updateValue(this.curPlayer.totalVps);
+    this.table.buttonsForPlayer[this.curPlayerNdx].visible = false;
   }
 
-  override setNextPlayer(plyr = this.otherPlayer()) {
+  override setNextPlayer(plyr?: Player) {
     super.setNextPlayer(plyr);
     this.paintForPlayer();
     this.updateCostCounters();
     Player.updateCounters(plyr); // beginning of round...
-    this.logText(this.shifter.tileNames(this.curPlayerNdx));
+    this.logText(this.shifter.tileNames(this.curPlayerNdx), ` GamePlay.setNextPlayer`);
     this.table.buttonsForPlayer[this.curPlayerNdx].visible = true;
     this.table.showNextPlayer(); // get to nextPlayer, waitPaused when Player tries to make a move.?
     this.hexMap.update();

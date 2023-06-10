@@ -49,6 +49,7 @@ export class Player {
 
   policeSource: UnitSource<Police>;
   criminalSource: UnitSource<Criminal>;
+  policySlots: Hex[] = []; // TODO: set with actual Hex2, for d&d, TP.nPolicySlots
 
   readonly balanceText = new CenterText('[...]')
 
@@ -108,6 +109,7 @@ export class Player {
   }
   totalVpCounter: DecimalCounter;
   get totalVps() { return this.totalVpCounter.getValue(); }
+  set totalVps(v: number) { this.totalVpCounter.setValue(v); }
   get vpsPerRound() { return this.totalVpCounter.perRound; }
 
   get otherPlayer() { return Player.allPlayers[1 - this.index] }
