@@ -45,6 +45,6 @@ export class Infl extends Tile {
     return shape;
   }
   override paint(pColor?: PlayerColor, colorn?: string): void {
-    super.paint(pColor, Infl.inflGrey); // TODO: override paint() --> solid hexagon (also: with Counter)
+    super.paint(pColor, Infl.inflGrey); // TODO: show InfTokens on Player mat
   }
 }

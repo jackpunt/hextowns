@@ -698,6 +698,8 @@ export class AuctionTile extends Tile {
 
   override canBeMovedBy(player: Player, ctx: DragContext): boolean {
     if (!super.canBeMovedBy(player, ctx)) return false;
+    // allow shift-demolish/fire/capture(Tile,Meeple) from map [Debt & EventTile override]
+    if (player.actions <= 0 && !this.hex.isOnMap) return false;
     // exclude opponent's [unowned] private auction Tiles:
     const gamePlay = GP.gamePlay;
     const ndx = gamePlay.auctionTiles.indexOf(this);

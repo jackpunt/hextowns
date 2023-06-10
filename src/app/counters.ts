@@ -106,10 +106,18 @@ export class PerRoundCounter extends DecimalCounter {
 
 export class CostIncCounter extends NumCounter {
 
+  /**
+   * Show InfR for curPlayer to place Tile;
+   * @param hex place Counter above the given hex.
+   * @param name internal identifyier
+   * @param ndx cost increment based on CostIncMatrix[ndx]; -1 -> show no cost
+   * @param repaint calc cost for: Player OR true/false->curPlayer;
+   * - Note: false -> const cost, no repaint
+   */
   constructor(
     public hex: Hex2,
     name = `costInc`,
-    public ndx?: number,
+    public ndx = -1,
     public repaint: boolean | Player = true
   ) {
     super(name, 0, 'grey', TP.hexRad / 2)

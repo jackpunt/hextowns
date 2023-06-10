@@ -244,7 +244,7 @@ export class Table extends EventDispatcher  {
 
   addCostCounter(hex: Hex2, name?: string, ndx = 0, repaint: boolean | Player = false) {
     /** show cost in influence (and coins...) */
-    let infCounter = new CostIncCounter(hex, `${name ?? '?'}Inf`, ndx, repaint);
+    const infCounter = new CostIncCounter(hex, `${name ?? '?'}Inf`, ndx, repaint);
     if (!name) {
       infCounter.parent.removeChild(infCounter); // not used as DisplayObject
     }
@@ -305,7 +305,7 @@ export class Table extends EventDispatcher  {
 
     shifter.hexes.forEach((hex, hexi) => {
       const ndx = shifter.getNdx(hexi);
-      const repaint = shifter.getPlayer(hexi, true)
+      const repaint = shifter.getPlayer(hexi, true);  // true -> always repaint, curPlayer
       this.addCostCounter(hex, `Shifter-${hexi}`, ndx, repaint); // auctionHex
     });
 
@@ -499,29 +499,22 @@ export class Table extends EventDispatcher  {
   */
   doButton(label: string) {
     const player = this.gamePlay.curPlayer, pIndex = player.index
-    let actionsTaken = 0;
     console.log(stime(this, `.doButton:`), label)
     switch (label) {
       case 'Start': {
-        if (player.coins >= 0) {
-          player.actions += 1; // try update Actions.
-        }
+        player.actions = 1;
         break;
       }
       case 'Crime': {
-        actionsTaken = 1;
         break;
       }
       case 'Police': {
-        actionsTaken = 1;
         break;
       }
       case 'Build': {
-        actionsTaken = 1;
         break;
       }
       case 'Reserve': {
-        actionsTaken = 1;
         // dragPick (auctionCont.hexes[0, 1, 2]); click OR space to cycle through...
         let legalTargets = this.reserveHexes[pIndex];
         // on Drop(hex, tile): recycle targetHex.tile; hex.tile = targetHex;
@@ -529,11 +522,9 @@ export class Table extends EventDispatcher  {
       }
       case 'Done': {
         this.gamePlay.endTurn();
-        break
+        break;
       }
     }
-    player.actionCounter.updateValue(player.actions -= actionsTaken )
-    // TODO: if (player.actions <= 0) this.gamePlay.setNextPlayer();
   }
 
   startGame() {

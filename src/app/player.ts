@@ -1,5 +1,5 @@
 import { stime } from "@thegraid/common-lib"
-import { DecimalCounter, NumCounter, PerRoundCounter } from "./counters"
+import { DecimalCounter, NumCounter } from "./counters"
 import { Debt } from "./debt"
 import { GamePlay, GamePlay0 } from "./game-play"
 import { GP } from "./game-play";
@@ -65,6 +65,9 @@ export class Player {
   actionCounter: NumCounter;
   get actions() { return this.actionCounter?.getValue(); }
   set actions(v: number) { this.actionCounter?.updateValue(v); }
+  useAction() {
+    this.actions -= 1;
+  }
 
   captureCounter: NumCounter;
   get captures() { return this.captureCounter?.getValue(); }

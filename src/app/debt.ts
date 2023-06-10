@@ -59,7 +59,7 @@ export class Debt extends Tile {
     return shape;
   }
   override paint(pColor?: PlayerColor, colorn?: string): void {
-    super.paint(pColor, Debt.debtRust); // TODO: override paint() --> solid hexagon (also: with Counter)
+    super.paint(pColor, Debt.debtRust);
   }
 
   override toString(): string {

@@ -201,10 +201,10 @@ export class GamePlay0 {
     });
   }
   shiftAuction(pNdx?: number, alwaysShift?: boolean) {
-    this.shifter.shift(pNdx, alwaysShift, this.nextShift);
+    this.shifter.shift(pNdx, alwaysShift, this.forceDrawType);
   }
-  shiftKey = -1;
-  get nextShift() { return [EventTile, Resi, Busi, PS, Lake, Bank][this.shiftKey]; }
+  private forceDrawNdx = -1;   // tweak in debugger to force draw Tile of specific type:
+  get forceDrawType() { return [EventTile, Resi, Busi, PS, Lake, Bank][this.forceDrawNdx]; }
 
   eventInProcess: EzPromise<void>;
   async awaitEvent(init: () => void) {
@@ -225,8 +225,8 @@ export class GamePlay0 {
     });
   }
 
-  async shiftAndProcess(func?: () => void) {
-    this.shiftAuction();
+  async shiftAndProcess(func?: () => void, alwaysShift = false) {
+    this.shiftAuction(undefined, alwaysShift);
     const tile0 = this.shifter.tile0(this.curPlayerNdx);;
     if (tile0 instanceof EventTile) {
       await this.processEventTile(tile0);
@@ -237,7 +237,9 @@ export class GamePlay0 {
   }
 
   eventsInBag = false;
-  /** when Player has completed their Action & maybe a hire. */
+  /** when Player has completed their Action & maybe a hire.
+   * { shiftAuction, processEvent }* -> endTurn2() { roll dice, set Bonus, NextPlayer }
+   */
   endTurn() {
     if (!this.eventsInBag && !Player.allPlayers.find(plyr => plyr.econs < TP.econsForEvents)) {
       EventTile.addToBag(TP.eventsPerPlayer * 2, this.shifter.tileBag);
@@ -350,8 +352,8 @@ export class GamePlay0 {
 
   /** show player color and cost. */
   readonly costIncHexCounters = new Map<Hex,CostIncCounter>()
-  costNdxFromHex(hex: Hex) {
-    return this.costIncHexCounters.get(hex)?.ndx ?? -1; // Criminal/Police: ndx, no counter
+  private costNdxFromHex(hex: Hex) {
+    return this.costIncHexCounters.get(hex)?.ndx ?? -1; // Criminal/Police[constant cost]: no CostIncCounter, no ndx
   }
 
   /** update when Auction, Market or Civic Tiles are dropped. */
@@ -361,9 +363,9 @@ export class GamePlay0 {
   getInfR(tile: Tile | undefined, ndx = this.costNdxFromHex(tile.hex), plyr = this.curPlayer) {
     // assert: !tile.hex.isOnMap (esp fromHex: tile.hex == tile.homeHex)
     // Influence required:
-    let infR = (tile?.cost ?? 0) + (tile?.bonusCount ?? 0) + (this.costInc[plyr.nCivics][ndx] ?? 0);
+    const infR = (tile?.cost ?? 0) + (tile?.bonusCount ?? 0) + (this.costInc[plyr.nCivics][ndx] ?? 0);
     // if (tile instanceof AuctionTile)
-    let coinR = infR + ((tile?.econ ?? 0) < 0 ? -tile.econ : 0);  // Salary is required when recruited.
+    const coinR = infR + ((tile?.econ ?? 0) < 0 ? -tile.econ : 0);  // Salary is required when recruited.
     if (Number.isNaN(coinR)) debugger;
     return [infR, coinR];
   }
@@ -426,8 +428,7 @@ export class GamePlay0 {
   /** Tile.dropFunc() --> place Tile (to Map, reserve, ~>auction; not Recycle) */
   placeTile(tile: Tile, toHex: Hex, payCost = true) {
     if (!tile.hex.isOnMap && toHex.isOnMap) {
-      const player = this.curPlayer;
-      player.actionCounter.updateValue(player.actions -= 1);
+      this.curPlayer.useAction();
     }
     this.placeEither(tile, toHex, payCost);
   }
@@ -460,7 +461,7 @@ export class GamePlay0 {
   }
 
   recycleTile(tile: Tile) {
-    if (!tile) return;  // TODO: delegate all this to Tile.recycled(): verb ?
+    if (!tile) return;
     let verb = tile.recycleVerb ?? 'recycled';
     if (tile.hex?.isOnMap) {
       if (tile.player !== this.curPlayer) {
@@ -643,7 +644,7 @@ export class GamePlay extends GamePlay0 {
     //KeyBinder.keyBinder.setKey('S', { thisArg: this, func: this.skipMove })
     KeyBinder.keyBinder.setKey('M-K', { thisArg: this, func: this.resignMove })// S-M-k
     KeyBinder.keyBinder.setKey('Escape', {thisArg: table, func: table.stopDragging}) // Escape
-    KeyBinder.keyBinder.setKey('C-a', { thisArg: this, func: () => { this.shiftAuction(undefined, true)} })  // C-a new Tile
+    KeyBinder.keyBinder.setKey('C-a', { thisArg: this, func: () => { this.shiftAndProcess(undefined, true)} })  // C-a new Tile
     KeyBinder.keyBinder.setKey('C-s', { thisArg: this.gameSetup, func: () => { this.gameSetup.restart() } })// C-s START
     KeyBinder.keyBinder.setKey('C-c', { thisArg: this, func: this.stopPlayer })// C-c Stop Planner
     KeyBinder.keyBinder.setKey('m', { thisArg: this, func: this.makeMove, argVal: true })
@@ -807,15 +808,15 @@ export class GamePlay extends GamePlay0 {
   /** for KeyBinding test */
   override shiftAuction(pNdx?: number, alwaysShift?: boolean) {
     super.shiftAuction(pNdx, alwaysShift);
-    //this.paintForPlayer();
+    this.paintForPlayer();
     this.updateCostCounters();
     this.hexMap.update();
   }
 
-  override endTurn(): void {
-    super.endTurn();   // shift(), roll()
-    this.curPlayer.totalVpCounter.updateValue(this.curPlayer.totalVps);
+  override endTurn2(): void {
     this.table.buttonsForPlayer[this.curPlayerNdx].visible = false;
+    super.endTurn2();   // shift(), roll()
+    this.curPlayer.totalVpCounter.updateValue(this.curPlayer.totalVps);
   }
 
   override setNextPlayer(plyr?: Player) {
@@ -837,7 +838,7 @@ export class GamePlay extends GamePlay0 {
 
   paintForPlayer() {
     this.costIncHexCounters.forEach(cic => {
-      let plyr = (cic.repaint instanceof Player) ? cic.repaint : this.curPlayer;
+      const plyr = (cic.repaint instanceof Player) ? cic.repaint : this.curPlayer;
       if (cic.repaint !== false) {
         cic.hex.tile?.setPlayerAndPaint(plyr);
       }
