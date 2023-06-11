@@ -1,4 +1,4 @@
-import { Constructor, stime } from "@thegraid/common-lib";
+import { AT, C, Constructor, stime } from "@thegraid/common-lib";
 import { AuctionTile, Tile, TileBag } from "./tile";
 import { DragContext } from "./table";
 import { Hex, } from "./hex";
@@ -9,6 +9,7 @@ export type BagType = AuctionTile | EventTile;
 
 type EventSpec = {
   text: string,
+  Aname?: string,
   policy?: boolean,
   vp?: number,
   tvp?: number,
@@ -26,48 +27,58 @@ class EvalTile extends Tile {
   readonly eventText: Text;
 
   constructor(claz: Constructor<EvalTile>, count: number, spec: EventSpec) {
-    super(undefined, `${claz.name}-${count}`, 0, spec.vp, spec.cost, 0);
+    super(undefined, `${spec.Aname || `${claz.name}-${count}`}`, 0, spec.vp, spec.cost, 0);
     this.text = spec.text;
-    this.policy = true;
+    this.policy = spec.policy;
     this.tvp = spec.tvp;
     this.evalf = spec.eval;
-    this.eventText = this.addTextChild(-this.radius/2, this.text, true);
+    this.eventText = this.addTextChild(-0.4 * this.radius, this.lineBreak(this.text), 18, true);
   }
+  lineBreak(text: string) {
+    return text.split('  ').join('\n');
+  }
+  /** never showCostMark */
+  override showCostMark(show?: boolean): void { }
+
+  override paint(pColor?: "b" | "w" | "c", colorn?: string): void {
+    super.paint(pColor, this.policy? C.YELLOW: colorn);
+  }
+
 }
 
 export class EventTile extends EvalTile {
   static allEventSpecs: EventSpec[] = [
-    { text: "Do a Crime action"},
-    { text: "Do a Build action"},
-    { text: "Do a Police action"},
-    { text: "Gain an Action token"},
-    { text: "Gain an Influence token"},
-    { text: "Add Influence token to a Resi"},
-    { text: "Add Influence token to a Busi"},
-    { text: "Add Econ token to a Resi"},
-    { text: "Add VP token to a Busi"},
-    { text: "Coins +5"},
-    { text: "VP +3"},
-    { text: "TVP +10"},
-    { text: "Move one Criminal"},
-    { text: "Capture one Criminal"},
-    { text: "Build a Monument (on site adjancent to 3 different types)"},
-    { text: "Coins +4 per un-placed Leader"},
+    { text: "Do a  Crime  action", Aname: "Crime  Action"},
+    { text: "Do a  Build  action", Aname: "Build  Action"},
+    { text: "Do a  Police  action", Aname: 'Police  Action'},
+    { text: "Gain an  Action  token", Aname: 'Action  Token'},
+    { text: "Gain an  Influence  token", Aname: 'Influence  Token'},
+    { text: "Add  Influence  token to  Resi", Aname: 'Influence  Resi'},
+    { text: "Add  Influence  token to  Busi", Aname: 'Influence  Busi'},
+    { text: "Add  Econ token  to  Resi", Aname: 'Econ  on Resi'},
+    { text: "Add  VP token  to  Busi", Aname: 'VP  on Busi'},
+    { text: "Move  one  Criminal", Aname: 'Move  Criminal'},
+    { text: "Capture  one  Criminal", Aname: 'Capture  Criminal'},
+    { text: "Build  Monument  on site adj  3 types", Aname: 'Build  Monument'},
+    { text: "+2 Coins  per  un-placed  Leader", Aname: 'Coins  per Leader'},
+    { text: "  +3 Coins", Aname: '+3 Coins' },
+    { text: "  +1 VP", Aname: '+1 VP', vp: 1},
+    { text: "  +10 TVP", Aname: '+10 TVP'},
     // Urban renewal:
-    { text: "Demolish one of your Resi; +5 TVP"},
-    { text: "Demolish one of your Lake; +5 TVP"},
-    { text: "Demolish one of your Busi; +5 Coins"},
-    { text: "Demolish one of your Bank; +5 Coins"},
-    { text: "Demolish one from Auction"},
+    { text: "Demolish  your Resi  +5 TVP", Aname: 'Demo  Resi  +5 TVP'},
+    { text: "Demolish  your Lake  +5 TVP", Aname: 'Demo  Lake  +5 TVP'},
+    { text: "Demolish  your Busi  +5 Coins", Aname: 'Demo Busi  +5 TVP'},
+    { text: "Demolish  your Bank  +5 Coins", Aname: 'Demo  Bank  +5 TVP'},
+    { text: "Demolish  any  Auction  tile", Aname: 'Demo  Auction'},
 
     // 'policy' Event implies duration until removed by eval [evaluated at start of turn]
     // eval gives the reward.
-    { text: "No Leader Policy; +1 VP until Leader is hired", policy: true, eval: () => {}, vp: 1 },
-    { text: "No Crime Policy; +1 VP until [opposing] Criminal", policy: true, eval: () => {}, vp: 1 },
-    { text: "No Corruption Policy; +1 VP until Criminal is hired", policy: true, eval: () => {}, vp: 1 },
-    { text: "No Police Policy; +1 VP until Police is hired", policy: true, eval: () => {}, vp: 1 },
-    { text: "Police discount Policy; +1 Coin per Police"},
-    { text: "Police happiness Policy; +1 VP per Police"},
+    { text: "+1 VP  until  Leader  is hired", Aname: 'No  Leader  Policy', policy: true, eval: () => {}, vp: 1 },
+    { text: "+1 VP  until  opposing  Criminal", Aname: 'No  Victem  Policy', policy: true, eval: () => {}, vp: 1 },
+    { text: "+1 VP  until  Criminal  is hired", Aname: 'No  Perp  Policy', policy: true, eval: () => {}, vp: 1 },
+    { text: "+1 VP  until  Police  is hired", Aname: 'No  Police  Policy', policy: true, eval: () => {}, vp: 1 },
+    { text: "+1 VP  per Police", Aname: 'Police  happiness  Policy', policy: true, eval: () => {}, vp: 1 },
+    { text: "+1 Coin  per Police", Aname: 'Police  discount  Policy', policy: true, eval: () => {} },
     // { text: ""},
     // { text: ""},
     // { text: ""},
@@ -76,14 +87,16 @@ export class EventTile extends EvalTile {
   static makeAllEvent() {
     EventTile.allEvents = EventTile.allEventSpecs.map((spec, ndx) => new EventTile(spec, ndx));
   }
-  static addToBag(n: number, tileBag: TileBag<BagType>) {
+  static addToBag(max: number, tileBag: TileBag<BagType>) {
     const tiles = EventTile.allEvents.slice(); // draw without replacement from copy of Tile[]
+    const n = Math.min(max, tiles.length);
     for (let i = 0; i < n; i++) tileBag.push(tileBag.selectOne(true, tiles));
   }
 
   constructor(spec: EventSpec, n: number) {
     super(EventTile, n, spec);
   }
+
   override isLegalTarget(toHex: Hex, ctx?: DragContext): boolean {
     if (!super.isLegalTarget(toHex, ctx)) return false;
     if (toHex.isOnMap) return false;
@@ -91,13 +104,16 @@ export class EventTile extends EvalTile {
     // else: only drop on recycle
     return false;
   }
-  override moveTo(hex: Hex): Hex {
+
+  override moveTo(toHex: Hex): Hex {
     const gamePlay = GP.gamePlay;
     gamePlay.removeFromAuction(this);
-    if (gamePlay.curPlayer.policySlots.includes(hex)) gamePlay.finishEvent();
-    const rv = super.moveTo(hex); // presumably can now be on AuctionHex[0] and appear as AuctionTiles[0]
-    if (hex === GP.gamePlay.eventHex) console.log(stime(this, `.moveTo:`), this.text);
-    hex?.map.update();
+    if (gamePlay.curPlayer.policySlots.includes(toHex)) gamePlay.finishEvent();
+    const rv = super.moveTo(toHex); // presumably can now be on AuctionHex[0] and appear as AuctionTiles[0]
+    if (toHex === GP.gamePlay.eventHex) {
+      console.log(stime(this, `.moveTo: ${AT.ansiText(['$red'], this.text)}`) );
+    }
+    toHex?.map.update();
     return rv;
   }
 
@@ -136,6 +152,6 @@ export class PolicyTile extends EvalTile {
   }
 
   constructor(spec: EventSpec, n: number) {
-    super(PolicyTile, n, spec);
+    super(PolicyTile, n, {...spec, policy: true});
   }
 }

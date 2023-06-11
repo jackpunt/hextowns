@@ -1,4 +1,4 @@
-import { json } from "@thegraid/common-lib";
+import { AT, json } from "@thegraid/common-lib";
 import { KeyBinder, S, Undo, stime } from "@thegraid/easeljs-lib";
 import { Container } from "@thegraid/easeljs-module";
 import { CostIncCounter } from "./counters";
@@ -166,8 +166,8 @@ export class GamePlay0 {
 
   /** add Bonus to [first] AuctionTile */
   addBonus(type: AuctionBonus, tile?: AuctionTile) {
-    if (!tile) tile = this.auctionTiles[this.curPlayerNdx * TP.auctionMerge] as AuctionTile;
-    tile.addBonus(type);
+    if (!tile) tile = this.shifter.tile0(this.curPlayerNdx) as AuctionTile;
+    tile?.addBonus(type);
     this.hexMap.update()
   }
 
@@ -241,6 +241,10 @@ export class GamePlay0 {
    * { shiftAuction, processEvent }* -> endTurn2() { roll dice, set Bonus, NextPlayer }
    */
   endTurn() {
+    if (!!this.eventHex.tile) {
+      console.log(stime(this, `.endTurn: must dismiss Event: ${AT.ansiText(['red'], this.eventHex.tile.Aname)}`));
+      return; // can't end turn until Event is dismissed.
+    }
     if (!this.eventsInBag && !Player.allPlayers.find(plyr => plyr.econs < TP.econsForEvents)) {
       EventTile.addToBag(TP.eventsPerPlayer * 2, this.shifter.tileBag);
       this.eventsInBag = true;

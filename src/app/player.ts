@@ -93,7 +93,7 @@ export class Player {
         // console.log(stime(this, `.expense`), hex.tile.Aname, hex.Aname, hex.tile.econ, expense);
       }
       if (hex.tile?.debt && hex.tile.player === this) {
-        expense -= 1;                // interest on debt
+        expense -= 2;                // interest & principle on debt
       }
     })
     return expense
@@ -102,6 +102,7 @@ export class Player {
   get vps() {
     let vp = this.captures;
     this.gamePlay.hexMap.forEachHex(hex => {
+      if ((hex.tile?.player == this) && hex.tile?.debt) vp -= 1;   // Debt reduces happiness...
       const dv = (hex.meep instanceof Criminal) ? 0 :
         (((hex.tile?.player == this && hex.tile.vp) +
           (hex.meep?.player == this && hex.meep.vp)));
@@ -176,17 +177,16 @@ export class Player {
   newTurn() {
     // faceUp and record start location:
     this.meeples.forEach(meep => meep.hex?.isOnMap ? meep.faceUp() : meep.startHex = undefined)
-    this.coins += (this.econs + this.expenses);
-    this.debts.forEach(d => {
-      this.coins -= 2;  // P & I == 2
-      d.balance -= 1;   // pay down principle
-      if (d.balance == 0) {
-        const tile = d.tile;
-        this.gamePlay.recycleTile(d);
+    this.coins += (this.econs + this.expenses); // expenses include P & I
+    this.debts.forEach(debt => {
+      debt.balance -= 1;   // pay down principle
+      if (debt.balance === 0) {
+        const tile = debt.tile;
+        this.gamePlay.recycleTile(debt);
         tile.updateCache();
       }
     });
-    if (this.coins >= 0) this.actions += 1;
+    this.actions = 1;
   }
   stopMove() {
     this.planner?.roboMove(false)

@@ -255,7 +255,7 @@ export class Tile extends Tile0 {
 
   get infP() { return this.inf }
 
-  get vp() { return this.debt ? 0 : this._vp + (this.bonus.star ? 1 : 0); } // override in Lake
+  get vp() { return this._vp + (this.bonus.star ? 1 : 0); } // override in Lake
   get econ() { return this._econ + (this.bonus.econ ? 1 : 0); } // override in Bank
   get cost() { return this._cost; }
 
@@ -364,8 +364,8 @@ export class Tile extends Tile0 {
     }
   }
 
-  addTextChild(y0 = this.radius / 2, name = this.Aname, vis = false) {
-    let nameText = new CenterText(name, Tile.textSize);
+  addTextChild(y0 = this.radius / 2, text = this.Aname, size = Tile.textSize, vis = false) {
+    const nameText = new CenterText(text, size);
     nameText.y = y0;         // Meeple overrides in constructor!
     nameText.visible = vis;
     this.addChild(nameText);
