@@ -22,8 +22,7 @@ class EvalTile extends Tile {
   readonly policy?: boolean;
   readonly tvp?: number;
   readonly evalf?: () => void; // eval at start of turn: eval.call(this)
-  eval() { this.evalf.call(this);
-  }
+  eval() { this.evalf.call(this); }
   readonly eventText: Text;
 
   constructor(claz: Constructor<EvalTile>, count: number, spec: EventSpec) {
@@ -48,28 +47,28 @@ class EvalTile extends Tile {
 
 export class EventTile extends EvalTile {
   static allEventSpecs: EventSpec[] = [
-    { text: "Do a  Crime  action", Aname: "Crime  Action"},
-    { text: "Do a  Build  action", Aname: "Build  Action"},
-    { text: "Do a  Police  action", Aname: 'Police  Action'},
-    { text: "Gain an  Action  token", Aname: 'Action  Token'},
-    { text: "Gain an  Influence  token", Aname: 'Influence  Token'},
-    { text: "Add  Influence  token to  Resi", Aname: 'Influence  Resi'},
-    { text: "Add  Influence  token to  Busi", Aname: 'Influence  Busi'},
-    { text: "Add  Econ token  to  Resi", Aname: 'Econ  on Resi'},
-    { text: "Add  VP token  to  Busi", Aname: 'VP  on Busi'},
-    { text: "Move  one  Criminal", Aname: 'Move  Criminal'},
-    { text: "Capture  one  Criminal", Aname: 'Capture  Criminal'},
-    { text: "Build  Monument  on site adj  3 types", Aname: 'Build  Monument'},
-    { text: "+2 Coins  per  un-placed  Leader", Aname: 'Coins  per Leader'},
+    { text: "Do a  Crime  action", Aname: "Crime  Action" },
+    { text: "Do a  Build  action", Aname: "Build  Action" },
+    { text: "Do a  Police  action", Aname: 'Police  Action' },
+    { text: "Move  your  Meeples", Aname: 'Move  Meeples' },
+    { text: "Gain  Influence  token", Aname: 'Influence  Token' },
+    { text: "Add  Influence  token to  Resi", Aname: 'Influence  Resi' },
+    { text: "Add  Influence  token to  Busi", Aname: 'Influence  Busi' },
+    { text: "Add  Econ token  to  Resi", Aname: 'Econ  on Resi' }, // Home Business (adj Bank?)
+    { text: "Add  VP token  to  Busi", Aname: 'VP  on Busi' },     // Happy Business (adj Lake?)
+    { text: "Move  one  Criminal", Aname: 'Move  Criminal' },
+    { text: "Capture  one  Criminal", Aname: 'Capture  Criminal' },
+    { text: "Build  Monument  on site adj  3 types", Aname: 'Build  Monument' },
+    { text: "+2 Coins  per  un-placed  Leader", Aname: 'Coins  per Leader' },
     { text: "  +3 Coins", Aname: '+3 Coins' },
-    { text: "  +1 VP", Aname: '+1 VP', vp: 1},
-    { text: "  +10 TVP", Aname: '+10 TVP'},
+    { text: "  +1 VP", Aname: '+1 VP', vp: 1 },
+    { text: "  +10 TVP", Aname: '+10 TVP' },
     // Urban renewal:
-    { text: "Demolish  your Resi  +5 TVP", Aname: 'Demo  Resi  +5 TVP'},
-    { text: "Demolish  your Lake  +5 TVP", Aname: 'Demo  Lake  +5 TVP'},
-    { text: "Demolish  your Busi  +5 Coins", Aname: 'Demo Busi  +5 TVP'},
-    { text: "Demolish  your Bank  +5 Coins", Aname: 'Demo  Bank  +5 TVP'},
-    { text: "Demolish  any  Auction  tile", Aname: 'Demo  Auction'},
+    { text: "Demolish  your Resi  +5 TVP", Aname: 'Demo  Resi  +5 TVP' },
+    { text: "Demolish  your Lake  +5 TVP", Aname: 'Demo  Lake  +5 TVP' },
+    { text: "Demolish  your Busi  +5 Coins", Aname: 'Demo Busi  +5 TVP' },
+    { text: "Demolish  your Bank  +5 Coins", Aname: 'Demo  Bank  +5 TVP' },
+    { text: "Demolish  any  Auction  tile", Aname: 'Demo  Auction' },
 
     // 'policy' Event implies duration until removed by eval [evaluated at start of turn]
     // eval gives the reward.
@@ -100,6 +99,7 @@ export class EventTile extends EvalTile {
   override isLegalTarget(toHex: Hex, ctx?: DragContext): boolean {
     if (!super.isLegalTarget(toHex, ctx)) return false;
     if (toHex.isOnMap) return false;
+    if (this.policy && GP.gamePlay.curPlayer.policySlots.includes(toHex)) return true;
     // TODO: if(this.policy) { allow drop on player's policy slots }
     // else: only drop on recycle
     return false;

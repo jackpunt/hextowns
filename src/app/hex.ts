@@ -311,6 +311,8 @@ export class Hex2 extends Hex {
     if (tile !== undefined) {
       tile.x = x; tile.y = y;
       cont.addChildAt(tile, 0); // under hex.meep (and various Text)
+    } else {
+      cont.removeChild(tile); // ??? expect: tile.moveTo(undef); tile.moveTo(hex) TODO: debug second Event
     }
   }
 

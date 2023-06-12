@@ -1,4 +1,4 @@
-import { AT, C, Dragger, DragInfo, F, KeyBinder, S, ScaleableContainer, stime, XY } from "@thegraid/easeljs-lib";
+import { AT, C, Constructor, Dragger, DragInfo, F, KeyBinder, S, ScaleableContainer, stime, XY } from "@thegraid/easeljs-lib";
 import { Container, DisplayObject, EventDispatcher, Graphics, MouseEvent, Shape, Stage, Text } from "@thegraid/easeljs-module";
 import { ButtonBox, CostIncCounter, DecimalCounter, NumCounter, NumCounterBox } from "./counters";
 import { Debt } from "./debt";
@@ -65,7 +65,7 @@ class TextLog extends Container {
   }
 
   log(line: string, from = '') {
-    console.log(stime(this, `${from}:`), line);
+    console.log(stime(`${from}:`), line);
     if (line === this.lastLine) {
       this.lines[this.lines.length - 1].text = `[${++this.nReps}] ${line}`;
     } else {
@@ -261,7 +261,7 @@ export class Table extends EventDispatcher  {
   topRowHex (name: string, crxy = { col: 7, row: -1 }, dy = 0) {
     const rowh = this.hexMap.rowHeight;
     const { col, row } = crxy;
-    const sy = (-.4 + .3 * row) * rowh // {-1: -.7, 0: -.4}
+    const sy = (row > 0) ? 0 : (-.4 + .3 * row) * rowh // {-1: -.7, 0: -.4}
     const hex = this.newHex2(row, col, name);
     this.homeRowHexes.push(hex);
     hex.y += (sy + dy);
@@ -281,7 +281,7 @@ export class Table extends EventDispatcher  {
     // background sized for hexMap:
     const { x: rx, y: ry, width: rw, height: rh } = hexCont.getBounds();
     const rowh = hexMap.rowHeight, colw = hexMap.colWidth;
-    const bgr: XYWH = { x: 0, y: -rowh * .6, w: rw + 2 * colw, h: rh + 4 * rowh }
+    const bgr: XYWH = { x: 0, y: -rowh * .6, w: rw + 4 * colw, h: rh + 4 * rowh }
     // align center of mapCont(0,0) == hexMap(center) with center of background
     mapCont.x = (bgr.w - bgr.x) / 2;
     mapCont.y = (bgr.h - bgr.y) / 2;
@@ -325,12 +325,12 @@ export class Table extends EventDispatcher  {
       p.makePlayerBits();
       const offcc = 0;
       // column index for Hex in topRow(row = -1)
-      const colf1 = (ndx = 7, offc = offcc) => (pIndex == 0 ? (ndx - offc) - 1 : 14 - (ndx - offc));
+      const colf1 = (ndx = 7, offc = offcc) => (pIndex == 0 ? (ndx - offc) : 13 - (ndx - offc));
       // column index for Hex in 2ndRow(row = 0)
       const colf2 = (ndx = 7, offc = offcc) => (pIndex == 0 ? (ndx - offc) : 14 - (ndx - offc));
-      const colf = (ndx = 7, row = -1) => { return { row, col: (row === -1) ? colf1(ndx) : colf2(ndx) } };
+      const colf = (ndx = 7, row = -1) => { return { row, col: ((Math.abs(row) % 2) === 1) ? colf1(ndx) : colf2(ndx) } };
 
-      const leaderHexes = p.allLeaders.map((meep, ndx) => this.topRowHex(meep.Aname, colf(ndx, -1)));
+      const leaderHexes = p.allLeaders.map((meep, ndx) => this.topRowHex(meep.Aname, colf(ndx-1, -1)));
       // place [civic/leader, academy/police] meepleHex on Table/Hex (but not on Map)
       this.leaderHexes[pIndex] = leaderHexes;
       p.allLeaders.forEach((meep, i) => {
@@ -348,7 +348,7 @@ export class Table extends EventDispatcher  {
       this.addCostCounter(crimeHex, undefined, -1, false);
       p.criminalSource = Criminal.makeSource(p, crimeHex, TP.criminalPerPlayer);
 
-      const locs = { Busi: [col0++, 0], Resi: [col0++, 0], Monument: [col0 + 1, -1] };
+      const locs = { Busi: [col0++, 0], Resi: [col0++, 0], Monument: [col0, -1] };
 
       this.gamePlay.marketTypes.forEach((type, ndx) => {
         const [col, row] = locs[type.name];
@@ -367,6 +367,14 @@ export class Table extends EventDispatcher  {
         this.addCostCounter(rhex, `rCost-${i}`, 1, false); // reserveHexes[plyr]
         this.reserveHexes[pIndex].push(rhex);
       }
+
+      const pRowCol = [[2, 0], [2, -1], [1, -1], [3, -1], [4, -1], [4, 0]];
+      p.policySlots.forEach((hex, ndx, ary) => {
+        const [r, c] = pRowCol[ndx];
+        const { row, col } = colf(c, r); TP.nPolicySlots
+        const pHex = this.topRowHex(`policy:${pIndex}-${ndx}`,{col, row}, 0);
+        ary[ndx] = pHex;
+      })
 
       {
         // Show Player's balance text:
@@ -410,12 +418,12 @@ export class Table extends EventDispatcher  {
     const image = new Tile(undefined, name).addImageBitmap(name); // ignore Tile, get image.
     image.y = -TP.hexRad / 2; // recenter
 
-    const hex = this.newHex2(row, col, name);
-    hex.rcText.visible = hex.distText.visible = false;
-    hex.setHexColor(C.WHITE);
-    hex.cont.addChild(image);
-    hex.cont.updateCache();
-    return hex;
+    const rHex = this.newHex2(row, col, name);
+    rHex.rcText.visible = rHex.distText.visible = false;
+    rHex.setHexColor(C.WHITE);
+    rHex.cont.addChild(image);
+    rHex.cont.updateCache();
+    return rHex;
   }
 
   makeDebtHex(row: number, col: number) {
@@ -431,35 +439,41 @@ export class Table extends EventDispatcher  {
     return debtHex;
   }
 
-  makeEventHex(row = -1., col = 6.5, scale = 2.5) {
+  makeEventHex(row = -1., col = 5, scale = 1.5) {
     const eventHex = new EventHex(this.hexMap, row, col, 'eventHex', scale); // on hexMap.mapCont.hexCont;
     return eventHex;
   }
 
   readonly buttonsForPlayer: Container[] = [];
-  /** per player buttons to invoke GamePlay */
-  layoutButtonsAndCounters(player: Player) {
+  private contForPlayer(player: Player) {
     const parent = this.scaleCont, index = player.index;
-    const chex = this.hexMap.getCornerHex([H.W, H.E][index]) as Hex2;
-    const ehex = this.hexMap.getCornerHex(H.NE) as Hex2;
-    const { x: cx, y: cy } = chex.xywh();
-    const ptc = chex.cont.parent.localToLocal(cx, cy, parent)
-    const { x: ex, y: ey, h: eh } = ehex.xywh();
-    const pte = chex.cont.parent.localToLocal(ex, ey, parent)
+    const xHex = this.hexMap.getCornerHex([H.W, H.E][index]) as Hex2;
+    const yHex = this.hexMap.getCornerHex(H.NW) as Hex2;
+    const { x: cx, y: cy } = xHex.xywh();
+    const ptx = xHex.cont.parent.localToLocal(cx, cy, parent).x;
+    const { x: ex, y: ey } = yHex.xywh();
+    const pty = xHex.cont.parent.localToLocal(ex, ey, parent).y;
     const cont = new Container(), offx = TP.hexRad * H.sqrt3_2;
-    cont.x = ptc.x + [offx, -offx][index];
-    cont.y = pte.y;
+    cont.x = ptx + [offx, -offx][index];
+    cont.y = pty;
     cont.visible = false;
     parent.addChild(cont); // Container for Player's Buttons
-
     this.buttonsForPlayer[index] = cont;
-    const bLabels = ['Start', 'Crime', 'Police', 'Build', 'Reserve', 'Done'];
-    const align = (['right', 'left'] as const)[index];
-    const rowy = (i: number) => { return (i - .5) * eh / 2}
+    return cont;
+  }
+
+  /** per player buttons to invoke GamePlay */
+  layoutButtonsAndCounters(player: Player) {
+    const index = player.index;
+    const cont = this.buttonsForPlayer[index] = this.contForPlayer(player);
+    const { x, y, w, h } = this.hexMap.centerHex.xywh();
+    const rowy = (i: number) => { return (i - .5) * h / 2}
+    const bLabels = ['Done'];
+    const align = (['right', 'left'] as const)[index], dx = [w, -w][index];
     bLabels.forEach((label, i) => {
       const b = new ButtonBox(label, label, 'lightgreen', TP.hexRad * .75); // eh/3
       b.mouseEnabled = true
-      b.attachToContainer(cont, { x: 0, y: rowy(i) }) // just a label
+      b.attachToContainer(cont, { x: 4.4 * dx, y: rowy(i - 1.1) }) // just a label
       b.setValue(label);
       b.boxAlign(align);
       b.on(S.click, () => this.doButton(label), this)[S.Aname] = `b:${label}`;
@@ -482,17 +496,18 @@ export class Table extends EventDispatcher  {
       counter.attachToContainer(counterCont, pt);
       counter.mouseEnabled = true;
       if (incr) counter.on(S.click, (evt: MouseEvent) => counter.incValue((evt.nativeEvent.ctrlKey ? -1 : 1) * (evt.nativeEvent.shiftKey ? 10 : 1)));
-      player[cname] = counter;
       return counter
     };
     layoutCounter('action', C.YELLOW, rowy(0));
     layoutCounter('coin', C.coinGold, rowy(1));
     layoutCounter('econ', C.GREEN, rowy(1), 2 + index, false);
     layoutCounter('expense', C.GREEN, rowy(1), 3 - index, false);
-    layoutCounter('capture', 'lightblue', rowy(2));
-    layoutCounter('brib', 'grey', rowy(3));
-    layoutCounter('vp', C.briteGold, rowy(5), 1, false);
-    layoutCounter('totalVp', C.briteGold, rowy(4), 1, false, DecimalCounter);
+    layoutCounter('brib', 'grey', rowy(2));
+    layoutCounter('capture', 'lightblue', rowy(3));
+    layoutCounter('vp', C.briteGold, rowy(4), 1, false);
+    layoutCounter('vp0', C.briteGold, rowy(4), -1, false);
+    layoutCounter('totalVp', C.briteGold, rowy(5), 1, false, DecimalCounter);
+    layoutCounter('tvp0', C.briteGold, rowy(5), -1, false);
   }
 
   /**
@@ -606,19 +621,18 @@ export class Table extends EventDispatcher  {
 
   dragStart(tile: Tile, ctx: DragContext) {
     // press SHIFT to capture [recycle] opponent's Criminals or Tiles
-    if (!tile.canBeMovedBy(this.gamePlay.curPlayer, ctx)) {
-      console.log(stime(this, `.dragStart: Not your tile: ${tile.andInfStr},`), 'ctx=',{...ctx});
-      this.logText(`Not your tile: ${tile.andInfStr}`)
+    const reason = tile.cantBeMovedBy(this.gamePlay.curPlayer, ctx);
+    if (reason) {
+      console.log(stime(this, `.dragStart: ${reason}: ${tile.andInfStr},`), 'ctx=',{...ctx});
+      this.logText(`${reason}: ${tile.andInfStr}`, 'Table.dragStart');
       this.stopDragging();
     } else {
       // mark legal targets for tile; SHIFT for all hexes, if payCost
       // hexMap & homeRowHexes & recycleHex & debtHex
       this.forEachTargetHex(hex => ctx.nLegal += (hex.isLegal = tile.isLegalTarget(hex, ctx) && hex !== tile.hex) ? 1 : 0, false);
-      this.gamePlay.setIsLegalRecycle(tile, ctx); // always true [06/05/2023]
+      this.gamePlay.setIsLegalRecycle(tile, ctx);
       tile.dragStart(ctx);  // which *could* reset nLegal ?
       this.gamePlay.eventHex.cont.updateCache();  // <--- QQQ: is this the right place? conditional?
-      // TODO: move to Tile.dragStart()?
-      if (!tile.hex.isOnMap) tile.showCostMark();
       this.hexMap.update();
       if (ctx.nLegal === 0) {
         tile.noLegal();
@@ -827,7 +841,7 @@ export class AuctionShifter implements IAuctionShifter {
     return false;
   }
 
-  shift(pIndex = 0, alwaysShift = TP.alwaysShift, type?: new(...arg: any[]) => BagType) {
+  shift(pIndex = 0, alwaysShift = TP.alwaysShift, type?: Constructor<BagType>) {
     if (!alwaysShift && !this.isEmptySlot(pIndex)) return; // nothing to shift
     const nm = this.nm, tiles = this.tiles
     const tile = type ? this.tileBag.takeType(type) : this.tileBag.selectOne();
@@ -893,6 +907,6 @@ export class AuctionShifter2 extends AuctionShifter {
     const x0 = this.hexes[0].x, y0 = (this.hexes[0].y + this.hexes[this.nm].y) / 2, rad = TP.hexRad;
     this.tileCounter = new NumCounter('tileCounter', this.tileBag.length, 'lightblue', rad/2)
     this.tileCounter.attachToContainer(counterCont, { x: x0 -1.5 * rad, y: y0 - .2 * rad }, this.tileBag, TileBag.event, );
-    table.gamePlay.dice.setContainer(counterCont, x0 -1.5 * rad, y0 - 1 * rad);
+    table.gamePlay.dice.setContainer(counterCont,        x0 -1.5 * rad,    y0 + .7 * rad);
   }
 }

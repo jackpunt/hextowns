@@ -49,7 +49,7 @@ export class Player {
 
   policeSource: UnitSource<Police>;
   criminalSource: UnitSource<Criminal>;
-  policySlots: Hex[] = []; // TODO: set with actual Hex2, for d&d, TP.nPolicySlots
+  readonly policySlots: Hex[] = new Array<Hex>(TP.nPolicySlots).fill(undefined);
 
   readonly balanceText = new CenterText('[...]')
 
@@ -98,9 +98,11 @@ export class Player {
     })
     return expense
   }
+
+  vp0 = 0;    // adjustment to VP from Event/Policy
   vpCounter: NumCounter;
   get vps() {
-    let vp = this.captures;
+    let vp = this.vp0 + this.captures;
     this.gamePlay.hexMap.forEachHex(hex => {
       if ((hex.tile?.player == this) && hex.tile?.debt) vp -= 1;   // Debt reduces happiness...
       const dv = (hex.meep instanceof Criminal) ? 0 :
@@ -111,6 +113,8 @@ export class Player {
     })
     return vp
   }
+
+  tvp0 = 0;    // adjustment to TVP from Event/Policy
   totalVpCounter: DecimalCounter;
   get totalVps() { return this.totalVpCounter.getValue(); }
   set totalVps(v: number) { this.totalVpCounter.setValue(v); }

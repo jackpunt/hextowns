@@ -113,6 +113,7 @@ export class Debt extends Tile {
   override showCostMark(show?: boolean): void { }
 
   override isLegalRecycle(ctx: DragContext) {
+    if (this.tile?.player) return (this.tile.player.coins >= this.balance) || ctx.lastShift;
     return this.hex.isOnMap;
   }
 
@@ -125,7 +126,11 @@ export class Debt extends Tile {
     return true;
   }
 
-  override noLegal() {  }
+  override noLegal() {
+    if (!GP.gamePlay.recycleHex.isLegal) {
+      GP.gamePlay.logText(`Need ${this.balance} coins`);
+    }
+   }
 
   // nextUnit() --> unit.moveTo(source.hex)
   override moveTo(toHex: Hex | undefined) {

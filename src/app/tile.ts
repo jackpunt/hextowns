@@ -436,13 +436,14 @@ export class Tile extends Tile0 {
     ctx.targetHex.map.showMark(undefined);
   }
 
-  canBeMovedBy(player: Player, ctx: DragContext) {
-    return (ctx.lastShift || this.player === undefined || this.player === player);
+  cantBeMovedBy(player: Player, ctx: DragContext) {
+    return (ctx.lastShift || this.player === undefined || this.player === player) ? undefined : "Not your Tile";
   }
 
   /** override as necessary. */
   dragStart(ctx: DragContext) {
     this.clearThreats();  // when lifting a Tile from map, hide the CapMarks
+    if (!this.hex?.isOnMap) this.showCostMark();
   }
 
   /** state of shiftKey has changed during drag */
@@ -480,8 +481,9 @@ export class Tile extends Tile0 {
   }
 
   noLegal() {
+    const cause = GP.gamePlay.failToBalance(this) ?? '';
     const [infR, coinR] = GP.gamePlay.getInfR(this);
-    GP.gamePlay.logText(`No placement for ${this.andInfStr} infR=${infR} coinR=${coinR}`)
+    GP.gamePlay.logText(`No placement for ${this.andInfStr} ${cause} infR=${infR} coinR=${coinR}`, 'Tile.noLegal')
   }
 
   logRecycle(verb: string) {
@@ -696,15 +698,16 @@ export class AuctionTile extends Tile {
     GP.gamePlay.hexMap.update();
   }
 
-  override canBeMovedBy(player: Player, ctx: DragContext): boolean {
-    if (!super.canBeMovedBy(player, ctx)) return false;
+  override cantBeMovedBy(player: Player, ctx: DragContext) {
+    const reason1 = super.cantBeMovedBy(player, ctx);
+    if (reason1) return reason1;
     // allow shift-demolish/fire/capture(Tile,Meeple) from map [Debt & EventTile override]
-    if (player.actions <= 0 && !this.hex.isOnMap) return false;
+    if (player.actions <= 0 && !this.hex.isOnMap) return "no Actions";
     // exclude opponent's [unowned] private auction Tiles:
     const gamePlay = GP.gamePlay;
     const ndx = gamePlay.auctionTiles.indexOf(this);
     const plyr = gamePlay.shifter.getPlayer(ndx, true);
-    return (plyr === true) ? true : (plyr === player);
+    return (plyr === true) ? undefined : (plyr === player) ? undefined : 'Not your Tile';
   }
 
   override addBonus(type: AuctionBonus): BonusMark {

@@ -27,8 +27,9 @@ export class TP {
   static criminalCost = 0;
   static econForCrime = 6;
 
-  static bankAdjBank = false;
+  static allowMultiEvent = false;
   static anyPlayerAdj = true;
+  static bankAdjBank = false;
   static vpOnCivic = 1;
   static infOnCivic = 0;
   static preShiftCount = 1;  // plus 1 at start of turn
@@ -36,6 +37,7 @@ export class TP {
   static auctionMerge = 0;
   static auctionSlots = 4;
   static reserveSlots = 1;
+  static nPolicySlots = 3;
   static resiPerPlayer = 11
   static busiPerPlayer = 9;
   static lakePerPlayer = 3;

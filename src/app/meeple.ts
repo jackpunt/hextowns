@@ -105,10 +105,11 @@ export class Meeple extends Tile {
     return hex;
   }
 
-  override canBeMovedBy(player: Player, ctx: DragContext): boolean {
-    if (!super.canBeMovedBy(player, ctx)) return false;
-    if (this.backSide.visible && !ctx.lastShift) return false; // no move if not faceUp
-    return true;
+  override cantBeMovedBy(player: Player, ctx: DragContext) {
+    const reason1 = super.cantBeMovedBy(player, ctx);
+    if (reason1) return reason1;
+    if (this.backSide.visible && !ctx.lastShift) return "already moved"; // no move if not faceUp
+    return undefined;
   }
 
   // Meeple

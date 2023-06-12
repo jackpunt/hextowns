@@ -1,4 +1,4 @@
-import { AT, json } from "@thegraid/common-lib";
+import { AT, Constructor, json } from "@thegraid/common-lib";
 import { KeyBinder, S, Undo, stime } from "@thegraid/easeljs-lib";
 import { Container } from "@thegraid/easeljs-module";
 import { CostIncCounter } from "./counters";
@@ -200,11 +200,11 @@ export class GamePlay0 {
       hex.tile = tile;
     });
   }
-  shiftAuction(pNdx?: number, alwaysShift?: boolean) {
-    this.shifter.shift(pNdx, alwaysShift, this.forceDrawType);
+  shiftAuction(pNdx?: number, alwaysShift?: boolean, forceDraw = this.forceDrawType) {
+    this.shifter.shift(pNdx, alwaysShift, forceDraw);
   }
   private forceDrawNdx = -1;   // tweak in debugger to force draw Tile of specific type:
-  get forceDrawType() { return [EventTile, Resi, Busi, PS, Lake, Bank][this.forceDrawNdx]; }
+  get forceDrawType(): Constructor<BagType> { return [EventTile, Resi, Busi, PS, Lake, Bank][this.forceDrawNdx]; }
 
   eventInProcess: EzPromise<void>;
   async awaitEvent(init: () => void) {
@@ -225,12 +225,24 @@ export class GamePlay0 {
     });
   }
 
-  async shiftAndProcess(func?: () => void, alwaysShift = false) {
+  async shiftAndProcess(func?: () => void, alwaysShift = false, allowEvent = true) {
+    if (this.eventHex.tile) {
+      console.log(stime(this, `.shiftAndProcess: must dismiss event: ${AT.ansiText(['red'], this.eventHex.tile.Aname)}`))
+      return;
+    }
     this.shiftAuction(undefined, alwaysShift);
-    const tile0 = this.shifter.tile0(this.curPlayerNdx);;
+    let tile0 = this.shifter.tile0(this.curPlayerNdx);
+    while (tile0 instanceof EventTile && !allowEvent) {
+      console.log(stime(this, `.shiftAndProcess: event to bag: ${AT.ansiText(['red'], tile0.Aname)}`));
+      tile0.moveTo(undefined);  // note: DO NOT sendHome()
+      this.hexMap.update();
+      this.shifter.tileBag.push(tile0);
+      this.shiftAuction(undefined, alwaysShift, EventTile);
+      tile0 = this.shifter.tile0(this.curPlayerNdx);
+    }
     if (tile0 instanceof EventTile) {
       await this.processEventTile(tile0);
-      this.shiftAndProcess(func);
+      this.shiftAndProcess(func, alwaysShift, TP.allowMultiEvent);
     } else {
       if (func) func();
     }
@@ -327,16 +339,16 @@ export class GamePlay0 {
     const noBusi = nBusi > 1 * (nResi + fResi);
     const noResi = nResi > 2 * (nBusi + fBusi);
     const fail = (noBusi && (tile.nB > 0)) || (noResi && (tile.nR > 0));
+    const failText = noBusi ? 'Need Residential' : 'Need Business';
     if (fail) {
-      const failText =  noBusi ? 'Need Residential' : 'Need Business';
       const failTurn = `${this.turnNumber}:${failText}`;
       if (this.failTurn != failTurn) {
         this.failTurn = failTurn;
         console.log(stime(this, `.failToBalance: ${failText} ${tile.Aname}`), [nBusi, fBusi, nResi, fResi], tile);
-        this.logText(failText);
+        this.logText(failText, 'GamePlay.failToBalance');
       }
     }
-    return fail;
+    return fail ? failText : undefined;
   }
 
   // Costinc [0] = curPlayer.civics.filter(civ => civ.hex.isOnMap).length + 1
@@ -377,7 +389,7 @@ export class GamePlay0 {
   logFailure(type: string, reqd: number, avail: number, toHex: Hex) {
     const failText = `${type} required: ${reqd} > ${avail}`;
     console.log(stime(this, `.failToPayCost:`), failText, toHex.Aname);
-    this.logText(failText);
+    this.logText(failText, `GamePlay.failToPayCost`);
   }
 
   failToPayCost(tile: Tile, toHex: Hex, commit = true) {
@@ -413,7 +425,7 @@ export class GamePlay0 {
   }
 
   setIsLegalRecycle(tile: Tile, ctx: DragContext) {
-    return this.recycleHex.isLegal = true;
+    return this.recycleHex.isLegal = tile.isLegalRecycle(ctx);
   }
 
   /** Meeple.dropFunc() --> place Meeple (to Map, reserve; not Recycle) */
@@ -432,7 +444,7 @@ export class GamePlay0 {
   /** Tile.dropFunc() --> place Tile (to Map, reserve, ~>auction; not Recycle) */
   placeTile(tile: Tile, toHex: Hex, payCost = true) {
     if (!tile.hex.isOnMap && toHex.isOnMap) {
-      this.curPlayer.useAction();
+      this.curPlayer.useAction(); // TODO: put this in moveTo? (and NOT apply to Debt)
     }
     this.placeEither(tile, toHex, payCost);
   }
@@ -577,7 +589,7 @@ export class GamePlay extends GamePlay0 {
     meep.autoCrime = true;           // no econ charge to curPlayer
     const targetHex = this.autoCrimeTarget(meep);
     this.placeMeep(meep, targetHex, false); // meep.player == undefined --> no failToPayCost()
-    this.logText(`AutoCrime: ${meep}`)
+    this.logText(`AutoCrime: ${meep}`, 'GamePlay.autoCrime');
     this.processAttacks(meep.infColor);
   }
 
