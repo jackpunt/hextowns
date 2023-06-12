@@ -117,6 +117,15 @@ export class EventTile extends EvalTile {
     return rv;
   }
 
+  moveToBag() {
+    console.log(this, `.moveToBag: ${AT.ansiText(['$red'], this.text)}`)
+    const gamePlay = GP.gamePlay;
+    gamePlay.removeFromAuction(this); // remove from gamePlay.auctionTiles[]
+    super.moveTo(undefined);          // remove from Hex (auctionHexes[0])
+    gamePlay.shifter.tileBag.push(this);
+    gamePlay.hexMap.update();
+  }
+
   override sendHome(): void {
     GP.gamePlay.finishEvent();
     super.sendHome();

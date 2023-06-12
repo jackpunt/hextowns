@@ -225,19 +225,17 @@ export class GamePlay0 {
     });
   }
 
-  async shiftAndProcess(func?: () => void, alwaysShift = false, allowEvent = true) {
+  async shiftAndProcess(func?: () => void, alwaysShift = false, allowEvent = true, drawType?: Constructor<BagType>) {
     if (this.eventHex.tile) {
       console.log(stime(this, `.shiftAndProcess: must dismiss event: ${AT.ansiText(['red'], this.eventHex.tile.Aname)}`))
       return;
     }
-    this.shiftAuction(undefined, alwaysShift);
+    this.shiftAuction(undefined, alwaysShift, drawType);
     let tile0 = this.shifter.tile0(this.curPlayerNdx);
     while (tile0 instanceof EventTile && !allowEvent) {
       console.log(stime(this, `.shiftAndProcess: event to bag: ${AT.ansiText(['red'], tile0.Aname)}`));
-      tile0.moveTo(undefined);  // note: DO NOT sendHome()
-      this.hexMap.update();
-      this.shifter.tileBag.push(tile0);
-      this.shiftAuction(undefined, alwaysShift, EventTile);
+      tile0.moveToBag();  // note: DO NOT sendHome()
+      this.shiftAuction(undefined, alwaysShift);
       tile0 = this.shifter.tile0(this.curPlayerNdx);
     }
     if (tile0 instanceof EventTile) {
@@ -822,8 +820,8 @@ export class GamePlay extends GamePlay0 {
   }
 
   /** for KeyBinding test */
-  override shiftAuction(pNdx?: number, alwaysShift?: boolean) {
-    super.shiftAuction(pNdx, alwaysShift);
+  override shiftAuction(pNdx?: number, alwaysShift?: boolean, drawType?: Constructor<BagType>) {
+    super.shiftAuction(pNdx, alwaysShift, drawType);
     this.paintForPlayer();
     this.updateCostCounters();
     this.hexMap.update();

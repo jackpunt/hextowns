@@ -20,10 +20,10 @@ export class Player {
   /** econ, expense, vp */
   static updateCounters(curPlayer?: Player) {
     Player.allPlayers.forEach(player => {
-      player.econCounter.updateValue(player.econs)
-      player.expenseCounter.updateValue(player.expenses)
-      player.vpCounter.updateValue(player.vps)
-      if (player && player !== curPlayer) player.totalVpCounter.updateValue(player.totalVps)
+      player.econCounter.setValue(player.econs)
+      player.expenseCounter.setValue(player.expenses)
+      player.vpCounter.setValue(player.vps)
+      //if (player && player !== curPlayer) player.totalVpCounter.setValue(player.totalVps)
       player.balanceText.text = GP.gamePlay.playerBalanceString(player);
     })
     GP.gamePlay.hexMap.update()

@@ -307,12 +307,11 @@ export class Hex2 extends Hex {
     const res = GP.gamePlay.playerReserveHexes.includes(this);
     const k = !(this.tile instanceof BonusTile || res);      // debug double tile; TODO: remove these checks
     if (k && tile !== undefined && this.tile !== undefined) debugger;
+    if (this.tile !== undefined) cont.removeChild(this.tile);
     super.tile = tile  // this._tile = tile
     if (tile !== undefined) {
       tile.x = x; tile.y = y;
       cont.addChildAt(tile, 0); // under hex.meep (and various Text)
-    } else {
-      cont.removeChild(tile); // ??? expect: tile.moveTo(undef); tile.moveTo(hex) TODO: debug second Event
     }
   }
 

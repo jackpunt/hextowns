@@ -505,9 +505,9 @@ export class Table extends EventDispatcher  {
     layoutCounter('brib', 'grey', rowy(2));
     layoutCounter('capture', 'lightblue', rowy(3));
     layoutCounter('vp', C.briteGold, rowy(4), 1, false);
-    layoutCounter('vp0', C.briteGold, rowy(4), -1, false);
+    layoutCounter('vp0', C.briteGold, rowy(4), 0);
     layoutCounter('totalVp', C.briteGold, rowy(5), 1, false, DecimalCounter);
-    layoutCounter('tvp0', C.briteGold, rowy(5), -1, false);
+    layoutCounter('tvp0', C.briteGold, rowy(5), 0);
   }
 
   /**
@@ -841,10 +841,10 @@ export class AuctionShifter implements IAuctionShifter {
     return false;
   }
 
-  shift(pIndex = 0, alwaysShift = TP.alwaysShift, type?: Constructor<BagType>) {
+  shift(pIndex = 0, alwaysShift = TP.alwaysShift, drawType?: Constructor<BagType>) {
     if (!alwaysShift && !this.isEmptySlot(pIndex)) return; // nothing to shift
     const nm = this.nm, tiles = this.tiles
-    const tile = type ? this.tileBag.takeType(type) : this.tileBag.selectOne();
+    const tile = drawType ? this.tileBag.takeType(drawType) : this.tileBag.selectOne();
     const hexes = this.hexes
     tile?.setPlayerAndPaint(Player.allPlayers[pIndex]);
 
@@ -863,7 +863,7 @@ export class AuctionShifter implements IAuctionShifter {
       tiles[n] = tile;
     }
     shift1(tile, pIndex * nm);  // [0, this.nm][pIndex]
-    console.log(stime(this, `.shift`), tiles)
+    console.log(stime(this, `.shift(${drawType?.name ?? ''})`), tiles)
   }
 
   getNdx(hexi: number) {
