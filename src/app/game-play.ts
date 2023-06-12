@@ -86,6 +86,14 @@ export class GamePlay0 {
     }
   }
 
+  removeFromReserve(tile: AuctionTile){
+    const reserveTiles = this.reserveTiles[this.curPlayerNdx];
+    const rIndex = reserveTiles.indexOf(tile);
+    if (rIndex >= 0) {
+      reserveTiles[rIndex] = undefined;
+    }
+  }
+
   logWriterLine0() {
     let time = stime('').substring(6,15)
     let line = {
@@ -449,10 +457,12 @@ export class GamePlay0 {
 
   placeEither(tile: Tile, toHex: Hex, payCost = true) {
     // commit to pay, and verify payment made:
-    if (payCost && this.failToPayCost(tile, toHex)) {
-      tile.moveTo(tile.hex); // abort; return to fromHex
-      return;
-    }
+    // if (payCost && this.failToPayCost(tile, toHex)) {
+    //   console.log(stime(this, `.placeEither: payment failed`), tile, toHex);
+    //   debugger;              // likely obsolete, since isLegalTarget() checks failToPayCost()
+    //   tile.moveTo(tile.hex); // abort; return to fromHex
+    //   return;
+    // }
     // update influence on map:
     const fromHex = tile.hex, infColor = tile.infColor || this.curPlayer.color;
     if (fromHex?.isOnMap && (tile.inf !== 0)) {
@@ -509,29 +519,6 @@ export class GamePlay0 {
     if (aIndex > 0) this.auctionTiles[aIndex] = undefined;
     this.placeTile(tile, hex);
     return true;
-  }
-
-  private placeMeep0(meep: Meeple, hex: Hex) {
-    if (!meep) return false;
-    if (!meep.isLegalTarget(hex)) return false;
-    this.placeMeep(meep, hex);  // ACTION by curPlayer: check failToPay, set meep.owner
-    return true;
-  }
-
-  // TODO: click on leader to recruit
-  recruitAction(leader: Leader) {
-    if (leader.hex?.isOnMap) return false;
-    if (!leader.civicTile.hex?.isOnMap) return false;
-    this.placeMeep0(leader, leader.civicTile.hex)
-    return true;
-  }
-
-  placePolice(hex: Hex) {
-    return this.placeMeep0(this.curPlayer.policeSource.hex.meep, hex);
-  }
-
-  placeCriminal(hex: Hex) {
-    return this.placeMeep0(this.curPlayer.criminalSource.hex.meep, hex);
   }
 }
 

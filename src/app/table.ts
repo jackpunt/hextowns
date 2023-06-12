@@ -3,7 +3,7 @@ import { Container, DisplayObject, EventDispatcher, Graphics, MouseEvent, Shape,
 import { ButtonBox, CostIncCounter, DecimalCounter, NumCounter, NumCounterBox } from "./counters";
 import { Debt } from "./debt";
 import type { GamePlay } from "./game-play";
-import { EventHex, Hex, Hex2, HexMap, IHex } from "./hex";
+import { DebtHex, EventHex, Hex, Hex2, HexMap, IHex, RecycleHex } from "./hex";
 import { H, XYWH } from "./hex-intfs";
 import { Criminal, Police } from "./meeple";
 import { Player } from "./player";
@@ -252,13 +252,13 @@ export class Table extends EventDispatcher  {
     return hex;
   }
 
-  newHex2 (row = 0, col = 0, name: string) {
-    const hex = new Hex2(this.hexMap, row, col, name);
+  newHex2(row = 0, col = 0, name: string, claz: Constructor<Hex2> = Hex2) {
+    const hex = new claz(this.hexMap, row, col, name);
     hex.distText.text = name;
     return hex
   }
 
-  topRowHex (name: string, crxy = { col: 7, row: -1 }, dy = 0) {
+  topRowHex(name: string, crxy = { col: 7, row: -1 }, dy = 0) {
     const rowh = this.hexMap.rowHeight;
     const { col, row } = crxy;
     const sy = (row > 0) ? 0 : (-.4 + .3 * row) * rowh // {-1: -.7, 0: -.4}
@@ -299,7 +299,7 @@ export class Table extends EventDispatcher  {
 
     this.gamePlay.recycleHex = this.makeRecycleHex(5, -.5);
     this.gamePlay.debtHex = this.makeDebtHex(5, 13.5);
-    this.gamePlay.eventHex = this.makeEventHex();
+    this.gamePlay.eventHex = this.makeEventHex(-1, 5);
     this.hexMap.update();
     {
       // postition turnLog & turnText
@@ -418,7 +418,7 @@ export class Table extends EventDispatcher  {
     const image = new Tile(undefined, name).addImageBitmap(name); // ignore Tile, get image.
     image.y = -TP.hexRad / 2; // recenter
 
-    const rHex = this.newHex2(row, col, name);
+    const rHex = this.newHex2(row, col, name, RecycleHex);
     rHex.rcText.visible = rHex.distText.visible = false;
     rHex.setHexColor(C.WHITE);
     rHex.cont.addChild(image);
@@ -427,7 +427,7 @@ export class Table extends EventDispatcher  {
   }
 
   makeDebtHex(row: number, col: number) {
-    const debtHex = this.newHex2(row, col, 'Debt');
+    const debtHex = this.newHex2(row, col, 'Debt', DebtHex);
     debtHex.rcText.visible = debtHex.distText.visible = false;
 
     // Note: debtTile is not draggable, but its children are!
@@ -439,9 +439,8 @@ export class Table extends EventDispatcher  {
     return debtHex;
   }
 
-  makeEventHex(row = -1., col = 5, scale = 1.5) {
-    const eventHex = new EventHex(this.hexMap, row, col, 'eventHex', scale); // on hexMap.mapCont.hexCont;
-    return eventHex;
+  makeEventHex(row: number, col: number) {
+    return this.newHex2(row, col, 'eventHex', EventHex);
   }
 
   readonly buttonsForPlayer: Container[] = [];

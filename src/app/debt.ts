@@ -91,9 +91,10 @@ export class Debt extends Tile {
       tile.paint();
     }
   }
+
   override dragStart(ctx: DragContext): void {
     super.dragStart(ctx);
-    this.tile?.updateCache();
+    this.tile?.updateCache();  // erase Debt from originating tile
   }
 
   /** show loanLimit of Tile under Debt. */
@@ -109,6 +110,7 @@ export class Debt extends Tile {
     if (!this.player) this.balance = 0; // reset temporary loanLimit
     super.dropFunc(targetHex, ctx);
   }
+
   /** never showCostMark */
   override showCostMark(show?: boolean): void { }
 

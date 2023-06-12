@@ -393,10 +393,15 @@ export class Tile extends Tile0 {
   }
 
   // Tile
-  /** Post-condition: tile.hex == hex; */
+  /** Post-condition: tile.hex == hex; low-level, physical move */
   moveTo(hex: Hex) {
     this.hex = hex;     // INCLUDES: hex.tile = tile
     return hex;
+  }
+
+  /** Tile.dropFunc() --> placeTile (to Map, reserve, ~>auction; not Recycle); semantic move/action. */
+  placeTile(toHex: Hex, payCost = true) {
+    GP.gamePlay.placeEither(this, toHex, payCost);
   }
 
   resetTile() {
@@ -477,7 +482,7 @@ export class Tile extends Tile0 {
    * @param ctx DragContext
    */
   dropFunc(targetHex: Hex2, ctx: DragContext) {
-    GP.gamePlay.placeTile(this, targetHex);
+    this.placeTile(targetHex);
   }
 
   noLegal() {
@@ -702,7 +707,7 @@ export class AuctionTile extends Tile {
     const reason1 = super.cantBeMovedBy(player, ctx);
     if (reason1) return reason1;
     // allow shift-demolish/fire/capture(Tile,Meeple) from map [Debt & EventTile override]
-    if (player.actions <= 0 && !this.hex.isOnMap) return "no Actions";
+    if (player.actions <= 0 && !this.hex.isOnMap && !ctx.lastShift) return "no Actions";
     // exclude opponent's [unowned] private auction Tiles:
     const gamePlay = GP.gamePlay;
     const ndx = gamePlay.auctionTiles.indexOf(this);
@@ -756,8 +761,7 @@ export class AuctionTile extends Tile {
 
   // AuctionTile
   override dropFunc(targetHex: Hex2, ctx: DragContext) {
-    let gamePlay = GP.gamePlay;
-    let player = gamePlay.curPlayer, pIndex = player.index;
+    const gamePlay = GP.gamePlay, player = gamePlay.curPlayer;
 
     if ((targetHex === ctx.originHex)) {
       // flip if Infl:
@@ -771,39 +775,35 @@ export class AuctionTile extends Tile {
       return super.dropFunc(targetHex, ctx);
     }
 
-    const targetTile = targetHex.tile; // generally undefined; except BonusTile (or ReserveHexes.tile)
-    const info = [this.Aname, ctx.targetHex.Aname, this.bonus];
-    const reserveTiles = gamePlay.reserveTiles[pIndex];
-    const reserveHexes = gamePlay.reserveHexes[pIndex];
-    const auctionTiles = gamePlay.auctionTiles;
-
-    // remove from reserveTiles:
-    const rIndex = reserveTiles.indexOf(this)
-    if (rIndex >= 0) {
-      reserveTiles[rIndex] = undefined;
-    }
+    gamePlay.removeFromReserve(this);
     gamePlay.removeFromAuction(this);
 
     // placeTile(this, targetHex); moveTo(targetHex);
     super.dropFunc(targetHex, ctx);  // set this.hex = targetHex, ctx.originHex.tile = undefined;
-    // TODO: move the stuff below to AuctionTile.moveTo()
-    const toHex = this.hex as Hex2;  // where GamePlay.placeTile() put it (could be back to orig.hex)
+    // TODO: move the stuff below to AuctionTile.moveTo() or placeTile() ?
+    const toHex = this.hex as Hex2;  // where GamePlay.placeTile() put it (recycle: homeHex or undefined)
+
+    const targetTile = targetHex.tile; // generally undefined; except BonusTile (or ReserveHexes.tile)
+    const info = [this.Aname, ctx.targetHex.Aname, this.bonus];
+    const auctionTiles = gamePlay.auctionTiles;
 
     // add TO auctionTiles (from reserveHexes; see isLegalTarget) FOR TEST & DEV
-    const auctionNdx2 = gamePlay.auctionHexes.indexOf(toHex);
-    if (auctionNdx2 >= 0) {
-      auctionTiles[auctionNdx2]?.moveTo(ctx.originHex);  // if something there, swap it to fromHex
-      auctionTiles[auctionNdx2] = this;
+    const auctionNdx = gamePlay.auctionHexes.indexOf(toHex);
+    if (auctionNdx >= 0) {
+      auctionTiles[auctionNdx]?.moveTo(ctx.originHex);  // if something there, swap it to fromHex
+      auctionTiles[auctionNdx] = this;
       this.setPlayerAndPaint(player);
     }
     // add to reserveTiles:
-    const rIndex2 = reserveHexes.indexOf(toHex)
-    if (rIndex2 >= 0) {
-      console.log(stime(this, `.dropFunc: Reserve[${rIndex2}]`), ...info);
-      player.gamePlay.reserveAction(this, rIndex2)
+    const rIndex = gamePlay.playerReserveHexes.indexOf(toHex);
+    if (rIndex >= 0) {
+      console.log(stime(this, `.dropFunc: Reserve[${rIndex}]`), ...info);
+      gamePlay.reserveAction(this, rIndex);
+      player.useAction();
     }
 
     if (toHex === ctx.originHex) return;
+    // is Build or Recycle?
 
     // from market source:
     gamePlay.fromMarket(ctx.originHex)?.nextUnit();
@@ -818,6 +818,7 @@ export class AuctionTile extends Tile {
         targetTile.sendHome();
       }
 
+      player.useAction();
       console.log(stime(this, `.dropFunc: Build`), ...info);
       // deposit Bribs & Actns with Player; ASSERT was from auctionTiles or reserveTiles
       if (this.bonus.brib) {

@@ -27,6 +27,7 @@ export class TP {
   static criminalCost = 0;
   static econForCrime = 6;
 
+  static eventScale = 1.5;
   static allowMultiEvent = false;
   static anyPlayerAdj = true;
   static bankAdjBank = false;

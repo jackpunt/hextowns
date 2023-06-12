@@ -161,9 +161,19 @@ export class Meeple extends Tile {
     this.setInfRays(this.inf);  // show influence rays on this meeple
   }
 
+  // override dropFunc(targetHex: Hex2, ctx: DragContext): void {
+  //   GP.gamePlay.placeMeep(this, targetHex); // Drop: isOnMap or recycleHex
+  // }
+
   // Meeple
-  override dropFunc(targetHex: Hex2, ctx: DragContext): void {
-    GP.gamePlay.placeMeep(this, targetHex); // Drop: isOnMap or recycleHex
+  override placeTile(toHex: Hex, payCost?: boolean): void {
+    const fromHex = this.hex;
+    GP.gamePlay.placeEither(this, toHex, payCost); // meep.hex = toHex (OR homeHex; incl undefined)
+    fromHex?.tile?.setInfRays(fromHex.getInfP(this.infColor) ?? 0); // recalc after this is removed
+
+    const infP = this.hex?.getInfP(this.infColor) ?? 0;
+    this.hex?.tile?.setInfRays(infP);
+    this.setInfRays(infP);
   }
 
   override sendHome(): void { // Meeple

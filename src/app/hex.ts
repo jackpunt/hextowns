@@ -444,13 +444,15 @@ export class Hex2 extends Hex {
   }
 }
 
+export class RecycleHex extends Hex2 { }
+export class DebtHex extends Hex2 { }
 export class EventHex extends Hex2 {
-  constructor(map: HexMap, row: number, col: number, name?: string, scale = 2) {
+  constructor(map: HexMap, row: number, col: number, name?: string) {
     super(map, row, col, name);
     this.showText(false);
     this.setHexColor('transparent');
     // show Mark and Tile enlarged:
-    this.mapCont.eventCont.scaleX = this.mapCont.eventCont.scaleY = scale;
+    this.mapCont.eventCont.scaleX = this.mapCont.eventCont.scaleY = TP.eventScale;
   }
   override get markCont() { return this.mapCont.eventCont; }
   override get tile() { return super.tile; }
