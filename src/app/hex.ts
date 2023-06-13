@@ -304,10 +304,12 @@ export class Hex2 extends Hex {
   override get tile() { return super.tile; }
   override set tile(tile: Tile) {
     const cont: Container = this.map.mapCont.tileCont, x = this.x, y = this.y;
-    const res = GP.gamePlay.playerReserveHexes.includes(this);
-    const k = !(this.tile instanceof BonusTile || res);      // debug double tile; TODO: remove these checks
-    if (k && tile !== undefined && this.tile !== undefined) debugger;
-    if (this.tile !== undefined) cont.removeChild(this.tile);
+    if (this.tile !== undefined) {
+      const res = GP.gamePlay.playerReserveHexes.includes(this);
+      const k = !(this.tile instanceof BonusTile || res);      // debug double tile; TODO: remove these checks
+      if (k && tile !== undefined) debugger;
+      cont.removeChild(this.tile);
+    }
     super.tile = tile  // this._tile = tile
     if (tile !== undefined) {
       tile.x = x; tile.y = y;

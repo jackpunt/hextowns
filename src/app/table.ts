@@ -1,7 +1,9 @@
 import { AT, C, Constructor, Dragger, DragInfo, F, KeyBinder, S, ScaleableContainer, stime, XY } from "@thegraid/easeljs-lib";
 import { Container, DisplayObject, EventDispatcher, Graphics, MouseEvent, Shape, Stage, Text } from "@thegraid/easeljs-module";
+import { TileBag } from "./auction-tile";
 import { ButtonBox, CostIncCounter, DecimalCounter, NumCounter, NumCounterBox } from "./counters";
 import { Debt } from "./debt";
+import { BagType } from "./event-tile";
 import type { GamePlay } from "./game-play";
 import { DebtHex, EventHex, Hex, Hex2, HexMap, IHex, RecycleHex } from "./hex";
 import { H, XYWH } from "./hex-intfs";
@@ -9,9 +11,8 @@ import { Criminal, Police } from "./meeple";
 import { Player } from "./player";
 import type { StatsPanel } from "./stats";
 import { PlayerColor, playerColor0, playerColor1, playerColors, TP } from "./table-params";
-import { NoDragTile, Tile, TileBag, WhiteTile } from "./tile";
+import { NoDragTile, Tile, WhiteTile } from "./tile";
 import { TileSource } from "./tile-source";
-import { BagType } from "./event-tile";
 //import { TablePlanner } from "./planner";
 
 
@@ -600,12 +601,12 @@ export class Table extends EventDispatcher  {
 
   // invoke dragShift 'event' if shift state changes
   checkShift(hex: Hex2, ctx: DragContext) {
-    let info = ctx.info
-    ctx.lastCtrl = info.event?.nativeEvent?.ctrlKey;
+    const nativeEvent = ctx.info.event?.nativeEvent
+    ctx.lastCtrl = nativeEvent?.ctrlKey;
     // track shiftKey because we don't pass 'event' to isLegalTarget(hex)
-    const shiftKey = info.event?.nativeEvent?.shiftKey
+    const shiftKey = nativeEvent?.shiftKey;
     if (shiftKey !== ctx.lastShift || ctx.targetHex !== hex) {
-      ctx.lastShift = shiftKey
+      ctx.lastShift = shiftKey;
       // do shift-down/shift-up actions...
       this.dragShift(ctx.tile, shiftKey, ctx); // was interesting for hexmarket
     }

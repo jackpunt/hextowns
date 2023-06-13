@@ -69,6 +69,17 @@ export class Player {
     this.actions -= 1;
   }
 
+  takeAction(tile: Tile) {
+    tile.removeBonus('actn');
+    this.bribs += 1; // triggers coinCounter.updateValue
+  }
+
+  takeBrib(tile: Tile) {
+    tile.removeBonus('brib');
+    this.bribs += 1; // triggers coinCounter.updateValue
+
+  }
+
   captureCounter: NumCounter;
   get captures() { return this.captureCounter?.getValue(); }
   set captures(v: number) { this.captureCounter?.updateValue(v); }

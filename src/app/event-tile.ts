@@ -1,5 +1,7 @@
 import { AT, C, Constructor, stime } from "@thegraid/common-lib";
-import { AuctionTile, Tile, TileBag } from "./tile";
+import { TileBag } from "./auction-tile";
+import { Tile } from "./tile";
+import { AuctionTile } from "./auction-tile";
 import { DragContext } from "./table";
 import { Hex, } from "./hex";
 import { Text } from "@thegraid/easeljs-module";

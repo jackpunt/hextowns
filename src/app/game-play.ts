@@ -1,11 +1,14 @@
 import { AT, Constructor, json } from "@thegraid/common-lib";
 import { KeyBinder, S, Undo, stime } from "@thegraid/easeljs-lib";
 import { Container } from "@thegraid/easeljs-module";
+import { EzPromise } from "@thegraid/ezpromise";
+import { AuctionTile, Bank, Busi, Lake, PS, Resi, TileBag, } from "./auction-tile";
 import { CostIncCounter } from "./counters";
+import { BagType, EventTile } from "./event-tile";
 import { GameSetup } from "./game-setup";
 import { Hex, Hex2, HexMap, IHex } from "./hex";
 import { H } from "./hex-intfs";
-import { Criminal, Leader, Meeple, Police } from "./meeple";
+import { Criminal, Meeple } from "./meeple";
 import type { Planner } from "./plan-proxy";
 import { Player } from "./player";
 import { CenterText } from "./shapes";
@@ -13,11 +16,9 @@ import { GameStats, TableStats } from "./stats";
 import { LogWriter } from "./stream-writer";
 import { AuctionShifter, DragContext, Table } from "./table";
 import { PlayerColor, PlayerColorRecord, TP, criminalColor, otherColor, playerColorRecord, playerColors, } from "./table-params";
-import { AuctionBonus, AuctionTile, Bank, BonusTile, Busi, Lake, Monument, PS, Resi, Tile, TileBag, TownRules } from "./tile";
-//import { NC } from "./choosers";
+import { AuctionBonus, BonusTile, Monument, Tile, TownRules } from "./tile";
 import { TileSource } from "./tile-source";
-import { BagType, EventTile } from "./event-tile";
-import { EzPromise } from "@thegraid/ezpromise";
+//import { NC } from "./choosers";
 
 class HexEvent {}
 class Move{
@@ -437,13 +438,7 @@ export class GamePlay0 {
   /** Meeple.dropFunc() --> place Meeple (to Map, reserve; not Recycle) */
   // from Meeple.dropFunc, recruitAction, autoCrime, unmove2
   placeMeep(meep: Meeple, toHex: Hex, payCost = true) {
-    const fromHex = meep.hex;
-    this.placeEither(meep, toHex, payCost); // meep.hex = toHex (OR homeHex; incl undefined)
-    // update InfRays on fromHex & toHex & meep;
-    fromHex?.tile?.setInfRays(fromHex.getInfP(meep.infColor) ?? 0);
-    const infP = meep.hex?.getInfP(meep.infColor) ?? 0;
-    meep.hex?.tile?.setInfRays(infP);
-    meep.setInfRays(infP);
+    meep.placeTile(toHex, payCost);
   }
 
   // from tile.dropFunc, buildAction, placeTown
@@ -456,29 +451,25 @@ export class GamePlay0 {
   }
 
   placeEither(tile: Tile, toHex: Hex, payCost = true) {
-    // commit to pay, and verify payment made:
-    // if (payCost && this.failToPayCost(tile, toHex)) {
-    //   console.log(stime(this, `.placeEither: payment failed`), tile, toHex);
-    //   debugger;              // likely obsolete, since isLegalTarget() checks failToPayCost()
-    //   tile.moveTo(tile.hex); // abort; return to fromHex
-    //   return;
-    // }
     // update influence on map:
     const fromHex = tile.hex, infColor = tile.infColor || this.curPlayer.color;
     if (fromHex?.isOnMap && (tile.inf !== 0)) {
       tile.hex = undefined;      // hex.tile OR hex.meep = undefined; remove tile's infP
       this.decrInfluence(fromHex, tile.inf, infColor);
+      fromHex.meep?.setInfRays(fromHex.getInfP(infColor));
       tile.hex = fromHex;        // briefly, until moveTo(toHex)
     }
     if (toHex === this.recycleHex) {
-      this.logText(`Recycle ${tile} from ${fromHex?.Aname || '?'}`, ` gamePlay.placeEither`)
+      this.logText(`Recycle ${tile} from ${fromHex?.Aname || '?'}`, `gamePlay.placeEither`)
       this.recycleTile(tile);    // Score capture; log; return to homeHex
     } else {
       tile.moveTo(toHex);  // placeEither(tile, hex) --> moveTo(hex)
-      if (toHex !== fromHex) this.logText(`Place ${tile}`, ` gamePlay.placeEither`)
+      if (toHex !== fromHex) this.logText(`Place ${tile}`, `gamePlay.placeEither`)
       if (toHex?.isOnMap) {
-        // if (!tile.player) tile.player = this.curPlayer; // was for Market tiles; also for [auto] Criminals
         this.incrInfluence(tile.hex, infColor);
+        const infP = toHex.getInfP(infColor);
+        tile.setInfRays(infP);
+        toHex.meep?.setInfRays(infP);
       }
     }
     Player.updateCounters();

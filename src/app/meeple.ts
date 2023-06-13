@@ -1,5 +1,6 @@
 import { C, F, S } from "@thegraid/common-lib";
 import { Shape, Text } from "@thegraid/easeljs-module";
+import { PS } from "./auction-tile";
 import { GP } from "./game-play";
 import type { Hex, Hex2 } from "./hex";
 import { H } from "./hex-intfs";
@@ -7,7 +8,7 @@ import type { Player } from "./player";
 import { C1, InfRays, PaintableShape } from "./shapes";
 import type { DragContext } from "./table";
 import { PlayerColor, TP, criminalColor } from "./table-params";
-import { Church, Civic, Courthouse, PS, Tile, TownStart, University } from "./tile";
+import { Church, Civic, Courthouse, Tile, TownStart, University } from "./tile";
 import { UnitSource } from "./tile-source";
 
 class MeepleShape extends Shape implements PaintableShape {
@@ -157,8 +158,8 @@ export class Meeple extends Tile {
 
   override dragStart(ctx?: DragContext): void {
     super.dragStart(ctx);
-    this.hex.tile?.setInfRays(this.hex.tile.inf); // removing meeple influence
-    this.setInfRays(this.inf);  // show influence rays on this meeple
+    this.hex.tile?.setInfRays(); // tile influence after removing meeple
+    this.setInfRays();           // show influence rays on this meeple
   }
 
   // override dropFunc(targetHex: Hex2, ctx: DragContext): void {
@@ -171,7 +172,7 @@ export class Meeple extends Tile {
     GP.gamePlay.placeEither(this, toHex, payCost); // meep.hex = toHex (OR homeHex; incl undefined)
     fromHex?.tile?.setInfRays(fromHex.getInfP(this.infColor) ?? 0); // recalc after this is removed
 
-    const infP = this.hex?.getInfP(this.infColor) ?? 0;
+    const infP = this.hex?.getInfP(this.infColor) ?? 0; // combined tile & meep influence
     this.hex?.tile?.setInfRays(infP);
     this.setInfRays(infP);
   }
