@@ -110,7 +110,9 @@ export class Player {
     return expense
   }
 
-  vp0 = 0;    // adjustment to VP from Event/Policy
+  vp0Counter: NumCounter; // adjustment to VP from Event/Policy
+  get vp0() { return this.vp0Counter.getValue(); }
+
   vpCounter: NumCounter;
   get vps() {
     let vp = this.vp0 + this.captures;
@@ -125,7 +127,9 @@ export class Player {
     return vp
   }
 
-  tvp0 = 0;    // adjustment to TVP from Event/Policy
+  tvp0Counter: NumCounter;    // adjustment to TVP from Event/Policy
+  get tvp0() { return this.tvp0Counter.getValue(); }
+
   totalVpCounter: DecimalCounter;
   get totalVps() { return this.totalVpCounter.getValue(); }
   set totalVps(v: number) { this.totalVpCounter.setValue(v); }

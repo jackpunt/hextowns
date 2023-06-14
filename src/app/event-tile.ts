@@ -57,7 +57,10 @@ export class EventTile extends EvalTile {
     { text: "Add  Influence  token to  Resi", Aname: 'Influence  Resi' },
     { text: "Add  Influence  token to  Busi", Aname: 'Influence  Busi' },
     { text: "Add  Econ token  to  Resi", Aname: 'Econ  on Resi' }, // Home Business (adj Bank?)
-    { text: "Add  VP token  to  Busi", Aname: 'VP  on Busi' },     // Happy Business (adj Lake?)
+    { text: "Add  Econ token  to  Lake", Aname: 'Econ  on Lake' }, // lakeside resort
+    { text: "Add  Econ token  to  Police", Aname: 'Econ  on PS' }, // ~discount police
+    { text: "Add  VP token  to  Busi", Aname: 'VP  on Busi' },     // Happy Business
+    { text: "Add  VP token  to  Bank", Aname: 'VP  on Bank' },     // Happy Business
     { text: "Move  one  Criminal", Aname: 'Move  Criminal' },
     { text: "Capture  one  Criminal", Aname: 'Capture  Criminal' },
     { text: "Build  Monument  on site adj  3 types", Aname: 'Build  Monument' },
@@ -75,11 +78,11 @@ export class EventTile extends EvalTile {
     // 'policy' Event implies duration until removed by eval [evaluated at start of turn]
     // eval gives the reward.
     { text: "+1 VP  until  Leader  is hired", Aname: 'No  Leader  Policy', policy: true, eval: () => {}, vp: 1 },
-    { text: "+1 VP  until  opposing  Criminal", Aname: 'No  Victem  Policy', policy: true, eval: () => {}, vp: 1 },
+    { text: "+1 VP  until  opposing  Criminal", Aname: 'No  Victim  Policy', policy: true, eval: () => {}, vp: 1 },
     { text: "+1 VP  until  Criminal  is hired", Aname: 'No  Perp  Policy', policy: true, eval: () => {}, vp: 1 },
     { text: "+1 VP  until  Police  is hired", Aname: 'No  Police  Policy', policy: true, eval: () => {}, vp: 1 },
-    { text: "+1 VP  per Police", Aname: 'Police  happiness  Policy', policy: true, eval: () => {}, vp: 1 },
-    { text: "+1 Coin  per Police", Aname: 'Police  discount  Policy', policy: true, eval: () => {} },
+    { text: "+1 VP  per  Police", Aname: 'Police  happiness  Policy', policy: true, eval: () => {}, vp: 1 },
+    { text: "+1 Coin  per  Police", Aname: 'Police  discount  Policy', policy: true, eval: () => {} },
     // { text: ""},
     // { text: ""},
     // { text: ""},
@@ -140,19 +143,25 @@ export class EventTile extends EvalTile {
 export class PolicyTile extends EvalTile {
   static allPolicySpecs: EventSpec[] = [
     // 'permanent' Policy; evaluated each turn for VP, and end of game for TVP
-    { text: "No Leader; +1 VP while no Leader", eval: () => {}, vp: 1, cost: 6 },
-    { text: "No Crime; +1 VP no [opposing] Criminal", eval: () => {}, vp: 1, cost: 6 },
-    { text: "No Corruption; +1 VP while no [hired] Criminal", eval: () => {}, vp: 1, cost: 8 },
-    { text: "No Police; +1 VP while no Police", eval: () => {}, vp: 1, cost: 8 },
-    { text: "No Police; +20 TVP if never Police", eval: () => {}, tvp: 20, cost: 10 }, // discard when hire Police
-    { text: "Police discount; +1 Coin per one Police", cost: 10 },
-    { text: "Police discount; +1 Coin per two Police", cost: 20 },
-    { text: "Police discount; +1 Coin per each Police", cost: 30 },
-    { text: "Police happiness; +1 VP per Police", cost: 10},
+    { text: "+1 VP  until  Leader  is hired", Aname: "No Leader", eval: () => {}, vp: 1, cost: 6 },
+    { text: "+1 VP  until  opposing  Criminal", Aname: "No Victim", eval: () => {}, vp: 1, cost: 6 },
+    { text: "+1 VP  until  hire  Criminal", Aname: "No Corruption", eval: () => {}, vp: 1, cost: 8 },
+    { text: "+1 VP  until  hire  Police", Aname: "No Police", eval: () => {}, vp: 1, cost: 8 },
+    { text: "+20 TVP  if never  Police", Aname: "Never Police", eval: () => {}, tvp: 20, cost: 10 }, // discard when hire Police
+    { text: "+1 Econ  for one  Police", Aname: "Police discount 1", cost: 10 },
+    { text: "+2 Econ  for two  Police", Aname: "Police discount 2", cost: 20 },
+    { text: "+3 Econ  for three  Police", Aname: "Police discount 3", cost: 30 },
+    { text: "+1 VP  per  Police", Aname: "Police happiness", cost: 10 },
 
-    { text: "No adjacent Civics: +10 TVP", cost: 8 },
-    { text: "No colinear Civics: +30 TVP", cost: 8 },
-    { text: "Extra Reserve Hex", cost: 8 },  // place this as Reserve Hex
+    { text: "  +1 Econ", Aname: "Econ Investment", cost: 20 },
+    { text: "+1 Econ  for one  Civic", Aname: "Civic Investment 1", cost: 10} ,
+    { text: "+2 Econ  for two  Civics", Aname: "Civic Investment 2", cost: 20 },
+    { text: "+3 Econ  for three  Civics", Aname: "Civic Investment 3", cost: 30 },
+
+    { text: "+10 TVP  if no  adjancent  Civics", Aname: "No adjacent Civics", cost: 8 },
+    { text: "+30 TVP  if no  colinear  Civics", Aname: "No colinear Civics", cost: 8 },
+    { text: "Extra Reserve Hex", cost: 8, Aname: "Reserve Hex 1" },  // place this as Reserve Hex
+    { text: "Extra Reserve Hex", cost: 8, Aname: "Reserve Hex 2" },  // place this as Reserve Hex
     // { text: ""},
     // { text: ""},
     // { text: ""},

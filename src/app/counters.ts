@@ -1,5 +1,5 @@
-import { C, F, XY, stime } from "@thegraid/common-lib";
-import { DisplayObject, Shape, Text } from "@thegraid/easeljs-module";
+import { C, F, S, XY, stime } from "@thegraid/common-lib";
+import { DisplayObject, Shape, Text, MouseEvent } from "@thegraid/easeljs-module";
 import { GP } from "./game-play";
 import type { Hex2 } from "./hex";
 import { H } from "./hex-intfs";
@@ -31,7 +31,7 @@ export class ButtonBox extends ValueCounterBox {
 
 }
 
-/** ValueCounter specifically for number values (not string) */
+/** ValueCounter specifically for number values (not string), includes incValueEvent() and clickToInc() */
 export class NumCounter extends ValueCounter {
   override setValue(value: number | string) {
     super.setValue(value);
@@ -41,6 +41,12 @@ export class NumCounter extends ValueCounter {
   }
   incValue(incr: number) {
     this.updateValue(this.getValue() + incr);
+  }
+  incValueEvent(evt: MouseEvent, counter: NumCounter = this) {
+    counter.incValue((evt.nativeEvent.ctrlKey ? -1 : 1) * (evt.nativeEvent.shiftKey ? 10 : 1));
+  }
+  clickToInc(counter: NumCounter = this) {
+    this.on(S.click, (evt: MouseEvent) => this.incValueEvent(evt, counter));
   }
 }
 

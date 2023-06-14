@@ -486,7 +486,7 @@ export class Table extends EventDispatcher  {
   layoutCounters(player: Player, cont: Container, rowy: (row: number) => number) {
     const index = player.index, dir = [1, -1][index];
     const counterCont = this.scaleCont;
-    const layoutCounter = (name: string, color: string, rowy: number, colx = 1, incr = true,
+    const layoutCounter = (name: string, color: string, rowy: number, colx = 1, incr: boolean | NumCounter = true,
       claz = NumCounterBox) => {
       //: new (name?: string, iv?: string | number, color?: string, fSize?: number) => NumCounter
       const cname = `${name}Counter`, fSize = TP.hexRad * .75;
@@ -495,7 +495,10 @@ export class Table extends EventDispatcher  {
       const pt = cont.localToLocal(dir * (colx ) * TP.hexRad, rowy, counterCont)
       counter.attachToContainer(counterCont, pt);
       counter.mouseEnabled = true;
-      if (incr) counter.on(S.click, (evt: MouseEvent) => counter.incValue((evt.nativeEvent.ctrlKey ? -1 : 1) * (evt.nativeEvent.shiftKey ? 10 : 1)));
+      if (incr) {
+        counter.clickToInc();
+        if (incr instanceof NumCounter) counter.clickToInc(incr);
+      }
       return counter
     };
     layoutCounter('action', C.YELLOW, rowy(0));
@@ -504,10 +507,10 @@ export class Table extends EventDispatcher  {
     layoutCounter('expense', C.GREEN, rowy(1), 3 - index, false);
     layoutCounter('brib', 'grey', rowy(2));
     layoutCounter('capture', 'lightblue', rowy(3));
-    layoutCounter('vp', C.briteGold, rowy(4), 1, false);
-    layoutCounter('vp0', C.briteGold, rowy(4), 0);
-    layoutCounter('totalVp', C.briteGold, rowy(5), 1, false, DecimalCounter);
-    layoutCounter('tvp0', C.briteGold, rowy(5), 0);
+    const vpC = layoutCounter('vp', C.briteGold, rowy(4), 1, false);
+    layoutCounter('vp0', C.briteGold, rowy(4), 0, vpC);
+    const tvpC = layoutCounter('totalVp', C.briteGold, rowy(5), 1, false, DecimalCounter);
+    layoutCounter('tvp0', C.briteGold, rowy(5), 0, tvpC);
   }
 
   /**
