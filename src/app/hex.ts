@@ -339,9 +339,9 @@ export class Hex2 extends Hex {
     super(map, row, col, name);
     this.initCont(row, col);
     map?.mapCont.hexCont.addChild(this.cont);
-    this.hexShape.name = this.Aname
-
-    const rc = `${row!=undefined?row:''},${col!=undefined?col:''}`, tdy = -25;
+    this.hexShape.name = this.Aname;
+    const nf = (n: number) => `${n !== undefined ? (n === Math.floor(n)) ? n : n.toFixed(1) : ''}`;
+    const rc = `${nf(row)},${nf(col)}`, tdy = -25;
     const rct = this.rcText = new Text(rc, F.fontSpec(26), 'white'); // radius/2 ?
     rct.textAlign = 'center'; rct.y = tdy; // based on fontSize? & radius
     this.cont.addChild(rct);
@@ -359,8 +359,8 @@ export class Hex2 extends Hex {
       this.distText.text = this.infStr;
       this.tile?.setInfText(this.infStr);
     }
-    this.rcText.visible = this.distText.visible = vis
-    this.cont.updateCache()
+    this.rcText.visible = this.distText.visible = vis;
+    this.cont.updateCache();
   }
 
   readonly legalMark = new LegalMark();
@@ -453,7 +453,7 @@ export class EventHex extends Hex2 {
     super(map, row, col, name);
     this.showText(false);
     this.setHexColor('transparent');
-    // show Mark and Tile enlarged:
+    // show Mark and Tile enlarged: [note: we only make 1 EventHex]
     this.mapCont.eventCont.scaleX = this.mapCont.eventCont.scaleY = TP.eventScale;
   }
   override get markCont() { return this.mapCont.eventCont; }
@@ -462,6 +462,16 @@ export class EventHex extends Hex2 {
     super.tile = tile  // this._tile = tile; tile.x/y = this.x/y;
     tile?.parent.localToLocal(this.x, this.y, this.mapCont.eventCont, tile);
     this.mapCont.eventCont.addChild(tile); // to top
+  }
+}
+
+export class BonusHex extends Hex2 {
+  constructor(map: HexMap, row: number, col: number, name?: string) {
+    super(map, row, col, name);
+    this.distText.text = name;
+    this.showText(false);  // or true for debug...
+    this.y += .05 * this.radius; // adjust center
+    this.cont.scaleX = this.cont.scaleY = .5;
   }
 }
 
@@ -514,7 +524,6 @@ export class HexMap extends Array<Array<Hex>> implements HexM {
   readonly mapCont: MapCont = new MapCont(this)   // if using Hex2
   readonly skipHex: Hex;
   readonly resignHex: Hex;
-  rcLinear(row: number, col: number): number { return col + row * (1 + (this.maxCol || 0) - (this.minCol||0)) }
 
   //
   //                         |    //                         |    //                         |
@@ -526,6 +535,7 @@ export class HexMap extends Array<Array<Hex>> implements HexM {
   //
 
   readonly radius = TP.hexRad
+  // SEE ALSO: hex.xywh(radius, axis, row, col)
   /** height per row of cells with NS axis */
   get rowHeight() { return this.radius * 1.5 };
   /** height of hexagonal cell with NS axis */
@@ -534,21 +544,31 @@ export class HexMap extends Array<Array<Hex>> implements HexM {
   get colWidth() { return this.radius * H.sqrt3 }
   /** width of hexagonal cell with NS axis */
   get cellWidth() { return this.radius * H.sqrt3 }
-
-  mark: DisplayObject | undefined                              // a cached DisplayObject, used by showMark
-  private minCol: number | undefined = undefined               // Array.forEach does not look at negative indices!
-  private maxCol: number | undefined = undefined               // used by rcLinear
-  private minRow: number | undefined = undefined               // to find center
-  private maxRow: number | undefined = undefined               // to find center
-
-  readonly metaMap = Array<Array<Hex>>()           // hex0 (center Hex) of each MetaHex, has metaLinks to others.
-
   /** bounding box of HexMap: XYWH = {0, 0, w, h} */
   get wh() {
     let hexRect = this.mapCont.hexCont.getBounds()
     let wh = { width: hexRect.width + 2 * this.colWidth, height: hexRect.height + 2 * this.rowHeight }
     return wh
   }
+
+  private minCol: number | undefined = undefined               // Array.forEach does not look at negative indices!
+  private maxCol: number | undefined = undefined               // used by rcLinear
+  private minRow: number | undefined = undefined               // to find centerHex
+  private maxRow: number | undefined = undefined               // to find centerHex
+  get centerHex() {
+    let cr = Math.floor((this.maxRow + this.minRow) / 2)
+    let cc = Math.floor((this.minCol + this.maxCol) / 2);
+    return this[cr][cc] as Hex2
+  }
+  getCornerHex(dn: HexDir) {
+    return this.centerHex.lastHex(dn)
+  }
+  rcLinear(row: number, col: number): number { return col + row * (1 + (this.maxCol || 0) - (this.minCol||0)) }
+
+  readonly metaMap = Array<Array<Hex>>()           // hex0 (center Hex) of each MetaHex, has metaLinks to others.
+
+  mark: DisplayObject | undefined                              // a cached DisplayObject, used by showMark
+
   /** for contrast paint it black AND white, leave a hole in the middle unpainted. */
   makeMark(radius: number, radius0: number = 0) {
     let mark = new Shape(), cb = "rgba(0,0,0,.3)", cw="rgba(255,255,255,.3)"
@@ -717,15 +737,6 @@ export class HexMap extends Array<Array<Hex>> implements HexM {
       mapCont[cname].x = -x0
       mapCont[cname].y = -y0
     })
-  }
-
-  get centerHex() {
-    let cr = Math.floor((this.maxRow + this.minRow) / 2)
-    let cc = Math.floor((this.minCol + this.maxCol) / 2);
-    return this[cr][cc] as Hex2
-  }
-  getCornerHex(dn: HexDir) {
-    return this.centerHex.lastHex(dn)
   }
 
   pickColor(hexAry: Hex2[]): string {

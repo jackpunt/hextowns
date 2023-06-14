@@ -5,8 +5,8 @@ import { ButtonBox, CostIncCounter, DecimalCounter, NumCounter, NumCounterBox } 
 import { Debt } from "./debt";
 import { BagType } from "./event-tile";
 import type { GamePlay } from "./game-play";
-import { DebtHex, EventHex, Hex, Hex2, HexMap, IHex, RecycleHex } from "./hex";
-import { H, XYWH } from "./hex-intfs";
+import { BonusHex, DebtHex, EventHex, Hex, Hex2, HexMap, IHex, RecycleHex } from "./hex";
+import { H, HexDir, XYWH } from "./hex-intfs";
 import { Criminal, Police } from "./meeple";
 import { Player } from "./player";
 import type { StatsPanel } from "./stats";
@@ -259,12 +259,17 @@ export class Table extends EventDispatcher  {
     return hex
   }
 
-  topRowHex(name: string, crxy = { col: 7, row: -1 }, dy = 0) {
-    const rowh = this.hexMap.rowHeight;
-    const { col, row } = crxy;
-    const sy = (row > 0) ? 0 : (-.4 + .3 * row) * rowh // {-1: -.7, 0: -.4}
+  noRowHex(name: string, crxy: { row: number, col: number }, claz: Constructor<Hex2>) {
+    const { row, col } = crxy;
+    const hex = this.newHex2(row, col, name, claz);
+    return hex;
+  }
+
+  homeRowHex(name: string, crxy: { row: number, col: number }, dy = 0) {
+    const { row, col } = crxy;
     const hex = this.newHex2(row, col, name);
     this.homeRowHexes.push(hex);
+    const sy = (row > 0) ? 0 : (-.4 + .3 * row) * this.hexMap.rowHeight; // {-1: -.7, 0: -.4}
     hex.y += (sy + dy);
     hex.legalMark.setOnHex(hex);
     return hex;
@@ -319,82 +324,13 @@ export class Table extends EventDispatcher  {
     this.on(S.add, this.gamePlay.playerMoveEvent, this.gamePlay)[S.Aname] = "playerMoveEvent"
   }
 
-  makePerPlayer() {
-    this.buttonsForPlayer.length = 0; // TODO: maybe deconstruct
-    Player.allPlayers.forEach((p, pIndex) => {
-      this.layoutButtonsAndCounters(p);
-      p.makePlayerBits();
-      const offcc = 0;
-      // column index for Hex in topRow(row = -1)
-      const colf1 = (ndx = 7, offc = offcc) => (pIndex == 0 ? (ndx - offc) : 13 - (ndx - offc));
-      // column index for Hex in 2ndRow(row = 0)
-      const colf2 = (ndx = 7, offc = offcc) => (pIndex == 0 ? (ndx - offc) : 14 - (ndx - offc));
-      const colf = (ndx = 7, row = -1) => { return { row, col: ((Math.abs(row) % 2) === 1) ? colf1(ndx) : colf2(ndx) } };
-
-      const leaderHexes = p.allLeaders.map((meep, ndx) => this.topRowHex(meep.Aname, colf(ndx-1, -1)));
-      // place [civic/leader, academy/police] meepleHex on Table/Hex (but not on Map)
-      this.leaderHexes[pIndex] = leaderHexes;
-      p.allLeaders.forEach((meep, i) => {
-        const homeHex = meep.civicTile.moveTo(meep.moveTo(leaderHexes[i])) as Hex2;
-        meep.homeHex = meep.civicTile.homeHex = homeHex;
-        this.addCostCounter(homeHex, `${meep.Aname}-c`, 1, p); // leaderHex[plyr]
-      })
-      let col0 = -1;
-
-      const academyHex = this.topRowHex(`Academy:${pIndex}`, colf(col0++, 0));
-      this.addCostCounter(academyHex, undefined, -1, false); // academyHex[plyr]: no Counter, no incr, no repaint
-      p.policeSource = Police.makeSource(p, academyHex, TP.policePerPlayer);
-
-      const crimeHex = this.topRowHex(`Barbs:${pIndex}`, colf(col0++, 0));
-      this.addCostCounter(crimeHex, undefined, -1, false);
-      p.criminalSource = Criminal.makeSource(p, crimeHex, TP.criminalPerPlayer);
-
-      const locs = { Busi: [col0++, 0], Resi: [col0++, 0], Monument: [col0, -1] };
-
-      this.gamePlay.marketTypes.forEach((type, ndx) => {
-        const [col, row] = locs[type.name];
-        const hex = this.topRowHex(type.name, colf(col, row)); // Busi/Resi-MarketHex
-        const source = this.gamePlay.marketSource[pIndex][type.name] = new TileSource<Tile>(type, p, hex);
-        for (let i = 0; i < TP.inMarket[type.name]; i++) {
-          source.availUnit(new type(p));
-        }
-        source.nextUnit();
-        this.addCostCounter(hex, type.name, 1, p);  // Busi/Resi/Monument market
-      })
-
-      this.reserveHexes[pIndex] = [];
-      for (let i = 0; i < TP.reserveSlots; i++) {
-        const rhex = this.topRowHex(`Reserve:${pIndex}-${i}`, colf(col0++, 0));
-        this.addCostCounter(rhex, `rCost-${i}`, 1, false); // reserveHexes[plyr]
-        this.reserveHexes[pIndex].push(rhex);
-      }
-
-      const pRowCol = [[2, 0], [2, -1], [1, -1], [3, -1], [4, -1], [4, 0]];
-      p.policySlots.forEach((hex, ndx, ary) => {
-        const [r, c] = pRowCol[ndx];
-        const { row, col } = colf(c, r); TP.nPolicySlots
-        const pHex = this.topRowHex(`policy:${pIndex}-${ndx}`,{col, row}, 0);
-        ary[ndx] = pHex;
-      })
-
-      {
-        // Show Player's balance text:
-        const bText = p.balanceText, parent = this.scaleCont;
-        const hexC2 = this.hexMap[8][colf2(2, 0)] as Hex2, hexR1 = this.hexMap[1][3] as Hex2;
-        const x = hexC2.x, y = hexR1.y - .3 * TP.hexRad * H.sqrt3;
-        hexC2.cont.parent.localToLocal(x, y, parent, bText);
-        parent.addChild(bText);
-      }
-    });
-  }
-
   makeShifter() {
     const nm = TP.auctionMerge, rowh = this.hexMap.rowHeight
     const splitRowHex = (name: string, ndx: number) => {
       const col0 = 5.5, row = 0;
-      return ndx < nm ? this.topRowHex(name, {col: col0 + ndx, row}, -TP.hexRad * 2) : // shift UP 2 when split
-        ndx < 2 * nm ? this.topRowHex(name, {col: col0 + ndx - nm, row}) :             // stay DOWN when split
-          this.topRowHex(name, {col: col0 + ndx - nm, row}, -rowh * .65);              // shift to middle, not split
+      return ndx < nm ? this.homeRowHex(name, {col: col0 + ndx, row}, -TP.hexRad * 2) : // shift UP 2 when split
+        ndx < 2 * nm ? this.homeRowHex(name, {col: col0 + ndx - nm, row}, 0) :          // stay DOWN when split
+          this.homeRowHex(name, {col: col0 + ndx - nm, row}, -rowh * .65);              // shift to middle, not split
     }
     const auctionTiles = this.gamePlay.auctionTiles, tileBag = this.gamePlay.shifter.tileBag;
     const shifter = this.gamePlay.shifter = new AuctionShifter2(auctionTiles, this, splitRowHex);
@@ -444,18 +380,92 @@ export class Table extends EventDispatcher  {
     return this.newHex2(row, col, 'eventHex', EventHex);
   }
 
+  // col locations, left-right mirrored:
+  colf(pIndex: number, icol: number, row: number) {
+    const dc = 14 - Math.abs(row) % 2;
+    const col = (pIndex == 0 ? (icol) : (dc - icol));
+    return { row, col };
+  }
+
+  makePerPlayer() {
+    this.buttonsForPlayer.length = 0; // TODO: maybe deconstruct
+    Player.allPlayers.forEach((p, pIndex) => {
+      this.layoutButtonsAndCounters(p);
+      p.makePlayerBits();
+      const colf = (col: number, row: number) => this.colf(pIndex, col, row);
+
+      let col0 = -1;
+      const leaderHexes = p.allLeaders.map((meep, ndx) => this.homeRowHex(meep.Aname, colf(ndx+col0, -1)));
+      // place [civic/leader, academy/police] meepleHex on Table/Hex (but not on Map)
+      this.leaderHexes[pIndex] = leaderHexes;
+      p.allLeaders.forEach((meep, i) => {
+        const homeHex = meep.civicTile.moveTo(meep.moveTo(leaderHexes[i])) as Hex2;
+        meep.homeHex = meep.civicTile.homeHex = homeHex;
+        this.addCostCounter(homeHex, `${meep.Aname}-c`, 1, p); // leaderHex[plyr]
+      })
+
+      const academyHex = this.homeRowHex(`Academy:${pIndex}`, colf(col0++, 0));
+      this.addCostCounter(academyHex, undefined, -1, false); // academyHex[plyr]: no Counter, no incr, no repaint
+      p.policeSource = Police.makeSource(p, academyHex, TP.policePerPlayer);
+
+      const crimeHex = this.homeRowHex(`Barbs:${pIndex}`, colf(col0++, 0));
+      this.addCostCounter(crimeHex, undefined, -1, false);
+      p.criminalSource = Criminal.makeSource(p, crimeHex, TP.criminalPerPlayer);
+
+      const locs = { Busi: [col0++, 0], Resi: [col0++, 0], Monument: [col0, -1] };
+
+      this.gamePlay.marketTypes.forEach((type, ndx) => {
+        const [col, row] = locs[type.name];
+        const hex = this.homeRowHex(type.name, colf(col, row)); // Busi/Resi-MarketHex
+        const source = this.gamePlay.marketSource[pIndex][type.name] = new TileSource<Tile>(type, p, hex);
+        for (let i = 0; i < TP.inMarket[type.name]; i++) {
+          source.availUnit(new type(p));
+        }
+        source.nextUnit();
+        this.addCostCounter(hex, type.name, 1, p);  // Busi/Resi/Monument market
+      })
+
+      this.reserveHexes[pIndex] = [];
+      for (let i = 0; i < TP.reserveSlots; i++) {
+        const rhex = this.homeRowHex(`Reserve:${pIndex}-${i}`, colf(col0++, 0));
+        this.addCostCounter(rhex, `rCost-${i}`, 1, false); // reserveHexes[plyr]
+        this.reserveHexes[pIndex].push(rhex);
+      }
+
+      const pRowCol = [[2, 0], [2, -1], [1, -1], [3, -1], [4, -1], [4, 0]];
+      p.policySlots.forEach((hex, ndx, ary) => {
+        const [r, c] = pRowCol[ndx];
+        const { row, col } = colf(c, r); TP.nPolicySlots
+        const pHex = this.homeRowHex(`policy:${pIndex}-${ndx}`,{col, row}, 0);
+        ary[ndx] = pHex;
+      })
+      {
+        const adjC = (n: number) => ((n - .165) * 1.2);
+        this.noRowHex(`bribH:${pIndex}`, this.colf(pIndex, adjC(1.5), 2), BonusHex);
+        this.noRowHex(`econH:${pIndex}`, this.colf(pIndex, adjC(2.0), 2), BonusHex);
+      }
+      {
+        // Show Player's balance text:
+        const bText = p.balanceText, parent = this.scaleCont;
+        const hexC2 = this.hexMap[8][colf(2, 0).col] as Hex2, hexR1 = this.hexMap[1][3] as Hex2;
+        const x = hexC2.x, y = hexR1.y - .3 * TP.hexRad * H.sqrt3;
+        hexC2.cont.parent.localToLocal(x, y, parent, bText);
+        parent.addChild(bText);
+      }
+    });
+  }
+
   readonly buttonsForPlayer: Container[] = [];
-  private contForPlayer(player: Player) {
-    const parent = this.scaleCont, index = player.index;
-    const xHex = this.hexMap.getCornerHex([H.W, H.E][index]) as Hex2;
-    const yHex = this.hexMap.getCornerHex(H.NW) as Hex2;
-    const { x: cx, y: cy } = xHex.xywh();
-    const ptx = xHex.cont.parent.localToLocal(cx, cy, parent).x;
-    const { x: ex, y: ey } = yHex.xywh();
-    const pty = xHex.cont.parent.localToLocal(ex, ey, parent).y;
-    const cont = new Container(), offx = TP.hexRad * H.sqrt3_2;
-    cont.x = ptx + [offx, -offx][index];
-    cont.y = pty;
+  private contForPlayer(index: number) {
+    const parent = this.scaleCont;
+    const ppt = (dir: HexDir) => {
+      const hex = this.hexMap.getCornerHex(dir) as Hex2;
+      const { x, y } = hex.xywh(); // on hex.cont.parent = hexMap.mapCont.hexCont
+      return hex.cont.parent.localToLocal(x, y, parent);
+    }
+    const cont = new Container()
+    cont.x = ppt([H.W, H.E][index]).x;
+    cont.y = ppt(H.NW).y;
     cont.visible = false;
     parent.addChild(cont); // Container for Player's Buttons
     this.buttonsForPlayer[index] = cont;
@@ -465,15 +475,15 @@ export class Table extends EventDispatcher  {
   /** per player buttons to invoke GamePlay */
   layoutButtonsAndCounters(player: Player) {
     const index = player.index;
-    const cont = this.buttonsForPlayer[index] = this.contForPlayer(player);
+    const cont = this.buttonsForPlayer[index] = this.contForPlayer(index);
     const { x, y, w, h } = this.hexMap.centerHex.xywh();
     const rowy = (i: number) => { return (i - .5) * h / 2}
-    const bLabels = ['Done'];
     const align = (['right', 'left'] as const)[index], dx = [w, -w][index];
+    const bLabels = ['Done'];
     bLabels.forEach((label, i) => {
       const b = new ButtonBox(label, label, 'lightgreen', TP.hexRad * .75); // eh/3
       b.mouseEnabled = true
-      b.attachToContainer(cont, { x: 4.4 * dx, y: rowy(i - 1.1) }) // just a label
+      b.attachToContainer(cont, { x: 5 * dx, y: rowy(i - 1.1) }) // just a ['Done'] label/button
       b.setValue(label);
       b.boxAlign(align);
       b.on(S.click, () => this.doButton(label), this)[S.Aname] = `b:${label}`;
@@ -484,15 +494,17 @@ export class Table extends EventDispatcher  {
   }
 
   layoutCounters(player: Player, cont: Container, rowy: (row: number) => number) {
-    const index = player.index, dir = [1, -1][index];
     const counterCont = this.scaleCont;
-    const layoutCounter = (name: string, color: string, rowy: number, colx = 1, incr: boolean | NumCounter = true,
+    const col0 = 2;
+    const index = player.index, dir = [1, -1][index]
+    const colx = (coff = 0) => dir * (col0 + coff) * TP.hexRad * H.sqrt3_2; // half-width column offset from col0
+    const layoutCounter = (name: string, color: string, rowy: number, coff = 0, incr: boolean | NumCounter = true,
       claz = NumCounterBox) => {
       //: new (name?: string, iv?: string | number, color?: string, fSize?: number) => NumCounter
       const cname = `${name}Counter`, fSize = TP.hexRad * .75;
       const counter = player[cname] = new claz(`${cname}:${index}`, 0, color, fSize)
       counter.setLabel(`${name}s`, { x: 0, y: fSize/2 }, 12);
-      const pt = cont.localToLocal(dir * (colx ) * TP.hexRad, rowy, counterCont)
+      const pt = cont.localToLocal(colx(coff), rowy, counterCont)
       counter.attachToContainer(counterCont, pt);
       counter.mouseEnabled = true;
       if (incr) {
@@ -501,16 +513,17 @@ export class Table extends EventDispatcher  {
       }
       return counter
     };
+    const adjC = (n: number) => (n * 1.2);
     layoutCounter('action', C.YELLOW, rowy(0));
     layoutCounter('coin', C.coinGold, rowy(1));
-    layoutCounter('econ', C.GREEN, rowy(1), 2 + index, false);
-    layoutCounter('expense', C.GREEN, rowy(1), 3 - index, false);
+    layoutCounter('econ', C.GREEN, rowy(1), adjC(1 + index), false);
+    layoutCounter('expense', C.GREEN, rowy(1), adjC(2 - index), false);
     layoutCounter('brib', 'grey', rowy(2));
     layoutCounter('capture', 'lightblue', rowy(3));
-    const vpC = layoutCounter('vp', C.briteGold, rowy(4), 1, false);
-    layoutCounter('vp0', C.briteGold, rowy(4), 0, vpC);
-    const tvpC = layoutCounter('totalVp', C.briteGold, rowy(5), 1, false, DecimalCounter);
-    layoutCounter('tvp0', C.briteGold, rowy(5), 0, tvpC);
+    const vpC = layoutCounter('vp', C.briteGold, rowy(4), 0, false);
+    layoutCounter('vp0', C.briteGold, rowy(4), adjC(-1), vpC);
+    const tvpC = layoutCounter('totalVp', C.briteGold, rowy(5), 0, false, DecimalCounter);
+    layoutCounter('tvp0', C.briteGold, rowy(5), adjC(-1), tvpC);
   }
 
   /**

@@ -63,8 +63,8 @@ export class NumCounterBox extends NumCounter {
   }
 
   protected makeBox0(color: string, high: number, wide: number): DisplayObject {
-    let shape = new Shape()
-    shape.graphics.c().f(color).drawRect(-wide / 2, -high / 2, wide, high); // change from ellispe
+    const shape = new Shape()
+    shape.graphics.c().f(color).drawRect(-wide / 2, -high / 2, wide, high); // centered on {x,y}
     return shape
   }
 
