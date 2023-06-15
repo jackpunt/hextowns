@@ -185,17 +185,18 @@ class Tile0 extends Container {
   }
 
   readonly bonus: BonusObj = { star: false, brib: false, actn: false, econ: false }
+  /** GamePlay.addBonus(tile) restricts this to (tile instanceof AuctionTile) */
   addBonus(type: AuctionBonus) {
     const mark = new BonusMark(type);
     this.bonus[type] = true;
     this.addChildAt(mark, this.numChildren -1);
     this.paint();
-    return mark
+    return mark;
   }
 
   get bonusCount() {
     let rv = 0;
-    Object.values(this.bonus).forEach(value => rv += (value ? 1 : 0));
+    Object.values(this.bonus).forEach(isBonus => rv += (isBonus ? 1 : 0));
     return rv;
   }
 
@@ -389,6 +390,16 @@ export class Tile extends Tile0 {
     console.log(stime(this, `.rightclick: ${this}`), this);
   }
 
+  overSet(tile: Tile) {
+    if (!(tile instanceof BonusTile)
+      && !(GP.gamePlay.playerReserveHexes.includes(tile.hex))) {
+      let k = false;
+      if (k) debugger; // unless reserveHexes.includes(hex)
+    }
+    console.log(stime(this, `.overSet: removeChild: ${tile}`))
+    tile.parent.removeChild(tile);
+  }
+
   // Tile
   /** Post-condition: tile.hex == hex; low-level, physical move */
   moveTo(hex: Hex) {
@@ -460,7 +471,7 @@ export class Tile extends Tile0 {
    */
   sendHome() {
     this.resetTile();
-    this.moveTo(this.homeHex) // override for AucionTile.tileBag & UnitSource<Meeple>
+    this.moveTo(this.homeHex) // override for AuctionTile.tileBag & UnitSource<Meeple>
     if (!this.homeHex) this.parent?.removeChild(this);
   }
 
@@ -537,7 +548,7 @@ export class Tile extends Tile0 {
     const loc = this.hex?.isOnMap ? 'onMap' : 'offMap';
     const info = { Aname: this.Aname, fromHex: this.hex?.Aname, cp: cp.colorn, caps: cp.captures, tile: {...this} }
     console.log(stime(this, `.recycleTile[${loc}]: ${verb}`), info);
-    GP.gamePlay.logText(`${cp.Aname} ${verb} ${this}`, ` GamePlay.recycle`);
+    GP.gamePlay.logText(`${cp.Aname} ${verb} ${this}`, `GamePlay.recycle`);
   }
 
 }

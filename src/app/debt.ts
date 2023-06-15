@@ -144,7 +144,7 @@ export class Debt extends HalfTile {
         this.balance = tile.loanLimit ?? 0;
         player.coins += this.balance;
         this.player = player;
-        GP.gamePlay.logText(`Debt: ${this.balance} ${toHex.Aname} ${toHex.tile.Aname}`, ` Debt.moveTo`);
+        GP.gamePlay.logText(`Debt: ${this.balance} ${toHex.Aname} ${toHex.tile.Aname}`, `Debt.moveTo`);
       }
       if (fromHex === source.hex) {
         source.nextUnit();

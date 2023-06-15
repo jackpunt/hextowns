@@ -1,12 +1,15 @@
-import { C } from "@thegraid/common-lib";
+import { C, stime } from "@thegraid/common-lib";
+import { AuctionTile } from "./auction-tile";
+import { GP } from "./game-play";
 import { Hex, Hex2 } from "./hex";
 import { Player } from "./player";
-import { PlayerColor } from "./table-params";
-import { HalfTile, Tile } from "./tile";
+import { DragContext } from "./table";
+import { PlayerColor, TP } from "./table-params";
+import { AuctionBonus, HalfTile } from "./tile";
 import { TileSource } from "./tile-source";
 
 type TileInf = 0 | 1;
-class SourcedTile extends Tile {
+class SourcedTile extends HalfTile {
 
   static makeSource0<TS extends TileSource<SourcedTile>, T extends SourcedTile>(stype: new(type, p, hex) => TS, type: new(p: Player, n: number) => T, player: Player, hex: Hex2, n = 0) {
     const source = new stype(type, player, hex);
@@ -22,20 +25,35 @@ class SourcedTile extends Tile {
   }
 
   override moveTo(hex: Hex) {
-    const source = this.source;
     const fromHex = this.hex;
-    const toHex = super.moveTo(hex);  // collides with source.hex.meep
-    if (fromHex === this.source.hex && fromHex !== toHex) {
+    const toHex = super.moveTo(hex);  // may invoke this.overSet(source.hex.tile)
+    const source = this.source;
+    if (fromHex === source.hex && fromHex !== toHex) {
       source.nextUnit()   // shift; moveTo(source.hex); update source counter
     }
-    return hex;
+    return toHex;
   }
 
-  override sendHome(): void { // Criminal
+  override sendHome(): void { // Infl
     super.sendHome();         // this.resetTile(); moveTo(this.homeHex = undefined)
     const source = this.source;
     source.availUnit(this);
-    if (!source.hex.meep) source.nextUnit();
+    if (!source.hex.tile) source.nextUnit();
+  }
+}
+
+class SourcedToken extends SourcedTile {
+  /** Do not offer to recycle a placement Token */
+  override isLegalRecycle(ctx: DragContext): boolean {
+      return false;
+  }
+
+  /** Tile is a placement Token; drop & disappear when used. */
+  dismiss() {
+    this.parent.removeChild(this);
+    const source = this.source;
+    source.hex.tile = undefined;
+    source.nextUnit();
   }
 }
 
@@ -45,42 +63,46 @@ export class InflSource extends TileSource<Infl> {
     super(Infl, player, hex);
   }
 }
-export class Infl extends HalfTile {
-  static source: InflSource;
+export class Infl extends SourcedToken {
+  static source: InflSource[] = [];
   static inflGrey = C.nameToRgbaString(C.RED, .8);
 
-  static makeSource(player: Player, hex: Hex2, n = 0) {
-    const source = Infl.source = new InflSource(player, hex);
-    for (let i = 0; i < n; i++) {
-      source.newUnit(new Infl(player, i + 1));
-    }
-    source.nextUnit(); // moveTo(source.hex)
-    return source;
+  static makeSource(player: Player, hex: Hex2, n = TP.policePerPlayer) {
+    return SourcedTile.makeSource0(TileSource, Infl, player, hex, n);
   }
 
+  bonusType: AuctionBonus = 'brib';
+
   constructor(player: Player, serial: number) {
-    super(`Infl:${player?.index}-${serial}`, player, 0, 0, 10, 0);
+    super(Infl.source[player.index], `Infl:${player?.index}-${serial}`, player, 0, 0, 10, 0);
   }
+
+  // override makeShape(): PaintableShape {
+  //   return new InfShape()
+  // }
 
   override paint(pColor?: PlayerColor, colorn?: string): void {
     super.paint(pColor, Infl.inflGrey); // TODO: show InfTokens on Player mat
   }
-  // nextUnit() --> unit.moveTo(source.hex)
-  override moveTo(toHex: Hex | undefined) {
-    const fromHex = this.hex
-    super.moveTo(toHex);
-    const source = Infl.source; //[this.player.index]
-    if (fromHex === source.hex) {
-      source.nextUnit();
-    }
-    return toHex;
+
+  override isLegalTarget(toHex: Hex, ctx?: DragContext): boolean {
+    return toHex.isOnMap
+      && toHex.tile?.player === this.player
+      && (toHex.tile instanceof AuctionTile)
+      && (toHex.tile.bonusCount === 0);
   }
 
-  override sendHome(): void {
-    const source = Infl.source; //[this.player.index]
-    super.sendHome();       // resetTile; moveTo(homeHex)
-    source.availUnit(this);
-    if (!source.hex.tile) source.nextUnit();
-    source.hex.map.update();
+  override dropFunc(hex: Hex2, ctx: DragContext): void {
+    if (hex && hex !== this.source.hex) {
+      const tile = hex.tile;
+      console.log(stime(this, `.dropFunc: addBonus! ${this} --> ${hex.tile}`))
+      if (GP.gamePlay.addBonus(this.bonusType , tile)) {
+        this.dismiss();   // drop & disappear
+      } else {
+        this.sendHome();
+      }
+      return;
+    }
+    super.dropFunc(hex, ctx);
   }
 }

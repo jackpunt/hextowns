@@ -132,8 +132,8 @@ export class CostIncCounter extends NumCounter {
     this.attachToContainer(counterCont, xy);
   }
   protected override makeBox(color: string, high: number, wide: number): DisplayObject {
-    let box = new InfShape('lightgrey');
-    let size = Math.max(high, wide)
+    const box = new InfShape('lightgrey');
+    const size = Math.max(high, wide)
     box.scaleX = box.scaleY = .5 * size / TP.hexRad;
     return box
   }

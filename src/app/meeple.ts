@@ -103,7 +103,7 @@ export class Meeple extends Tile {
     const fromHex = this.hex;
     const toHex = super.moveTo(hex); // this.x/y = hex.x/y;
     this.faceUp(!!toHex && (!toHex?.isOnMap || !fromHex?.isOnMap || toHex === this.startHex));
-    return hex;
+    return toHex;
   }
 
   override cantBeMovedBy(player: Player, ctx: DragContext) {
@@ -275,7 +275,7 @@ class SourcedMeeple extends Meeple {
     if (fromHex === this.source.hex && fromHex !== toHex) {
       source.nextUnit()   // shift; moveTo(source.hex); update source counter
     }
-    return hex;
+    return toHex;
   }
 
   override sendHome(): void { // Criminal
@@ -290,7 +290,7 @@ export class Police extends SourcedMeeple {
   private static source: UnitSource<Police>[] = [];
 
   static makeSource(player: Player, hex: Hex2, n = TP.policePerPlayer) {
-    return SourcedMeeple.makeSource0(UnitSource, Police, player, hex, TP.policePerPlayer);
+    return SourcedMeeple.makeSource0(UnitSource, Police, player, hex, n);
   }
 
   // Police

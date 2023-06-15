@@ -400,8 +400,9 @@ export class Table extends EventDispatcher  {
       // place [civic/leader, academy/police] meepleHex on Table/Hex (but not on Map)
       this.leaderHexes[pIndex] = leaderHexes;
       p.allLeaders.forEach((meep, i) => {
-        const homeHex = meep.civicTile.moveTo(meep.moveTo(leaderHexes[i])) as Hex2;
-        meep.homeHex = meep.civicTile.homeHex = homeHex;
+        const homeHex = meep.homeHex = meep.civicTile.homeHex = leaderHexes[i];
+        meep.moveTo(homeHex);
+        meep.civicTile.moveTo(homeHex);
         this.addCostCounter(homeHex, `${meep.Aname}-c`, 1, p); // leaderHex[plyr]
       })
 

@@ -173,11 +173,17 @@ export class GamePlay0 {
   autoCrime() {
   }
 
-  /** add Bonus to [first] AuctionTile */
-  addBonus(type: AuctionBonus, tile?: AuctionTile) {
+  /** add Bonus of type to given tile (or [first] AuctionTile)
+   * @return false if tile is not eligble for bonus
+   */
+  addBonus(type: AuctionBonus, tile?: Tile) {
     if (!tile) tile = this.shifter.tile0(this.curPlayerNdx) as AuctionTile;
-    tile?.addBonus(type);
-    this.hexMap.update()
+    if ((tile instanceof AuctionTile) && tile.bonusCount === 0) {
+      tile.addBonus(type);
+      this.hexMap.update();
+      return true;
+    }
+    return false;
   }
 
   playerByColor: PlayerColorRecord<Player>
