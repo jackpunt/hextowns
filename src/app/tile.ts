@@ -264,9 +264,11 @@ export class Tile extends Tile0 {
       this.removeChild(mark);
     } else {
       const [infR, costR] = GP.gamePlay.getInfR(this);
-      mark.text = `$ ${costR}`;
-      mark.y = TP.hexRad * dy;
-      this.addChild(mark);
+      if (costR !== 0) {
+        mark.text = `$ ${costR}`;
+        mark.y = TP.hexRad * dy;
+        this.addChild(mark);
+      }
     }
     this.updateCache();
   }
@@ -288,12 +290,12 @@ export class Tile extends Tile0 {
     this.cache(-rad, -rad, 2 * rad, 2 * rad);
     this.addChild(this.baseShape);
     this.addChild(new BalMark(this));
-    if (inf > 0) this.setInfRays(inf);
-    if (_vp > 0) this.drawStar();
-    if (_econ !== 0) this.drawEcon(_econ);
     this.nameText = this.addTextChild(rad / 4);
     this.infText = this.addTextChild(rad / 2, '');
     this.setPlayerAndPaint(player);
+    if (inf > 0) this.setInfRays(inf);
+    if (_vp > 0) this.drawStar();
+    if (_econ !== 0) this.drawEcon(_econ);
   }
 
   setPlayerAndPaint(player: Player) {
@@ -320,11 +322,16 @@ export class Tile extends Tile0 {
    * @inf this.hex.getInfP(this.infColor)
    */
   setInfRays(inf = this.inf, rad = this.radius) {
-    this.removeChildType(InfRays)
+    this.removeChildType(InfRays);
     if (inf !== 0) {
-      this.addChildAt(new InfRays(inf, this.infColor), this.children.length - 1)
+      this.addChild(new InfRays(inf, this.infColor));
     }
-    this.cache(-rad, -rad, 2 * rad, 2 * rad)
+    this.cache(-rad, -rad, 2 * rad, 2 * rad);
+  }
+
+  override paint(pColor?: "b" | "w" | "c", colorn?: string): void {
+    super.paint(pColor, colorn);
+    if (this.inf > 0) this.setInfRays();
   }
 
   infText: Text
@@ -416,7 +423,7 @@ export class Tile extends Tile0 {
         priorTile.moveBonusTo(this);
       }
       // deposit Bribs & Actns with Player; ASSERT was from auctionTiles or reserveTiles
-      if (this.bonus.brib) {
+      if (this.bonus.brib && (this instanceof BonusTile)) {
         this.player.takeBrib(this);
       }
       if (this.bonus.actn) {
@@ -704,11 +711,13 @@ export class Monument extends Tile {
     Monument.inst[player?.index ?? 0]++;
   }
   override get cost(): number {
-    return Monument.costs[GP.gamePlay.marketSource[this.player.index]['Monument'].counter.getValue()];
+    return Monument.costs[this.source.counter.getValue()];
   }
+  get source() { return GP.gamePlay.marketSource[this.player.index]['Monument']}
 
   override dropFunc(targetHex: Hex2, ctx: DragContext): void {
-    this.flipOwner(targetHex, ctx);
+    this.flipOwner(targetHex, ctx); // a non-AuctionTile that is flipable
     super.dropFunc(targetHex, ctx);
+    if (!this.source.hex.tile) this.source.nextUnit();
   }
 }

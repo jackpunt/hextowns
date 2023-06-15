@@ -7,6 +7,7 @@ import { DragContext } from "./table";
 import { PlayerColor, TP } from "./table-params";
 import { AuctionBonus, HalfTile } from "./tile";
 import { TileSource } from "./tile-source";
+import { InfShape, PaintableShape } from "./shapes";
 
 type TileInf = 0 | 1;
 class SourcedTile extends HalfTile {
@@ -47,14 +48,6 @@ class SourcedToken extends SourcedTile {
   override isLegalRecycle(ctx: DragContext): boolean {
       return false;
   }
-
-  /** Tile is a placement Token; drop & disappear when used. */
-  dismiss() {
-    this.parent.removeChild(this);
-    const source = this.source;
-    source.hex.tile = undefined;
-    source.nextUnit();
-  }
 }
 
 /** Infl token can be applied to a Hex to raise the Player's influence on that hex. */
@@ -65,24 +58,30 @@ export class InflSource extends TileSource<Infl> {
 }
 export class Infl extends SourcedToken {
   static source: InflSource[] = [];
-  static inflGrey = C.nameToRgbaString(C.RED, .8);
+  static inflGrey = C.nameToRgbaString(C.grey, .8);
 
-  static makeSource(player: Player, hex: Hex2, n = TP.policePerPlayer) {
-    return SourcedTile.makeSource0(TileSource, Infl, player, hex, n);
+  static makeSource(player: Player, hex: Hex2, n = 0) {
+    const source = SourcedTile.makeSource0(TileSource, Infl, player, hex, n);
+    source.counter.visible = false;
+    return source;
   }
 
   bonusType: AuctionBonus = 'brib';
 
   constructor(player: Player, serial: number) {
-    super(Infl.source[player.index], `Infl:${player?.index}-${serial}`, player, 0, 0, 10, 0);
+    super(Infl.source[player.index], `Infl:${player?.index}-${serial}`, player, 0, 0, 0, 0);
   }
 
-  // override makeShape(): PaintableShape {
-  //   return new InfShape()
-  // }
+  override makeShape(): PaintableShape {
+    const shape = new InfShape(Infl.inflGrey);
+    shape.scaleX = shape.scaleY = .5;
+    return shape;
+  }
 
   override paint(pColor?: PlayerColor, colorn?: string): void {
-    super.paint(pColor, Infl.inflGrey); // TODO: show InfTokens on Player mat
+    // super.paint(pColor, Infl.inflGrey);
+    this.baseShape.paint(Infl.inflGrey);
+    this.updateCache();
   }
 
   override isLegalTarget(toHex: Hex, ctx?: DragContext): boolean {
@@ -97,7 +96,8 @@ export class Infl extends SourcedToken {
       const tile = hex.tile;
       console.log(stime(this, `.dropFunc: addBonus! ${this} --> ${hex.tile}`))
       if (GP.gamePlay.addBonus(this.bonusType , tile)) {
-        this.dismiss();   // drop & disappear
+        this.player.bribCounter.incValue(-1);
+        this.source.deleteUnit(this);   // drop & disappear
       } else {
         this.sendHome();
       }

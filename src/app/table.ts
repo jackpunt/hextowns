@@ -445,7 +445,13 @@ export class Table extends EventDispatcher  {
         const adjC = (n: number) => ((n - .165) * 1.2);
         const inflH = this.noRowHex(`inflH:${pIndex}`, this.colf(pIndex, adjC(1.5), 2), BonusHex);
         const econH = this.noRowHex(`econH:${pIndex}`, this.colf(pIndex, adjC(2.0), 2), BonusHex);
-        Infl.makeSource(p, inflH, 6);
+        const inflSource = Infl.makeSource(p, inflH, 0);
+        const newInfl = () => {
+          const infl = inflSource.nextUnit(new Infl(p, p.bribCounter.getValue()));
+          this.makeDragable(infl);
+          return infl;
+        }
+        p.bribCounter.on(S.click, newInfl, this);
       }
       {
         // Show Player's balance text:
@@ -566,14 +572,17 @@ export class Table extends EventDispatcher  {
       }
     }
   }
+  makeDragable(tile: Tile) {
+    const dragger = this.dragger;
+    dragger.makeDragable(tile, this, this.dragFunc, this.dropFunc);
+    dragger.clickToDrag(tile, true); // also enable clickToDrag;
+  }
 
   startGame() {
     // initialize Players & TownStart & draw pile
-    const dragger = this.dragger;
     // All Tiles (Civics, Resi, Busi, PStation, Lake, & Meeple) are Draggable:
     Tile.allTiles.filter(tile => !(tile instanceof NoDragTile)).forEach(tile => {
-      dragger.makeDragable(tile, this, this.dragFunc, this.dropFunc);
-      dragger.clickToDrag(tile, true); // also enable clickToDrag;
+      this.makeDragable(tile);
     })
     this.forEachTargetHex(hex => hex.isLegal = false); // redundant?
 
@@ -924,8 +933,10 @@ export class AuctionShifter2 extends AuctionShifter {
     }
     const counterCont = table.hexMap.mapCont.counterCont;
     const x0 = this.hexes[0].x, y0 = (this.hexes[0].y + this.hexes[this.nm].y) / 2, rad = TP.hexRad;
-    this.tileCounter = new NumCounter('tileCounter', this.tileBag.length, 'lightblue', rad/2)
-    this.tileCounter.attachToContainer(counterCont, { x: x0 -1.5 * rad, y: y0 - .2 * rad }, this.tileBag, TileBag.event, );
-    table.gamePlay.dice.setContainer(counterCont,        x0 -1.5 * rad,    y0 + .7 * rad);
+    const counter = this.tileCounter = new NumCounter('tileCounter', this.tileBag.length, 'lightblue', rad/2);
+    counter.attachToContainer(counterCont, { x:  x0 -1.5 * rad, y: y0 - .2 * rad }, this.tileBag, TileBag.event, );
+    table.gamePlay.dice.setContainer(counterCont,x0 -1.5 * rad,    y0 + .7 * rad);
+    counter.mouseEnabled = true;
+    counter.on(S.click, this.table.gamePlay.showBag, this.table.gamePlay)
   }
 }

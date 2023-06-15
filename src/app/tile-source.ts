@@ -34,24 +34,39 @@ export class TileSource<T extends Tile> {
 
   /** enroll a new Unit to this source. */
   newUnit(unit: T) {
-      this.allUnits.push(unit);
-      this.availUnit(unit);
+    this.allUnits.push(unit);
+    this.availUnit(unit);
+  }
+
+  protected isAvailable(unit: Tile) {
+    return this.hex.tile === unit;
+  }
+
+  deleteUnit(unit: T) {
+    if (this.isAvailable(unit)) {
+      unit.moveTo(undefined); // --> this.nextUnit();
+      unit.parent?.removeChild(unit);
     }
+    const ndx = this.allUnits.indexOf(unit);
+    if (ndx > 0) {
+      this.allUnits.splice(ndx,1);
+    }
+  }
 
   /** move next available unit to source.hex, make visible */
-  nextUnit() {
-    const unit = this.available.shift();    // remove from available
-    if (!unit) return unit;
-    unit.visible = true;
-    unit.moveTo(this.hex);     // and try push to available
-    if (!unit.player) unit.paint(GP.gamePlay.curPlayer?.color); // TODO: paint where nextUnit() is invoked?;
+  nextUnit(unit = this.available.shift()) {
+    if (unit) {
+      unit.visible = true;
+      unit.moveTo(this.hex);     // and try push to available
+      if (!unit.player) unit.paint(GP.gamePlay.curPlayer?.color); // TODO: paint where nextUnit() is invoked?;
+    }
     this.updateCounter();
     return unit;
   }
 
   updateCounter() {
     this.counter.parent?.setChildIndex(this.counter, this.counter.parent.numChildren - 1);
-    this.counter.setValue(this.available.length);
+    this.counter.setValue(this.available.length + (this.hex?.tile || this.hex?.meep ? 1 : 0));
     this.hex?.cont?.updateCache(); // updateCache of counter on hex
     this.hex?.map?.update();       // updateCache of hexMap with hex & counter
   }

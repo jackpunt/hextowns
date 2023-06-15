@@ -163,6 +163,11 @@ export class TileBag<T extends Tile> extends Array<T> {
     return counts;
   }
 
+  inTheBagStr() {
+    const counts = this.inTheBag();
+    return Object.keys(counts).reduce((pv, cv, ci) => `${pv}${ci>0?', ':''}${cv}:${counts[cv]}`, '');
+  }
+
   takeType(type: new (...args: any[]) => T) {
     const tile = this.find((tile, ndx, bag) => (tile instanceof type) && (bag.splice(ndx, 1), true));
     this.dispatch();

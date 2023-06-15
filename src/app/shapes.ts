@@ -45,38 +45,47 @@ export class HexShape extends Shape implements PaintableShape {
 }
 
 /** lines showing influence of a Tile. */
-export class InfRays extends Container {
+export class InfRays extends Shape {
   /**
    * draw 6 rays (around a HexShape)
-   * @param inf number of rays to draw
+   * @param inf number of rays to draw (degree of influence)
    * @param infColor color of ray
    * @param y0 start of ray (ends at .9) X TP.hexRad
    * @param xw width of each ray
    */
-  constructor(inf = 1, infColor?: PlayerColor, y0 = .7, xw = 3) {
-    super()
+  constructor(inf = 1, infColor?: PlayerColor, y0 = .7, xw = 3, g = new Graphics()) {
+    super(g);
     const color = infColor ? TP.colorScheme[infColor] : C.WHITE;
     const rad = TP.hexRad, y1 = y0 * rad, y2 = .9 * rad;
     const xs = [[0], [-.1 * rad, +.1 * rad], [-.1 * rad, 0, +.1 * rad]][Math.abs(inf) - 1];
+    const pts = xs.map(x => { return { mt: { x: x, y: y1 }, lt: { x: x, y: y2 } } })
+    const rotpt = (rot: number, x: number, y: number) => {
+      return { x: Math.cos(rot) * x + Math.sin(rot) * y, y: Math.cos(rot) * y - Math.sin(rot) * x }
+    }
+    g.ss(xw).s(color);
     H.ewDirs.forEach(dir => {
-      const sl = new Shape(), gl = sl.graphics
-      gl.ss(xw).s(color)
-      xs.forEach(x => gl.mt(x, y1).lt(x, y2))
-      sl.rotation = H.dirRot[dir]
-      this.addChild(sl)
+      const rot = H.dirRot[dir] * H.degToRadians;
+      pts.forEach(mtlt => {
+        const mt = rotpt(rot, mtlt.mt.x, mtlt.mt.y), lt = rotpt(rot, mtlt.lt.x, mtlt.lt.y);
+        g.mt(mt.x, mt.y).lt(lt.x, lt.y);
+      });
     })
-    this.cache(-rad, -rad, 2 * rad, 2 * rad)
+    this.cache(-rad, -rad, 2 * rad, 2 * rad);
   }
 }
 
-export class InfShape extends Container {
+export class InfShape extends Shape implements PaintableShape {
   /** hexagon scaled by TP.hexRad/4 */
   constructor(bgColor = 'grey') {
-    super()
-    const s = new Shape(), c = this;
-    s.graphics.f(bgColor).dp(0, 0, TP.hexRad, 6, 0, 30)
-    c.addChild(s)
-    c.addChild(new InfRays(1, undefined, .3, 10)) // short & wide; it gets scaled down
+    super();
+    this.paint(bgColor);
+  }
+
+  paint(colorn: string): Graphics {
+    const g = this.graphics;
+    g.c().f(colorn).dp(0, 0, TP.hexRad, 6, 0, 30);
+    new InfRays(1, undefined, .3, 10, g); // short & wide; it gets scaled down
+    return this.graphics;
   }
 }
 

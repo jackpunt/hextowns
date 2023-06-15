@@ -20,7 +20,13 @@ export class AppComponent {
   @HostListener('mouseleave', ['$event'])
   @HostListener('focus', ['$event'])
   @HostListener('blur', ['$event'])
-  dispatchAnEvent(event) {
+  dispatchAnEvent(event: Object) {
+    // ask before [Cmd-W] closing browser tab:
+    addEventListener(
+      'beforeunload',
+      e => { e.stopPropagation(); e.preventDefault(); return false; },
+      true
+    );
     //console.log("dispatch: "+event.type);
     this.keyBinder.dispatchEvent(event);
   }

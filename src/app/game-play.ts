@@ -628,7 +628,7 @@ export class GamePlay extends GamePlay0 {
     KeyBinder.keyBinder.setKey('M-a', { thisArg: this, func: () => this.addBonus('actn') })
     KeyBinder.keyBinder.setKey('M-c', { thisArg: this, func: () => this.addBonus('star') })
     KeyBinder.keyBinder.setKey('M-b', { thisArg: this, func: () => this.addBonus('brib') })
-    KeyBinder.keyBinder.setKey('M-d', { thisArg: this, func: () => this.addBonus('econ') })
+    KeyBinder.keyBinder.setKey('M-d', { thisArg: this, func: () => (this.addBonus('econ'), false) })
     // KeyBinder.keyBinder.setKey('p', { thisArg: this, func: roboPause })
     // KeyBinder.keyBinder.setKey('r', { thisArg: this, func: roboResume })
     // KeyBinder.keyBinder.setKey('s', { thisArg: this, func: roboStep })
@@ -654,7 +654,7 @@ export class GamePlay extends GamePlay0 {
     KeyBinder.keyBinder.setKey('u', { thisArg: this, func: this.unMove })
     KeyBinder.keyBinder.setKey('i', { thisArg: this, func: () => {table.showInf = !table.showInf; this.hexMap.update() } })
     KeyBinder.keyBinder.setKey('M-C', { thisArg: this, func: this.autoCrime, argVal: true })// S-M-C (force)
-    KeyBinder.keyBinder.setKey('S-?', { thisArg: this, func: () => console.log(stime(this, `.inTheBag:`), this.shifter.tileBag.inTheBag()) })
+    KeyBinder.keyBinder.setKey('S-?', { thisArg: this, func: () => this.showBag() })
     KeyBinder.keyBinder.setKey('S-B', { thisArg: this, func: () => this.drawTile(Busi) })
     KeyBinder.keyBinder.setKey('S-R', { thisArg: this, func: () => this.drawTile(Resi) })
     KeyBinder.keyBinder.setKey('S-K', { thisArg: this, func: () => this.drawTile(Bank) })
@@ -673,6 +673,11 @@ export class GamePlay extends GamePlay0 {
     table.undoShape.on(S.click, () => this.undoMove(), this)
     table.redoShape.on(S.click, () => this.redoMove(), this)
     table.skipShape.on(S.click, () => this.skipMove(), this)
+  }
+
+  showBag() {
+    this.logText(`${this.shifter.tileBag.inTheBagStr()}`, `GamePlay.showBag`);
+    //console.log(stime(this, `.inTheBag:`), this.shifter.tileBag.inTheBag());
   }
 
   drawTile(type: new (...args: any[]) => AuctionTile) {
