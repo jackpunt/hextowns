@@ -42,7 +42,7 @@ class MeepleShape extends Shape implements PaintableShape {
   }
 }
 
-type MeepleInf = -1 | 0 | 1;
+type MeepleInf = 0 | 1;
 export class Meeple extends Tile {
   static allMeeples: Meeple[] = [];
 
@@ -59,12 +59,12 @@ export class Meeple extends Tile {
   constructor(
     Aname: string,
     player?: Player,
-    inf: MeepleInf = 1,   // -1 for Criminal
+    inf: MeepleInf = 1,
     vp = 0,    // 1 for Leader
     cost = 1,  // Inf required to place (1 for Leader/Police, but placing in Civic/PS with Inf)
     econ = -6, // Econ required: -2 for Police, -3 for Criminal [place, not maintain]
   ) {
-    super(player, Aname, inf, vp, cost, econ);
+    super(Aname, player, inf, vp, cost, econ);
     this.addChild(this.backSide);
     this.player = player;
     this.nameText.visible = true;
@@ -256,7 +256,7 @@ class SourcedMeeple extends Meeple {
     source.nextUnit();  // unit.moveTo(source.hex)
     return source;
   }
-  //readonly source: UnitSource<SourcedMeeple>;
+
   constructor(readonly source: UnitSource<SourcedMeeple>, Aname: string, player?: Player, inf?: MeepleInf, vp?: number, cost?: number, econ?: number) {
     super(Aname, player, inf, vp, cost, econ);
   }
@@ -287,7 +287,7 @@ class SourcedMeeple extends Meeple {
 }
 
 export class Police extends SourcedMeeple {
-  static source: UnitSource<Police>[] = [];
+  private static source: UnitSource<Police>[] = [];
 
   static makeSource(player: Player, hex: Hex2, n = TP.policePerPlayer) {
     return SourcedMeeple.makeSource0(UnitSource, Police, player, hex, TP.policePerPlayer);
@@ -326,7 +326,7 @@ export class CriminalSource extends UnitSource<Criminal> {
  * Owned & Operated by Player, to destroy Tiles of the opposition.
  */
 export class Criminal extends SourcedMeeple {
-  static source: CriminalSource[] = [];
+  private static source: CriminalSource[] = [];
 
   static makeSource(player: Player, hex: Hex2, n = TP.criminalPerPlayer) {
     return Criminal.source[player.index] = SourcedMeeple.makeSource0(CriminalSource, Criminal, player, hex, n);

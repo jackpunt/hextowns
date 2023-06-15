@@ -13,6 +13,7 @@ import type { StatsPanel } from "./stats";
 import { PlayerColor, playerColor0, playerColor1, playerColors, TP } from "./table-params";
 import { NoDragTile, Tile, WhiteTile } from "./tile";
 import { TileSource } from "./tile-source";
+import { Infl } from "./infl";
 //import { TablePlanner } from "./planner";
 
 
@@ -352,7 +353,7 @@ export class Table extends EventDispatcher  {
 
   makeRecycleHex(row: number, col: number) {
     const name = 'Recycle'
-    const image = new Tile(undefined, name).addImageBitmap(name); // ignore Tile, get image.
+    const image = new Tile(name).addImageBitmap(name); // ignore Tile, get image.
     image.y = -TP.hexRad / 2; // recenter
 
     const rHex = this.newHex2(row, col, name, RecycleHex);
@@ -368,7 +369,7 @@ export class Table extends EventDispatcher  {
     debtHex.rcText.visible = debtHex.distText.visible = false;
 
     // Note: debtTile is not draggable, but its children are!
-    const debtTile = new WhiteTile(undefined, 'debt', 0, 0, 0, 0);
+    const debtTile = new WhiteTile('debt', undefined, 0, 0, 0, 0);
     debtTile.moveTo(debtHex);
 
     const availDebt = 30;
@@ -404,9 +405,9 @@ export class Table extends EventDispatcher  {
         this.addCostCounter(homeHex, `${meep.Aname}-c`, 1, p); // leaderHex[plyr]
       })
 
-      const academyHex = this.homeRowHex(`Academy:${pIndex}`, colf(col0++, 0));
-      this.addCostCounter(academyHex, undefined, -1, false); // academyHex[plyr]: no Counter, no incr, no repaint
-      p.policeSource = Police.makeSource(p, academyHex, TP.policePerPlayer);
+      const policeHex = this.homeRowHex(`PHex:${pIndex}`, colf(col0++, 0));
+      this.addCostCounter(policeHex, undefined, -1, false); // academyHex[plyr]: no Counter, no incr, no repaint
+      p.policeSource = Police.makeSource(p, policeHex, TP.policePerPlayer);
 
       const crimeHex = this.homeRowHex(`Barbs:${pIndex}`, colf(col0++, 0));
       this.addCostCounter(crimeHex, undefined, -1, false);
@@ -419,7 +420,7 @@ export class Table extends EventDispatcher  {
         const hex = this.homeRowHex(type.name, colf(col, row)); // Busi/Resi-MarketHex
         const source = this.gamePlay.marketSource[pIndex][type.name] = new TileSource<Tile>(type, p, hex);
         for (let i = 0; i < TP.inMarket[type.name]; i++) {
-          source.availUnit(new type(p));
+          source.availUnit(new type(undefined, p));
         }
         source.nextUnit();
         this.addCostCounter(hex, type.name, 1, p);  // Busi/Resi/Monument market
@@ -441,8 +442,9 @@ export class Table extends EventDispatcher  {
       })
       {
         const adjC = (n: number) => ((n - .165) * 1.2);
-        this.noRowHex(`bribH:${pIndex}`, this.colf(pIndex, adjC(1.5), 2), BonusHex);
-        this.noRowHex(`econH:${pIndex}`, this.colf(pIndex, adjC(2.0), 2), BonusHex);
+        const inflH = this.noRowHex(`inflH:${pIndex}`, this.colf(pIndex, adjC(1.5), 2), BonusHex);
+        const econH = this.noRowHex(`econH:${pIndex}`, this.colf(pIndex, adjC(2.0), 2), BonusHex);
+        Infl.makeSource(p, inflH, 6);
       }
       {
         // Show Player's balance text:

@@ -129,10 +129,11 @@ export class Hex {
   readonly Aname: string
   /** reduce to serializable IHex (removes map, inf, links, etc) */
   get iHex(): IHex { return { Aname: this.Aname, row: this.row, col: this.col } }
+  protected nf(n: number) { return `${n !== undefined ? (n === Math.floor(n)) ? n : n.toFixed(1) : ''}`; }
   /** [row,col] OR S_Resign OR S_Skip */
-  get rcs(): string { return (this.row >= 0) ? `[${this.row},${this.col}]` : this.Aname.substring(4)}
-  get rowsp() { return (this.row?.toString() || '-1').padStart(2) }
-  get colsp() { return (this.col?.toString() || '-1').padStart(2) } // col== -1 ? S_Skip; -2 ? S_Resign
+  get rcs(): string { return (this.row >= 0) ? `[${this.nf(this.row)},${this.nf(this.col)}]` : this.Aname.substring(4)}
+  get rowsp() { return (this.nf(this.row ?? -1)).padStart(2) }
+  get colsp() { return (this.nf(this.col ?? -1)).padStart(2) } // col== -1 ? S_Skip; -2 ? S_Resign
   /** [row,col] OR S_Resign OR S_Skip */
   get rcsp(): string { return (this.row >= 0) ? `[${this.rowsp},${this.colsp}]` : this.Aname.substring(4).padEnd(7)}
   /** compute ONCE, *after* HexMap is populated with all the Hex! */
@@ -544,12 +545,6 @@ export class HexMap extends Array<Array<Hex>> implements HexM {
   get colWidth() { return this.radius * H.sqrt3 }
   /** width of hexagonal cell with NS axis */
   get cellWidth() { return this.radius * H.sqrt3 }
-  /** bounding box of HexMap: XYWH = {0, 0, w, h} */
-  get wh() {
-    let hexRect = this.mapCont.hexCont.getBounds()
-    let wh = { width: hexRect.width + 2 * this.colWidth, height: hexRect.height + 2 * this.rowHeight }
-    return wh
-  }
 
   private minCol: number | undefined = undefined               // Array.forEach does not look at negative indices!
   private maxCol: number | undefined = undefined               // used by rcLinear
@@ -669,6 +664,7 @@ export class HexMap extends Array<Array<Hex>> implements HexM {
     if (!hex) {  // || hex.Aname === S_Skip || hex.Aname === S_Resign) {
       mark.visible = false;
     } else if (hex instanceof Hex2) {
+      mark.scaleX = hex.scaleX; mark.scaleY = hex.scaleY;
       mark.visible = true;
       hex.cont.localToLocal(0, 0, hex.markCont, mark);
       hex.markCont.addChild(mark);
@@ -731,8 +727,8 @@ export class HexMap extends Array<Array<Hex>> implements HexM {
   }
   centerOnContainer() {
     let mapCont = this.mapCont
-    let hexRect = mapCont.hexCont.getBounds()
-    let x0 = hexRect.x + hexRect.width/2, y0 = hexRect.y + hexRect.height/2
+    let hexRect = mapCont.hexCont.getBounds(); // based on aggregate of Hex2.cont.cache(bounds);
+    let x0 = hexRect.x + hexRect.width/2, y0 = hexRect.y + hexRect.height/2;
     MapCont.cNames.forEach(cname => {
       mapCont[cname].x = -x0
       mapCont[cname].y = -y0

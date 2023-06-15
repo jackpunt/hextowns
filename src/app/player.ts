@@ -5,7 +5,7 @@ import { GamePlay, GamePlay0 } from "./game-play"
 import { GP } from "./game-play";
 import type { Hex } from "./hex"
 import { HexDir } from "./hex-intfs"
-import { Criminal, Leader, Meeple, Police } from "./meeple"
+import { Criminal, CriminalSource, Leader, Meeple, Police } from "./meeple"
 import { IPlanner, newPlanner } from "./plan-proxy"
 import { CenterText } from "./shapes"
 import { PlayerColor, TP, playerColors } from "./table-params"
@@ -48,7 +48,7 @@ export class Player {
   get allPolice() { return this.meeples.filter(m => m instanceof Police && m.player == this) as Police[] }
 
   policeSource: UnitSource<Police>;
-  criminalSource: UnitSource<Criminal>;
+  criminalSource: CriminalSource;
   readonly policySlots: Hex[] = new Array<Hex>(TP.nPolicySlots).fill(undefined);
 
   readonly balanceText = new CenterText('[...]')

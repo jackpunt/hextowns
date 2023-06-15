@@ -2,11 +2,11 @@ import { C, stime } from "@thegraid/common-lib";
 import { NoZeroCounter } from "./counters";
 import { GP } from "./game-play";
 import type { Hex2, Hex } from "./hex";
-import { PaintableShape, HexShape } from "./shapes";
 import type { DragContext } from "./table";
 import { PlayerColor } from "./table-params";
-import { Tile } from "./tile";
+import { HalfTile, Tile } from "./tile";
 import { TileSource } from "./tile-source";
+import { PaintableShape } from "./shapes";
 
 export class DebtSource extends TileSource<Debt> {
   constructor(hex: Hex2) {
@@ -24,7 +24,7 @@ export class DebtSource extends TileSource<Debt> {
 /**
  * Debt is 'sourced'; Debt moved to a hex is attached to the Tile on that hex.
  */
-export class Debt extends Tile {
+export class Debt extends HalfTile {
   static source: DebtSource;
   static debtRust = C.nameToRgbaString(C.debtRust, .8);
 
@@ -38,7 +38,7 @@ export class Debt extends Tile {
   }
 
   constructor(serial: number) {
-    super(undefined, `Debt-${serial}`, 0, 0, 0, 0);
+    super(`Debt-${serial}`, undefined, 0, 0, 0, 0);
     this.counter.attachToContainer(this, {x: 0, y: this.baseShape.y});
   }
 
@@ -54,7 +54,7 @@ export class Debt extends Tile {
   override get recycleVerb() { return 'paid-off'; }
 
   override makeShape(): PaintableShape {
-    const shape = new HexShape(this.radius * .5);
+    const shape = super.makeShape();
     shape.y += this.radius * .3
     return shape;
   }

@@ -28,7 +28,7 @@ class EvalTile extends Tile {
   readonly eventText: Text;
 
   constructor(claz: Constructor<EvalTile>, count: number, spec: EventSpec) {
-    super(undefined, `${spec.Aname || `${claz.name}-${count}`}`, 0, spec.vp, spec.cost, 0);
+    super(`${spec.Aname || `${claz.name}-${count}`}`, undefined, 0, spec.vp, spec.cost, 0);
     this.text = spec.text;
     this.policy = spec.policy;
     this.tvp = spec.tvp;

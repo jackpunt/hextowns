@@ -28,8 +28,8 @@ export class AuctionTile extends Tile {
   }
 
   /** AuctionTile */
-  constructor(player: Player, Aname?: string, inf?: number, vp?: number, cost?: number, econ?: number) {
-    super(player, Aname, inf, vp, cost, econ); // AuctionTile
+  constructor(Aname?: string, player?: Player, inf?: number, vp?: number, cost?: number, econ?: number) {
+    super(Aname, player, inf, vp, cost, econ); // AuctionTile
   }
 
   sendToBag() {
@@ -195,8 +195,8 @@ export class TileBag<T extends Tile> extends Array<T> {
 
 export class Resi extends AuctionTile {
   override get nR() { return 1; } // Resi
-  constructor(player?: Player, Aname?: string, inf = 0, vp = 1, cost = 1, econ = 1) {
-    super(player, Aname, inf, vp, cost, econ);
+  constructor(Aname?: string, player?: Player, inf = 0, vp = 1, cost = 1, econ = 1) {
+    super(Aname, player, inf, vp, cost, econ);
     this.addImageBitmap('Resi');
     this.loanLimit = 6;
   }
@@ -204,16 +204,16 @@ export class Resi extends AuctionTile {
 
 export class Busi extends AuctionTile {
   override get nB() { return 1; } // Busi
-  constructor(player?: Player, Aname?: string, inf = 0, vp = 1, cost = 1, econ = 1) {
-    super(player, Aname, inf, vp, cost, econ);
+  constructor(Aname?: string, player?: Player, inf = 0, vp = 1, cost = 1, econ = 1) {
+    super(Aname, player, inf, vp, cost, econ);
     this.addImageBitmap('Busi');
     this.loanLimit = 7;
   }
 }
 
 export class PS extends AuctionTile {
-  constructor(player?: Player, Aname?: string, inf = 0, vp = 0, cost = 1, econ = 0) {
-    super(player, Aname, inf, vp, cost, econ);
+  constructor(Aname?: string, player?: Player, inf = 0, vp = 0, cost = 1, econ = 0) {
+    super(Aname, player, inf, vp, cost, econ);
     this.addImageBitmap('Pstation')
   }
 }
@@ -226,7 +226,7 @@ class AdjBonusTile extends AuctionTile {
     public isAdjFn = (tile: Tile) => false,
     public anyPlayer = TP.anyPlayerAdj, // true -> bonus for adj tile, even if owner is different
     player?: Player, Aname?: string, inf = 0, vp = 0, cost = 1, econ = 0) {
-    super(player, Aname, inf, vp, cost, econ);
+    super(Aname, player, inf, vp, cost, econ);
     this.addImageBitmap(type)        // addChild(...myMarks) sometimes FAILS to add! [or get re-added?]
     this.addChild(...this.myMarks);  // add all the stars; will tweak visibility during draw
   }

@@ -273,8 +273,8 @@ export class Tile extends Tile0 {
   // Tile
   constructor(
     /** the owning Player. */
-    player: Player,
     public readonly Aname?: string,
+    player?: Player,
     public readonly inf: number = 0,
     private readonly _vp: number = 0,
     public readonly _cost: number = 1,
@@ -402,8 +402,7 @@ export class Tile extends Tile0 {
     GP.gamePlay.placeEither(this, toHex, payCost);
     if (this.hex?.isOnMap) {
       if (priorTile instanceof BonusTile) {
-        priorTile.forEachBonus((b, v) => v && this.addBonus(b));
-        priorTile.sendHome();
+        priorTile.moveBonusTo(this);
       }
       // deposit Bribs & Actns with Player; ASSERT was from auctionTiles or reserveTiles
       if (this.bonus.brib) {
@@ -555,9 +554,25 @@ export class WhiteTile extends NoDragTile {
   }
 }
 
+export class HalfTile extends Tile {
+
+  override makeShape(): PaintableShape {
+    return new HexShape(this.radius * .5);
+  }
+
+}
+
+/** see also infl.ts --> InflBonus ? */
+export class EconBonus extends HalfTile {
+  override paint(pColor?: PlayerColor, colorn?: string): void {
+    super.paint(pColor, C.white);
+  }
+
+}
+
 /**
- * Tiles placed on map (preGame) when replaced by another AuctionTile,
- * The placing player receives the bonus indicated (as if that bonus was on the newly placed tile)
+ * Tiles with Bonus placed on map (preGame). When replaced by another AuctionTile,
+ * the placing player receives the bonus indicated (as if that bonus was on the newly placed tile)
  * econ & star bonus transfer to the newly placed Tile;
  * actn & brib bonus transfer to the Player.
  *
@@ -570,13 +585,18 @@ export class BonusTile extends Tile {
     super(undefined, undefined, 0, 0, 0, 0); // BonusTile
     if (type) this.addBonus(type);
   }
+
   // Maybe augment sendHome to transfer Bonus to hex.tile??
+  moveBonusTo(targetTile: Tile) {
+    this.forEachBonus((b, v) => v && targetTile.addBonus(b));
+    super.sendHome();
+  }
 }
 
 // Leader.civicTile -> Civic; Civic does not point to its leader...
 export class Civic extends Tile {
   constructor(player: Player, type: string, image: string, inf = 1, vp = 1, cost = 2, econ = 1) {
-    super(player, `${type}:${player.index}`, inf, vp, cost, econ); // CivicTile
+    super(`${type}:${player.index}`, player, inf, vp, cost, econ); // CivicTile
     this.player = player;
     this.loanLimit = 10;
     this.addImageBitmap(image);
@@ -666,8 +686,8 @@ export class Monument extends Tile {
   static ln2cost = [2, 2, 4, 4, 7, 7, 11, 11];
   static cost = Monument.lincost; // + 1 for this.inf
   static costs = Monument.cost.slice(0, TP.inMarket['Monument']).reverse();
-  constructor(player?: Player, Aname = `Mnt:${player?.index ?? '?'}-${Monument.inst[player?.index ?? 0]}`, inf = 1, vp = 1, cost = 0, econ = -1) {
-    super(player, Aname, inf, vp, cost, econ);
+  constructor(Aname?: string, player?: Player, inf = 1, vp = 1, cost = 0, econ = -1) {
+    super(Aname ?? `Mnt:${player?.index ?? '?'}-${Monument.inst[player?.index ?? 0]}`, player, inf, vp, cost, econ);
     //this.addImageBitmap(`Monument${Monument.inst % Tile0.loader.Monu.length}`);
     this.addImageBitmap(`Monument1`);
     Monument.inst[player?.index ?? 0]++;

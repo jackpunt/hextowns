@@ -560,7 +560,7 @@ export class GamePlay extends GamePlay0 {
   override autoCrime(force = false) {
     // no autoCrime until all Players have 3 VPs.
     if (!force && this.allPlayers.find(plyr => plyr.econs < TP.econForCrime)) return; // poverty
-    const meep = Criminal.source[this.curPlayerNdx].hexMeep;
+    const meep = this.curPlayer.criminalSource.hexMeep;
     if (!meep) return;               // no Criminals available
     meep.autoCrime = true;           // no econ charge to curPlayer
     const targetHex = this.autoCrimeTarget(meep);
