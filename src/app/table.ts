@@ -446,12 +446,12 @@ export class Table extends EventDispatcher  {
         const econH = this.noRowHex(`econH:${pIndex}`, this.colf(pIndex, adjC(2.0), 2), BonusHex);
         const inflSource = Infl.makeSource(p, inflH, 0);
         // const newInfl = () => {
-        //   const unit = new Infl(p, p.bribCounter.getValue());
+        //   const unit = new Infl(p, p.inflCounter.getValue());
         //   this.makeDragable(unit);
         //   inflSource.newUnit(unit);
         //   if (!inflSource.hex.tile) inflSource.nextUnit();
         // }
-        // p.bribCounter.on(S.click, newInfl, this);
+        // p.inflCounter.on(S.click, newInfl, this);
       }
       {
         // Show Player's balance text:
@@ -527,7 +527,7 @@ export class Table extends EventDispatcher  {
     layoutCounter('coin', C.coinGold, rowy(1));
     layoutCounter('econ', C.GREEN, rowy(1), adjC(1 + index), false);
     layoutCounter('expense', C.GREEN, rowy(1), adjC(2 - index), false);
-    layoutCounter('brib', 'grey', rowy(2));
+    layoutCounter('infl', 'grey', rowy(2));
     layoutCounter('capture', 'lightblue', rowy(3));
     const vpC = layoutCounter('vp', C.briteGold, rowy(4), 0, false);
     layoutCounter('vp0', C.briteGold, rowy(4), adjC(-1), vpC);

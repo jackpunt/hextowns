@@ -54,9 +54,9 @@ export class Player {
   readonly balanceText = new CenterText('[...]')
 
   // Created in masse by Table.layoutCounter
-  bribCounter: NumCounter;
-  get bribs() { return this.bribCounter?.getValue(); }
-  set bribs(v: number) { this.bribCounter?.updateValue(v); }
+  inflCounter: NumCounter;
+  get infls() { return this.inflCounter?.getValue(); }
+  set infls(v: number) { this.inflCounter?.updateValue(v); }
 
   coinCounter: NumCounter;
   get coins() { return this.coinCounter?.getValue(); }
@@ -71,12 +71,12 @@ export class Player {
 
   takeAction(tile: Tile) {
     tile.removeBonus('actn');
-    this.bribs += 1; // triggers coinCounter.updateValue
+    this.infls += 1; // triggers coinCounter.updateValue
   }
 
-  takeBrib(tile: Tile) {
-    tile.removeBonus('brib');
-    this.bribs += 1; // triggers coinCounter.updateValue
+  takeInfl(tile: Tile) {
+    tile.removeBonus('infl');
+    this.infls += 1; // triggers coinCounter.updateValue
 
   }
 

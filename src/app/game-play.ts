@@ -161,7 +161,7 @@ export class GamePlay0 {
     console.log(stime(this, `.startTurn: Dice =`), dice)
     if (dice[0] == 1 && dice[1] == 1) { this.addBonus('actn'); }
     if (dice[0] == 2 && dice[1] == 2) { this.addBonus('star'); }
-    if (dice[0] == 3 && dice[1] == 3) { this.addBonus('brib'); }
+    if (dice[0] == 3 && dice[1] == 3) { this.addBonus('infl'); }
     if (dice[0] == 4 && dice[1] == 4) { this.addBonus('econ'); }
     if (dice[0] != dice[1] && !dice.find(v => v < 4)) {
       this.autoCrime(); // 4-[5,6], 5-[4,6], 6-[4,5] 6/36 => 16.7%
@@ -208,7 +208,7 @@ export class GamePlay0 {
   }
 
   addBonusTiles() {
-    const tiles = (this.permute(['brib', 'star', 'econ', 'actn']) as AuctionBonus[]).map(type => new BonusTile(type));
+    const tiles = (this.permute(['infl', 'star', 'econ', 'actn']) as AuctionBonus[]).map(type => new BonusTile(type));
     let hex = this.hexMap.centerHex as Hex;
     tiles.forEach(tile => {
       hex = hex.nextHex('SW');
@@ -413,12 +413,12 @@ export class GamePlay0 {
     if (!(!tile.hex?.isOnMap && (toHex?.isOnMap || toReserve))) return false;
     // curPlayer && NOT FROM Map && TO [Map or Reserve]
     const [infR, coinR] = this.getInfR(tile); // assert coinR >= 0
-    let bribR = 0;
+    let inflR = 0;
     if (!toReserve && infR > 0) {
-      // bribes can be used to reduce the influence required to deploy:
+      // infles can be used to reduce the influence required to deploy:
       const infT = toHex.getInfT(this.curPlayer.color)
-      bribR = infR - infT;        // add'l influence needed, expect <= 0
-      if (bribR > this.curPlayer.bribs) {
+      inflR = infR - infT;        // add'l influence needed, expect <= 0
+      if (inflR > this.curPlayer.infls) {
         if (commit) this.logFailure('Influence', infR, infT, toHex);
         return true;
       }
@@ -429,8 +429,8 @@ export class GamePlay0 {
     }
     if (commit) {
       // fail == false; commit to purchase:
-      if (bribR > 0) {
-        this.curPlayer.bribs -= bribR;
+      if (inflR > 0) {
+        this.curPlayer.infls -= inflR;
       }
       this.curPlayer.coins -= coinR;
     }
@@ -627,7 +627,7 @@ export class GamePlay extends GamePlay0 {
     }
     KeyBinder.keyBinder.setKey('M-a', { thisArg: this, func: () => this.addBonus('actn') })
     KeyBinder.keyBinder.setKey('M-c', { thisArg: this, func: () => this.addBonus('star') })
-    KeyBinder.keyBinder.setKey('M-b', { thisArg: this, func: () => this.addBonus('brib') })
+    KeyBinder.keyBinder.setKey('M-b', { thisArg: this, func: () => this.addBonus('infl') })
     KeyBinder.keyBinder.setKey('M-d', { thisArg: this, func: () => (this.addBonus('econ'), false) })
     // KeyBinder.keyBinder.setKey('p', { thisArg: this, func: roboPause })
     // KeyBinder.keyBinder.setKey('r', { thisArg: this, func: roboResume })

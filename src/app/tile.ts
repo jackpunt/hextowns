@@ -8,7 +8,7 @@ import { BalMark, C1, CapMark, CenterText, HexShape, InfRays, InfShape, Paintabl
 import { DragContext } from "./table";
 import { PlayerColor, PlayerColorRecord, TP, playerColorRecord, playerColorsC } from "./table-params";
 
-export type Bonus = 'star' | 'brib' | 'actn' | 'econ' | 'Bank' | 'Lake' | 'Star' | 'Econ';
+export type Bonus = 'star' | 'infl' | 'actn' | 'econ' | 'Bank' | 'Lake' | 'Star' | 'Econ';
 export type AuctionBonus = Exclude<Bonus, 'Bank' | 'Lake' | 'Star' | 'Econ'>;
 type BonusObj = { [key in AuctionBonus]: boolean}
 
@@ -73,7 +73,7 @@ export class BonusMark extends Container {
       }
     },
     {
-      type: 'brib', dtype: InfShape, x: 1.4, y: -1.3, size: TP.hexRad/4, paint: (c: Container, info) => {
+      type: 'infl', dtype: InfShape, x: 1.4, y: -1.3, size: TP.hexRad/4, paint: (c: Container, info) => {
         c.scaleX = c.scaleY = .25;
         c.x = info.x * info.size;
         c.y = info.y * info.size;
@@ -184,7 +184,7 @@ class Tile0 extends Container {
     return mark;
   }
 
-  readonly bonus: BonusObj = { star: false, brib: false, actn: false, econ: false }
+  readonly bonus: BonusObj = { star: false, infl: false, actn: false, econ: false }
   /** GamePlay.addBonus(tile) restricts this to (tile instanceof AuctionTile) */
   addBonus(type: AuctionBonus) {
     const mark = new BonusMark(type);
@@ -424,9 +424,9 @@ export class Tile extends Tile0 {
       if (priorTile instanceof BonusTile) {
         priorTile.moveBonusTo(this);
       }
-      // deposit Bribs & Actns with Player; ASSERT was from auctionTiles or reserveTiles
-      if (this.bonus.brib && !this.fromHex.isOnMap) {
-        this.player.takeBrib(this);
+      // deposit Infls & Actns with Player; ASSERT was from auctionTiles or reserveTiles
+      if (this.bonus.infl && !this.fromHex.isOnMap) {
+        this.player.takeInfl(this);
       }
       if (this.bonus.actn) {
         this.player.takeAction(this);
@@ -594,7 +594,7 @@ export class EconBonus extends HalfTile {
  * Tiles with Bonus placed on map (preGame). When replaced by another AuctionTile,
  * the placing player receives the bonus indicated (as if that bonus was on the newly placed tile)
  * econ & star bonus transfer to the newly placed Tile;
- * actn & brib bonus transfer to the Player.
+ * actn & infl bonus transfer to the Player.
  *
  * BonusTile.isOnMap but tile.player === undefined!
  */

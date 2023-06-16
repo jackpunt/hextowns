@@ -58,7 +58,7 @@ export class InflSource extends TileSource<Infl> {
   }
   override makeCounter(name: string, initValue: number, color: string, fontSize: number, fontName?: string, textColor?: string) {
     // Note: this counter is not visible, not actually used!
-    // Here we edit the player.bribCounter so IT will do the right things:
+    // Here we edit the player.inflCounter so IT will do the right things:
     return new InflCounter(this, name, initValue, color, fontSize, fontName, textColor);
   }
 }
@@ -75,7 +75,7 @@ class InflCounter extends NumCounterBox {
 
   constructor(public readonly source: InflSource, name: string, initValue: number, color: string, fontSize: number, fontName?: string, textColor?: string) {
     super(name, initValue, color, fontSize, fontName, textColor);
-    this.mixinTo(source.player.bribCounter);
+    this.mixinTo(source.player.inflCounter);
   }
 
   makeUnit(source: InflSource) {
@@ -110,7 +110,7 @@ export class Infl extends SourcedToken {
     return source;
   }
 
-  bonusType: AuctionBonus = 'brib';
+  bonusType: AuctionBonus = 'infl';
 
   constructor(player: Player, serial: number) { // , inf=0, vp=0, cost=0, econ=0
     super(Infl.source[player.index], `Infl:${player?.index}-${serial}`, player, 0, 0, 0, 0);
@@ -138,7 +138,7 @@ export class Infl extends SourcedToken {
       const tile = hex.tile;
       console.log(stime(this, `.dropFunc: addBonus! ${this} --> ${hex.tile}`))
       if (GP.gamePlay.addBonus(this.bonusType , tile)) {
-        this.player.bribCounter.incValue(-1);
+        this.player.inflCounter.incValue(-1);
         this.source.deleteUnit(this);   // drop & disappear
         if (!this.source.hex.tile) this.source.nextUnit();
       } else {
