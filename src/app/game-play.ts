@@ -347,7 +347,7 @@ export class GamePlay0 {
   failToBalance(tile: Tile) {
     const player = this.curPlayer;
     // tile on map during Test/Dev, OR: when demolishing...
-    const ivec = tile.hex.isOnMap ? [0, 0, 0, 0] : [tile.nB, tile.nR, tile.fB, tile.fR];
+    const ivec = tile.hex.isOnMap ? [0, 0, 0, 0] : [tile.nB, tile.fB, tile.nR, tile.fR];
     const [nBusi, fBusi, nResi, fResi] = this.playerBalance(player, ivec);
     const noBusi = nBusi > 1 * (nResi + fResi);
     const noResi = nResi > 2 * (nBusi + fBusi);

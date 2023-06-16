@@ -265,14 +265,23 @@ export class Table extends EventDispatcher  {
     return hex;
   }
 
-  homeRowHex(name: string, crxy: { row: number, col: number }, dy = 0) {
+  // row typically 0 or -1; sy[row=0]: 0, -1, -2;
+  homeRowHex(name: string, crxy: { row: number, col: number }, sy = 0, claz?: Constructor<Hex2>) {
     const { row, col } = crxy;
-    const hex = this.newHex2(row, col, name);
+    const hex = this.newHex2(row, col, name, claz);
     this.homeRowHexes.push(hex);
-    const sy = (row > 0) ? 0 : (-.4 + .3 * row) * this.hexMap.rowHeight; // {-1: -.7, 0: -.4}
-    hex.y += (sy + dy);
+    if (row <= 0) {
+      hex.y += (sy + row * .5 - .75) * (this.hexMap.rowHeight / 1.5);
+    }
     hex.legalMark.setOnHex(hex);
     return hex;
+  }
+
+  splitRowHex(name: string, ndx: number, claz?: Constructor<Hex2>) {
+    const nm = TP.auctionMerge, col0 = 5.5, row = 0;
+    return ndx < nm ? this.homeRowHex(name, { row, col: col0 + ndx }, -2, claz) :      // split: UP 2
+      ndx >= 2 * nm ? this.homeRowHex(name, { row, col: col0 + ndx - nm }, -1, claz) : // middle
+        /*ndx<2*nm */ this.homeRowHex(name, { row, col: col0 + ndx - nm }, 0, claz);   // split: DOWN 0
   }
 
   layoutTable(gamePlay: GamePlay) {
@@ -303,12 +312,15 @@ export class Table extends EventDispatcher  {
     this.makeShifter();
     this.makePerPlayer();
 
+    // TP.auctionMerge + TP.auctionSlots
+    const inflH = this.splitRowHex(`inflHex`, this.gamePlay.auctionTiles.length , BonusHex);
+
     this.gamePlay.recycleHex = this.makeRecycleHex(5, -.5);
     this.gamePlay.debtHex = this.makeDebtHex(5, 13.5);
     this.gamePlay.eventHex = this.makeEventHex(-1, 5);
     this.hexMap.update();
     {
-      // postition turnLog & turnText
+      // position turnLog & turnText
       let parent = this.scaleCont
       let rhex = this.hexMap[7][0] as Hex2; //getCornerHex('W') as Hex2;
       let rhpt = rhex.cont.parent.localToLocal(rhex.x - 9 * this.hexMap.colWidth, rhex.y, parent)
@@ -325,13 +337,7 @@ export class Table extends EventDispatcher  {
   }
 
   makeShifter() {
-    const nm = TP.auctionMerge, rowh = this.hexMap.rowHeight
-    const splitRowHex = (name: string, ndx: number) => {
-      const col0 = 5.5, row = 0;
-      return ndx < nm ? this.homeRowHex(name, {col: col0 + ndx, row}, -TP.hexRad * 2) : // shift UP 2 when split
-        ndx < 2 * nm ? this.homeRowHex(name, {col: col0 + ndx - nm, row}, 0) :          // stay DOWN when split
-          this.homeRowHex(name, {col: col0 + ndx - nm, row}, -rowh * .65);              // shift to middle, not split
-    }
+    const splitRowHex = (name: string, ndx: number) => this.splitRowHex(name, ndx);
     const auctionTiles = this.gamePlay.auctionTiles, tileBag = this.gamePlay.shifter.tileBag;
     const shifter = this.gamePlay.shifter = new AuctionShifter2(auctionTiles, this, splitRowHex);
     shifter.tileBag.push(...tileBag); tileBag.length = 0; // pour bag into new shifter.
@@ -443,7 +449,7 @@ export class Table extends EventDispatcher  {
         // the [colx, rowy] grid is NOT aligned with hexMap... (although 2 is close...)
         const adjC = (col: number) => ((col - .165) * 1.2);
         const inflH = this.noRowHex(`inflH:${pIndex}`, this.colf(pIndex, adjC(1.5), (2)), BonusHex);
-        const econH = this.noRowHex(`econH:${pIndex}`, this.colf(pIndex, adjC(1.21), (2.7)), BonusHex);
+        const econH = this.noRowHex(`econH:${pIndex}`, this.colf(pIndex, adjC(1.21), (2.68)), BonusHex);
         Infl.makeSource(p, inflH, 0);
         Econ.makeSource(p, econH, 0);
       }
@@ -486,7 +492,7 @@ export class Table extends EventDispatcher  {
     bLabels.forEach((label, i) => {
       const b = new ButtonBox(label, label, 'lightgreen', TP.hexRad * .75); // eh/3
       b.mouseEnabled = true
-      b.attachToContainer(cont, { x: 5 * dx, y: rowy(i - 1.1) }) // just a ['Done'] label/button
+      b.attachToContainer(cont, { x: 4.9 * dx, y: rowy(i - 1.1) }) // just a ['Done'] label/button
       b.setValue(label);
       b.boxAlign(align);
       b.on(S.click, () => this.doButton(label), this)[S.Aname] = `b:${label}`;

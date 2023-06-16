@@ -1,3 +1,4 @@
+import { Constructor } from "@thegraid/common-lib";
 import { NumCounter } from "./counters";
 import { GP } from "./game-play";
 import type { Hex2 } from "./hex";
@@ -15,15 +16,19 @@ export class TileSource<T extends Tile> {
   readonly counter?: NumCounter;   // counter of available units.
 
   constructor(
-    public readonly type: new (...args: any) => T,
+    public readonly type: Constructor<T>,
     public readonly player: Player,
     public readonly hex: Hex2,
+    counter?: NumCounter,
   ) {
-    this.Aname = `${type.name}-Source`;
-    const cont = hex.map.mapCont.counterCont; // GP.gamePlay.hexMap.mapCont.counterCont;
-    const xy = hex.cont.localToLocal(0, -TP.hexRad / H.sqrt3, cont);
-    this.counter = this.makeCounter(`${type.name}:${player?.index ?? 'any'}`, this.numAvailable, `lightblue`, TP.hexRad / 2);
-    this.counter.attachToContainer(cont, xy);
+    this.Aname = `${type.name}Source`;
+    if (!counter) {
+      const cont = hex.map.mapCont.counterCont; // GP.gamePlay.hexMap.mapCont.counterCont;
+      const xy = hex.cont.localToLocal(0, -TP.hexRad / H.sqrt3, cont);
+      counter = this.makeCounter(`${type.name}:${player?.index ?? 'any'}`, this.numAvailable, `lightblue`, TP.hexRad / 2);
+      counter.attachToContainer(cont, xy);
+    }
+    this.counter = counter;
   }
 
   makeCounter(name: string, initValue: number, color: string, fontSize: number, fontName?: string, textColor?: string) {
@@ -53,13 +58,13 @@ export class TileSource<T extends Tile> {
   }
 
   deleteUnit(unit: T) {
-    if (this.isAvailable(unit)) {
+    if (unit && this.isAvailable(unit)) {
       unit.moveTo(undefined); // --> this.nextUnit();
       unit.parent?.removeChild(unit);
     }
     const ndx = this.allUnits.indexOf(unit);
-    if (ndx > 0) {
-      this.allUnits.splice(ndx,1);
+    if (ndx >= 0) {
+      this.allUnits.splice(ndx, 1);
     }
   }
 
