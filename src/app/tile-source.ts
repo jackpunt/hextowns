@@ -14,13 +14,23 @@ export class TileSource<T extends Tile> {
   private readonly available: T[] = new Array<T>();
   readonly counter?: NumCounter;   // counter of available units.
 
-  constructor(readonly type: new (...args: any) => T, public readonly player: Player, public readonly hex: Hex2) {
+  constructor(
+    protected readonly type: new (...args: any) => T,
+    public readonly player: Player,
+    public readonly hex: Hex2,
+  ) {
     this.Aname = `${type.name}-Source`;
-    this.counter = new NumCounter(`${type.name}:${player?.index ?? 'any'}`, this.available.length, `lightblue`, TP.hexRad / 2);
     const cont = hex.map.mapCont.counterCont; // GP.gamePlay.hexMap.mapCont.counterCont;
     const xy = hex.cont.localToLocal(0, -TP.hexRad / H.sqrt3, cont);
+    this.counter = this.makeCounter(`${type.name}:${player?.index ?? 'any'}`, this.numAvailable, `lightblue`, TP.hexRad / 2);
     this.counter.attachToContainer(cont, xy);
   }
+
+  makeCounter(name: string, initValue: number, color: string, fontSize: number, fontName?: string, textColor?: string) {
+    return new NumCounter(name, initValue, color, fontSize, fontName, textColor);
+  }
+
+  get numAvailable() { return this.available.length + (this.hex?.tile || this.hex?.meep ? 1 : 0); }
 
   /** mark unit available for later deployment */
   availUnit(unit: T) {
@@ -66,7 +76,7 @@ export class TileSource<T extends Tile> {
 
   updateCounter() {
     this.counter.parent?.setChildIndex(this.counter, this.counter.parent.numChildren - 1);
-    this.counter.setValue(this.available.length + (this.hex?.tile || this.hex?.meep ? 1 : 0));
+    this.counter.setValue(this.numAvailable);
     this.hex?.cont?.updateCache(); // updateCache of counter on hex
     this.hex?.map?.update();       // updateCache of hexMap with hex & counter
   }

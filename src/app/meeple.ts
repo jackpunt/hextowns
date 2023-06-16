@@ -84,8 +84,6 @@ export class Meeple extends Tile {
     if (hex !== undefined) hex.meep = this;
   }
 
-  startHex: Hex;       // location at start-of-turn (see also: homeHex -- start-of-game/recycle)
-
   override get radius() { return TP.hexRad / 1.9 }
   override textVis(v: boolean) { super.textVis(true); }
   override makeShape(): PaintableShape { return new MeepleShape(this.player); }
@@ -275,7 +273,7 @@ class SourcedMeeple extends Meeple {
     if (fromHex === this.source.hex && fromHex !== toHex) {
       source.nextUnit()   // shift; moveTo(source.hex); update source counter
     }
-    return toHex;
+    return hex;
   }
 
   override sendHome(): void { // Criminal

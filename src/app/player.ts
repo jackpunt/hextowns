@@ -195,7 +195,8 @@ export class Player {
   }
   newTurn() {
     // faceUp and record start location:
-    this.meeples.forEach(meep => meep.hex?.isOnMap ? meep.faceUp() : meep.startHex = undefined)
+    this.meeples.forEach(meep => meep.hex?.isOnMap ? meep.faceUp() : meep.startHex = undefined);
+    this.tiles.forEach(tile => tile.startHex = tile.hex);
     this.coins += (this.econs + this.expenses); // expenses include P & I
     this.debts.forEach(debt => {
       debt.balance -= 1;   // pay down principle

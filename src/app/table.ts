@@ -26,8 +26,7 @@ interface StageTable extends Stage {
 }
 
 export interface DragContext {
-  originHex: Hex2;      // where Tile was picked
-  targetHex: Hex2;      // last isLegalTarget() or originHex
+  targetHex: Hex2;      // last isLegalTarget() or fromHex
   lastShift: boolean;   // true if Shift key is down
   lastCtrl: boolean;    // true if control key is down
   info: DragInfo;
@@ -260,7 +259,7 @@ export class Table extends EventDispatcher  {
     return hex
   }
 
-  noRowHex(name: string, crxy: { row: number, col: number }, claz: Constructor<Hex2>) {
+  noRowHex(name: string, crxy: { row: number, col: number }, claz: Constructor<Hex2> = BonusHex) {
     const { row, col } = crxy;
     const hex = this.newHex2(row, col, name, claz);
     return hex;
@@ -446,12 +445,13 @@ export class Table extends EventDispatcher  {
         const inflH = this.noRowHex(`inflH:${pIndex}`, this.colf(pIndex, adjC(1.5), 2), BonusHex);
         const econH = this.noRowHex(`econH:${pIndex}`, this.colf(pIndex, adjC(2.0), 2), BonusHex);
         const inflSource = Infl.makeSource(p, inflH, 0);
-        const newInfl = () => {
-          const infl = inflSource.nextUnit(new Infl(p, p.bribCounter.getValue()));
-          this.makeDragable(infl);
-          return infl;
-        }
-        p.bribCounter.on(S.click, newInfl, this);
+        // const newInfl = () => {
+        //   const unit = new Infl(p, p.bribCounter.getValue());
+        //   this.makeDragable(unit);
+        //   inflSource.newUnit(unit);
+        //   if (!inflSource.hex.tile) inflSource.nextUnit();
+        // }
+        // p.bribCounter.on(S.click, newInfl, this);
       }
       {
         // Show Player's balance text:
@@ -611,10 +611,10 @@ export class Table extends EventDispatcher  {
 
     if (info?.first) {
       const event = info.event?.nativeEvent;
+      tile.fromHex = tile.hex as Hex2;
       ctx = this.dragContext = {
         tile: tile,                  // ASSERT: hex === tile.hex
-        originHex: tile.hex as Hex2, // where Tile was picked
-        targetHex: tile.hex as Hex2, // last isLegalTarget() or originHex
+        targetHex: tile.fromHex,     // last isLegalTarget() or fromHex
         lastShift: event?.shiftKey,
         lastCtrl:  event?.ctrlKey,
         info: info,
@@ -686,7 +686,7 @@ export class Table extends EventDispatcher  {
   isDragging() { return this.dragContext?.tile !== undefined }
 
   /** Force this.dragger to drop the current drag object on given target Hex */
-  stopDragging(target: Hex2 = this.dragContext.originHex) {
+  stopDragging(target: Hex2 = this.dragContext.tile.fromHex) {
     //console.log(stime(this, `.stopDragging: dragObj=`), this.dragger.dragCont.getChildAt(0), {noMove, isDragging: this.isDragging()})
     if (!this.isDragging()) return
     if (target) this.dragContext.targetHex = target;

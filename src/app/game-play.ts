@@ -73,7 +73,7 @@ export class GamePlay0 {
   fromMarket(fromHex: Hex) {
     let rv: TileSource<Tile>;
     this.marketSource.find(ms => {
-      return rv = Object.values(ms).find(src => fromHex === src.hex);
+      return rv = Object.values(ms).find(source => fromHex === source.hex);
     })
     return rv;
   }
@@ -827,7 +827,7 @@ export class GamePlay extends GamePlay0 {
     this.paintForPlayer();
     this.updateCostCounters();
     Player.updateCounters(plyr); // beginning of round...
-    this.logText(this.shifter.tileNames(this.curPlayerNdx), ` GamePlay.setNextPlayer`);
+    this.logText(this.shifter.tileNames(this.curPlayerNdx), `GamePlay.setNextPlayer`);
     this.table.buttonsForPlayer[this.curPlayerNdx].visible = true;
     this.table.showNextPlayer(); // get to nextPlayer, waitPaused when Player tries to make a move.?
     this.hexMap.update();

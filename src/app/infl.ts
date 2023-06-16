@@ -1,6 +1,6 @@
 import { C, stime } from "@thegraid/common-lib";
 import { AuctionTile } from "./auction-tile";
-import { GP } from "./game-play";
+import { GP, GamePlay } from "./game-play";
 import { Hex, Hex2 } from "./hex";
 import { Player } from "./player";
 import { DragContext } from "./table";
@@ -8,6 +8,7 @@ import { PlayerColor, TP } from "./table-params";
 import { AuctionBonus, HalfTile } from "./tile";
 import { TileSource } from "./tile-source";
 import { InfShape, PaintableShape } from "./shapes";
+import { NumCounter, NumCounterBox } from "./counters";
 
 type TileInf = 0 | 1;
 class SourcedTile extends HalfTile {
@@ -27,12 +28,12 @@ class SourcedTile extends HalfTile {
 
   override moveTo(hex: Hex) {
     const fromHex = this.hex;
-    const toHex = super.moveTo(hex);  // may invoke this.overSet(source.hex.tile)
+    super.moveTo(hex);    // may invoke this.overSet(source.hex.tile)?
     const source = this.source;
-    if (fromHex === source.hex && fromHex !== toHex) {
+    if (fromHex === source.hex && fromHex !== hex) {
       source.nextUnit()   // shift; moveTo(source.hex); update source counter
     }
-    return toHex;
+    return hex;
   }
 
   override sendHome(): void { // Infl
@@ -52,23 +53,66 @@ class SourcedToken extends SourcedTile {
 
 /** Infl token can be applied to a Hex to raise the Player's influence on that hex. */
 export class InflSource extends TileSource<Infl> {
-  constructor(player: Player, hex: Hex2) {
-    super(Infl, player, hex);
+  constructor(type: new (p: Player, n: number) => Infl, player: Player, hex: Hex2) {
+    super(type, player, hex);
+  }
+  override makeCounter(name: string, initValue: number, color: string, fontSize: number, fontName?: string, textColor?: string) {
+    // Note: this counter is not visible, not actually used!
+    // Here we edit the player.bribCounter so IT will do the right things:
+    return new InflCounter(this, name, initValue, color, fontSize, fontName, textColor);
   }
 }
+
+class InflCounter extends NumCounterBox {
+
+  mixinTo(target: NumCounter) {
+    const meths = ['source', 'makeUnit', 'setValue'];
+    meths.forEach(meth => {
+      target[meth] = this[meth];
+    })
+    return target;
+  }
+
+  constructor(public readonly source: InflSource, name: string, initValue: number, color: string, fontSize: number, fontName?: string, textColor?: string) {
+    super(name, initValue, color, fontSize, fontName, textColor);
+    this.mixinTo(source.player.bribCounter);
+  }
+
+  makeUnit(source: InflSource) {
+    const table = (GP.gamePlay as GamePlay).table;
+    const player = source.player;
+    const unit = new Infl(player, source.numAvailable);
+    table.makeDragable(unit);
+    source.newUnit(unit);
+    if (!source.hex.tile) source.nextUnit();
+  }
+
+  override setValue(value: string | number): void {
+    super.setValue(value);
+    const v = value as number;
+    while (this.source && v !== this.source.numAvailable) {
+      if (v > this.source.numAvailable) {
+        this.makeUnit(this.source);
+      } else {
+        this.source.deleteUnit(this.source.hex.tile as Infl);
+      }
+    }
+  }
+}
+
 export class Infl extends SourcedToken {
   static source: InflSource[] = [];
   static inflGrey = C.nameToRgbaString(C.grey, .8);
 
   static makeSource(player: Player, hex: Hex2, n = 0) {
-    const source = SourcedTile.makeSource0(TileSource, Infl, player, hex, n);
+    const source = SourcedTile.makeSource0(InflSource, Infl, player, hex, n);
     source.counter.visible = false;
     return source;
   }
 
   bonusType: AuctionBonus = 'brib';
 
-  constructor(player: Player, serial: number) {
+  constructor(player: Player, serial: number) { // , inf=0, vp=0, cost=0, econ=0
     super(Infl.source[player.index], `Infl:${player?.index}-${serial}`, player, 0, 0, 0, 0);
   }
 
@@ -78,10 +122,8 @@ export class Infl extends SourcedToken {
     return shape;
   }
 
-  override paint(pColor?: PlayerColor, colorn?: string): void {
-    // super.paint(pColor, Infl.inflGrey);
-    this.baseShape.paint(Infl.inflGrey);
-    this.updateCache();
+  override paint(pColor?: PlayerColor, colorn = Infl.inflGrey): void {
+    super.paint(pColor, colorn);
   }
 
   override isLegalTarget(toHex: Hex, ctx?: DragContext): boolean {
@@ -98,6 +140,7 @@ export class Infl extends SourcedToken {
       if (GP.gamePlay.addBonus(this.bonusType , tile)) {
         this.player.bribCounter.incValue(-1);
         this.source.deleteUnit(this);   // drop & disappear
+        if (!this.source.hex.tile) this.source.nextUnit();
       } else {
         this.sendHome();
       }

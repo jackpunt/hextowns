@@ -462,6 +462,7 @@ export class EventHex extends Hex2 {
   }
 }
 
+/** half-size hex, suitable source for HalfTile. */
 export class BonusHex extends Hex2 {
   constructor(map: HexMap, row: number, col: number, name?: string) {
     super(map, row, col, name);

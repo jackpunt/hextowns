@@ -249,7 +249,9 @@ export class Tile extends Tile0 {
   get debt() { return this._debt; }
   set debt(debt: Debt) { this._debt = debt; } // Hmm... if (debt === undefined) recycleTile(_debt) ?
 
-  homeHex: Hex = undefined;
+  homeHex: Hex = undefined; // location at start-of-game & after-Recycle
+  startHex: Hex;            // location at start-of-turn
+  fromHex: Hex2;            // location at start-of-drag
 
   get infP() { return this.inf }
 
@@ -423,7 +425,7 @@ export class Tile extends Tile0 {
         priorTile.moveBonusTo(this);
       }
       // deposit Bribs & Actns with Player; ASSERT was from auctionTiles or reserveTiles
-      if (this.bonus.brib && (this instanceof BonusTile)) {
+      if (this.bonus.brib && !this.fromHex.isOnMap) {
         this.player.takeBrib(this);
       }
       if (this.bonus.actn) {
@@ -453,7 +455,7 @@ export class Tile extends Tile0 {
   flipOwner(targetHex: Hex2, ctx: DragContext) {
     const gamePlay = GP.gamePlay, player = ctx.lastCtrl ? this.player.otherPlayer : gamePlay.curPlayer;
 
-    if ((targetHex === ctx.originHex)) {
+    if ((targetHex === this.fromHex)) {
       if (targetHex.isOnMap && (targetHex.getInfT(player.color) > targetHex.getInfT(this.player.color) || ctx.lastCtrl)) {
         // flip if Infl or ctrlKey:
         this.flipPlayer(player, gamePlay);
@@ -489,7 +491,7 @@ export class Tile extends Tile0 {
    * record ctx.targetHex & showMark() when Tile is over a legal targetHex.
    */
   dragFunc0(hex: Hex2, ctx: DragContext) {
-    ctx.targetHex = hex?.isLegal ? hex : ctx.originHex;
+    ctx.targetHex = hex?.isLegal ? hex : this.fromHex;
     ctx.targetHex.map.showMark(ctx.targetHex);
   }
 

@@ -111,10 +111,10 @@ export class AuctionTile extends Tile {
     gamePlay.removeFromAuction(this);
 
     // placeTile(this, targetHex); moveTo(targetHex);
-    super.dropFunc(targetHex, ctx); // set this.hex = targetHex, ctx.originHex.tile = undefined;
+    super.dropFunc(targetHex, ctx); // set this.hex = targetHex, this.fromHex.tile = undefined;
 
     // if from market source:
-    gamePlay.fromMarket(ctx.originHex)?.nextUnit();
+    gamePlay.fromMarket(this.fromHex)?.nextUnit();
     gamePlay.updateCostCounters(); // update if fromMarket (or toMarket!)
 
     // special treatment for where tile landed:
@@ -127,7 +127,7 @@ export class AuctionTile extends Tile {
     const auctionTiles = gamePlay.auctionTiles;
     const auctionNdx = gamePlay.auctionHexes.indexOf(toHex);
     if (auctionNdx >= 0) {
-      auctionTiles[auctionNdx]?.moveTo(ctx.originHex); // if something there, swap it to fromHex
+      auctionTiles[auctionNdx]?.moveTo(this.fromHex); // if something there, swap it to fromHex
       auctionTiles[auctionNdx] = this;
       this.setPlayerAndPaint(player);
     }
