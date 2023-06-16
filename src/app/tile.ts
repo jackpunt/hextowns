@@ -4,7 +4,7 @@ import type { Debt } from "./debt";
 import { GP } from "./game-play";
 import { Hex, Hex2 } from "./hex";
 import type { Player } from "./player";
-import { BalMark, C1, CapMark, CenterText, HexShape, InfRays, InfShape, PaintableShape, TileShape } from "./shapes";
+import { BalMark, C1, CapMark, CenterText, HexShape, InfRays, InfShape, Paintable, TileShape } from "./shapes";
 import { DragContext } from "./table";
 import { PlayerColor, PlayerColorRecord, TP, playerColorRecord, playerColorsC } from "./table-params";
 
@@ -73,7 +73,7 @@ export class BonusMark extends Container {
       }
     },
     {
-      type: 'infl', dtype: InfShape, x: 1.4, y: -1.3, size: TP.hexRad/4, paint: (c: Container, info) => {
+      type: 'infl', dtype: InfShape, x: 1.4, y: -1.3, size: TP.hexRad / 4, paint: (c: Container, info) => {
         c.scaleX = c.scaleY = .25;
         c.x = info.x * info.size;
         c.y = info.y * info.size;
@@ -147,13 +147,13 @@ class Tile0 extends Container {
   }
 
   get radius() { return TP.hexRad};
-  readonly baseShape: PaintableShape = this.makeShape();
+  readonly baseShape: Paintable = this.makeShape();
 
   /** Default is TileShape; a HexShape with translucent disk.
    * add more graphics with paint(colorn)
    * also: addBitmapImage()
    */
-  makeShape(): PaintableShape {
+  makeShape(): Paintable {
     return new TileShape(this.radius);
   }
 
@@ -567,7 +567,7 @@ export class NoDragTile extends Tile {}
 
 // Show Debt on plain WHITE tile:
 export class WhiteTile extends NoDragTile {
-  override makeShape(): PaintableShape { return new HexShape(this.radius); }
+  override makeShape(): Paintable { return new HexShape(this.radius); }
 
   override paint(pColor?: PlayerColor, colorn?: string): void {
     super.paint(pColor, C.WHITE);
@@ -576,7 +576,7 @@ export class WhiteTile extends NoDragTile {
 
 export class HalfTile extends Tile {
 
-  override makeShape(): PaintableShape {
+  override makeShape(): Paintable {
     return new HexShape(this.radius * .5);
   }
 

@@ -6,7 +6,7 @@ import type { DragContext } from "./table";
 import { PlayerColor } from "./table-params";
 import { HalfTile, Tile } from "./tile";
 import { TileSource } from "./tile-source";
-import { PaintableShape } from "./shapes";
+import { Paintable } from "./shapes";
 
 export class DebtSource extends TileSource<Debt> {
   constructor(hex: Hex2) {
@@ -53,7 +53,7 @@ export class Debt extends HalfTile {
 
   override get recycleVerb() { return 'paid-off'; }
 
-  override makeShape(): PaintableShape {
+  override makeShape(): Paintable {
     const shape = super.makeShape();
     shape.y += this.radius * .3
     return shape;

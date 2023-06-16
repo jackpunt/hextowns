@@ -13,7 +13,7 @@ import type { StatsPanel } from "./stats";
 import { PlayerColor, playerColor0, playerColor1, playerColors, TP } from "./table-params";
 import { NoDragTile, Tile, WhiteTile } from "./tile";
 import { TileSource } from "./tile-source";
-import { Infl } from "./infl";
+import { Econ, Infl } from "./infl";
 //import { TablePlanner } from "./planner";
 
 
@@ -434,29 +434,23 @@ export class Table extends EventDispatcher  {
       }
 
       const pRowCol = [[2, 0], [2, -1], [1, -1], [3, -1], [4, -1], [4, 0]];
-      p.policySlots.forEach((hex, ndx, ary) => {
+      p.policySlots.forEach((hex, ndx, ary) => { TP.nPolicySlots;
         const [r, c] = pRowCol[ndx];
-        const { row, col } = colf(c, r); TP.nPolicySlots
-        const pHex = this.homeRowHex(`policy:${pIndex}-${ndx}`,{col, row}, 0);
+        const pHex = this.homeRowHex(`policy:${pIndex}-${ndx}`, colf(c, r), 0);
         ary[ndx] = pHex;
       })
       {
-        const adjC = (n: number) => ((n - .165) * 1.2);
-        const inflH = this.noRowHex(`inflH:${pIndex}`, this.colf(pIndex, adjC(1.5), 2), BonusHex);
-        const econH = this.noRowHex(`econH:${pIndex}`, this.colf(pIndex, adjC(2.0), 2), BonusHex);
-        const inflSource = Infl.makeSource(p, inflH, 0);
-        // const newInfl = () => {
-        //   const unit = new Infl(p, p.inflCounter.getValue());
-        //   this.makeDragable(unit);
-        //   inflSource.newUnit(unit);
-        //   if (!inflSource.hex.tile) inflSource.nextUnit();
-        // }
-        // p.inflCounter.on(S.click, newInfl, this);
+        // the [colx, rowy] grid is NOT aligned with hexMap... (although 2 is close...)
+        const adjC = (col: number) => ((col - .165) * 1.2);
+        const inflH = this.noRowHex(`inflH:${pIndex}`, this.colf(pIndex, adjC(1.5), (2)), BonusHex);
+        const econH = this.noRowHex(`econH:${pIndex}`, this.colf(pIndex, adjC(1.21), (2.7)), BonusHex);
+        Infl.makeSource(p, inflH, 0);
+        Econ.makeSource(p, econH, 0);
       }
       {
         // Show Player's balance text:
         const bText = p.balanceText, parent = this.scaleCont;
-        const hexC2 = this.hexMap[8][colf(2, 0).col] as Hex2, hexR1 = this.hexMap[1][3] as Hex2;
+        const hexC2 = this.hexMap[8][colf(2, 8).col] as Hex2, hexR1 = this.hexMap[1][3] as Hex2;
         const x = hexC2.x, y = hexR1.y - .3 * TP.hexRad * H.sqrt3;
         hexC2.cont.parent.localToLocal(x, y, parent, bText);
         parent.addChild(bText);
@@ -524,11 +518,12 @@ export class Table extends EventDispatcher  {
     };
     const adjC = (n: number) => (n * 1.2);
     layoutCounter('action', C.YELLOW, rowy(0));
-    layoutCounter('coin', C.coinGold, rowy(1));
-    layoutCounter('econ', C.GREEN, rowy(1), adjC(1 + index), false);
+    layoutCounter('Coin', C.coinGold, rowy(1));
+    layoutCounter('Econ', C.GREEN, rowy(1), adjC(1 + index), false);
     layoutCounter('expense', C.GREEN, rowy(1), adjC(2 - index), false);
     layoutCounter('infl', 'grey', rowy(2));
-    layoutCounter('capture', 'lightblue', rowy(3));
+    layoutCounter('econ', 'white', rowy(3));
+    layoutCounter('capture', 'lightblue', rowy(4), adjC(-2));
     const vpC = layoutCounter('vp', C.briteGold, rowy(4), 0, false);
     layoutCounter('vp0', C.briteGold, rowy(4), adjC(-1), vpC);
     const tvpC = layoutCounter('totalVp', C.briteGold, rowy(5), 0, false, DecimalCounter);

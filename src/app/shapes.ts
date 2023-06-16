@@ -1,5 +1,5 @@
 import { C, F, XY } from "@thegraid/common-lib";
-import { Container, Graphics, Shape, Text } from "@thegraid/easeljs-module";
+import { Container, DisplayObject, Graphics, Shape, Text } from "@thegraid/easeljs-module";
 import type { Hex2 } from "./hex";
 import { H, HexDir } from "./hex-intfs";
 import { PlayerColor, PlayerColorRecord, TP, playerColorRecord } from "./table-params";
@@ -20,16 +20,16 @@ export class CenterText extends Text {
   }
 }
 
-export interface PaintableShape extends Shape {
+export interface Paintable extends DisplayObject {
   /** paint with new player color; updateCache() */
-  paint(colorn: string): Graphics;
+  paint(colorn: string): void;
 }
 
 /**
  * The colored PaintableShape that fills a Hex.
  * @param radius in call to drawPolyStar()
  */
-export class HexShape extends Shape implements PaintableShape {
+export class HexShape extends Shape implements Paintable {
   constructor(
     readonly radius = TP.hexRad,
     readonly tiltDir: HexDir = 'NE',
@@ -74,14 +74,14 @@ export class InfRays extends Shape {
   }
 }
 
-export class InfShape extends Shape implements PaintableShape {
+export class InfShape extends Shape implements Paintable {
   /** hexagon scaled by TP.hexRad/4 */
   constructor(bgColor = 'grey') {
     super();
     this.paint(bgColor);
   }
 
-  paint(colorn: string): Graphics {
+  paint(colorn: string) {
     const g = this.graphics;
     g.c().f(colorn).dp(0, 0, TP.hexRad, 6, 0, 30);
     new InfRays(1, undefined, .3, 10, g); // short & wide; it gets scaled down

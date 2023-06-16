@@ -5,13 +5,13 @@ import { GP } from "./game-play";
 import type { Hex, Hex2 } from "./hex";
 import { H } from "./hex-intfs";
 import type { Player } from "./player";
-import { C1, InfRays, PaintableShape } from "./shapes";
+import { C1, InfRays, Paintable } from "./shapes";
 import type { DragContext } from "./table";
 import { PlayerColor, TP, criminalColor } from "./table-params";
 import { Church, Civic, Courthouse, Tile, TownStart, University } from "./tile";
 import { UnitSource } from "./tile-source";
 
-class MeepleShape extends Shape implements PaintableShape {
+class MeepleShape extends Shape implements Paintable {
   static fillColor = 'rgba(225,225,225,.7)';
   static backColor = 'rgba(210,210,120,.5)'; // transparent light green
 
@@ -86,7 +86,7 @@ export class Meeple extends Tile {
 
   override get radius() { return TP.hexRad / 1.9 }
   override textVis(v: boolean) { super.textVis(true); }
-  override makeShape(): PaintableShape { return new MeepleShape(this.player); }
+  override makeShape(): Paintable { return new MeepleShape(this.player); }
 
   /** start of turn: unmoved */
   faceUp(up = true) {
@@ -260,8 +260,9 @@ class SourcedMeeple extends Meeple {
   }
 
   paintRings(colorn: string, rColor = C.BLACK, ss = 4, rs = 4) {
-    const r = (this.baseShape as MeepleShape).radius
-    const g = this.baseShape.paint(colorn);   // [2, 1]
+    const r = (this.baseShape as MeepleShape).radius;
+    const g = (this.baseShape as MeepleShape).graphics;
+    this.baseShape.paint(colorn);       // [2, 1]
     g.ss(ss).s(rColor).dc(0, 0, r - rs) // stroke a colored ring inside black ring
     this.updateCache();
   }

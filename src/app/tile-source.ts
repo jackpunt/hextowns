@@ -15,7 +15,7 @@ export class TileSource<T extends Tile> {
   readonly counter?: NumCounter;   // counter of available units.
 
   constructor(
-    protected readonly type: new (...args: any) => T,
+    public readonly type: new (...args: any) => T,
     public readonly player: Player,
     public readonly hex: Hex2,
   ) {

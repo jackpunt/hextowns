@@ -20,7 +20,7 @@ export class Player {
   /** econ, expense, vp */
   static updateCounters(curPlayer?: Player) {
     Player.allPlayers.forEach(player => {
-      player.econCounter.setValue(player.econs)
+      player.EconCounter.setValue(player.econs)
       player.expenseCounter.setValue(player.expenses)
       player.vpCounter.setValue(player.vps)
       //if (player && player !== curPlayer) player.totalVpCounter.setValue(player.totalVps)
@@ -58,9 +58,13 @@ export class Player {
   get infls() { return this.inflCounter?.getValue(); }
   set infls(v: number) { this.inflCounter?.updateValue(v); }
 
-  coinCounter: NumCounter;
-  get coins() { return this.coinCounter?.getValue(); }
-  set coins(v: number) { this.coinCounter?.updateValue(v); }
+  econCounter: NumCounter;
+  // get econs() { return this.inflCounter?.getValue(); }
+  // set econs(v: number) { this.inflCounter?.updateValue(v); }
+
+  CoinCounter: NumCounter;
+  get coins() { return this.CoinCounter?.getValue(); }
+  set coins(v: number) { this.CoinCounter?.updateValue(v); }
 
   actionCounter: NumCounter;
   get actions() { return this.actionCounter?.getValue(); }
@@ -84,7 +88,7 @@ export class Player {
   get captures() { return this.captureCounter?.getValue(); }
   set captures(v: number) { this.captureCounter?.updateValue(v); }
 
-  econCounter: NumCounter;
+  EconCounter: NumCounter;
   get econs() {
     let econ = 0;
     this.gamePlay.hexMap.forEachHex(hex => {
