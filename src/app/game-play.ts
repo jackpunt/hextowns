@@ -437,10 +437,6 @@ export class GamePlay0 {
     return false;
   }
 
-  setIsLegalRecycle(tile: Tile, ctx: DragContext) {
-    return this.recycleHex.isLegal = tile.isLegalRecycle(ctx);
-  }
-
   /** Meeple.dropFunc() --> place Meeple (to Map, reserve; not Recycle) */
   // from Meeple.dropFunc, recruitAction, autoCrime, unmove2
   placeMeep(meep: Meeple, toHex: Hex, payCost = true) {
@@ -457,6 +453,13 @@ export class GamePlay0 {
   }
 
   placeEither(tile: Tile, toHex: Hex, payCost = true) {
+    // commit to pay, and verify payment made:
+    if (payCost && this.failToPayCost(tile, toHex)) {
+      console.log(stime(this, `.placeEither: payment failed`), tile, toHex);
+      debugger;              // should not happen, since isLegalTarget() checks failToPayCost()
+      tile.moveTo(tile.hex); // abort; return to fromHex
+      return;
+    }
     // update influence on map:
     const fromHex = tile.hex, infColor = tile.infColor || this.curPlayer.color;
     if (fromHex?.isOnMap && (tile.inf !== 0)) {

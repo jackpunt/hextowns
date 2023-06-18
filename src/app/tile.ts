@@ -5,7 +5,7 @@ import { GP } from "./game-play";
 import { Hex, Hex2 } from "./hex";
 import type { Player } from "./player";
 import { BalMark, C1, CapMark, CenterText, HexShape, InfRays, InfShape, Paintable, TileShape } from "./shapes";
-import { DragContext } from "./table";
+import type { DragContext, Table } from "./table";
 import { PlayerColor, PlayerColorRecord, TP, playerColorRecord, playerColorsC } from "./table-params";
 
 export type Bonus = 'star' | 'infl' | 'actn' | 'econ' | 'Bank' | 'Lake' | 'Star' | 'Econ';
@@ -515,6 +515,11 @@ export class Tile extends Tile0 {
   /** state of shiftKey has changed during drag */
   dragShift(shiftKey: boolean, ctx: DragContext) { }
 
+  markLegal(table: Table, setLegal: (hex: Hex2)=>void) {
+    table.homeRowHexes.forEach(setLegal);
+    table.hexMap.forEachHex(setLegal);
+  }
+
   /**
    * Override in AuctionTile, Civic, Meeple/Leader
    * @param toHex a potential targetHex (table.hexUnderObj(dragObj.xy))
@@ -525,7 +530,7 @@ export class Tile extends Tile0 {
       && !(toHex.tile instanceof BonusTile)
       && !(GP.gamePlay.playerReserveHexes.includes(toHex))
     ) return false; // note: from AuctionHexes to Reserve overrides this.
-    if (toHex.meep && !(toHex.meep.player === GP.gamePlay.curPlayer)) return false;
+    if (toHex.meep && !(toHex.meep.player === GP.gamePlay.curPlayer)) return false; // QQQ: can place on non-player meep?
     if (GP.gamePlay.failToPayCost(this, toHex, false)) return false;
     if ((this.hex as Hex2).isOnMap && !ctx?.lastShift) return false;
     // [newly] placed tile must be adjacent to an existing [non-BonusTile] Tile:
@@ -533,9 +538,7 @@ export class Tile extends Tile0 {
     return true;
   }
 
-  isLegalRecycle(ctx: DragContext) {
-    return true;
-  }
+  isLegalRecycle(ctx: DragContext) { return true; }
 
   /**
    * Tile.dropFunc; Override in AuctionTile, Civic, Meeple/Leader.
@@ -625,7 +628,6 @@ export class Civic extends Tile {
 
   override isLegalTarget(hex: Hex, ctx?: DragContext) { // Civic
     if (!super.isLegalTarget(hex, ctx)) return false; // check cost & influence (& balance)
-    if (hex == GP.gamePlay.recycleHex) return true;
     if (!hex.isOnMap) return false;
     return true;
   }
@@ -713,9 +715,19 @@ export class Monument extends Tile {
     Monument.inst[player?.index ?? 0]++;
   }
   override get cost(): number {
-    return Monument.costs[this.source.counter.getValue()];
+    return Monument.costs[this.source.counter.getValue() - 1];
   }
   get source() { return GP.gamePlay.marketSource[this.player.index]['Monument']}
+
+  override isLegalTarget(toHex: Hex, ctx?: DragContext): boolean {
+    if (!super.isLegalTarget(toHex, ctx)) return false;
+    if (!toHex.isOnMap) return false;
+    return true;
+  }
+
+  override isLegalRecycle(ctx: DragContext): boolean {
+    return this.hex?.isOnMap;
+  }
 
   override dropFunc(targetHex: Hex2, ctx: DragContext): void {
     this.flipOwner(targetHex, ctx); // a non-AuctionTile that is flipable

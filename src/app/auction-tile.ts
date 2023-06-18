@@ -71,8 +71,6 @@ export class AuctionTile extends Tile {
       return false; // allows dropping on occupied reserveHexes
     const gamePlay = GP.gamePlay;
     if (!toHex.isOnMap) {
-      if (gamePlay.recycleHex === toHex)
-        return true; // && this.hex.isOnMap (OH! recycle from AuctionHexes)
       const reserveHexes = gamePlay.playerReserveHexes;
       // AuctionTile can go toReserve:
       if (reserveHexes.includes(toHex))

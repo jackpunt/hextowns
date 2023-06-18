@@ -15,13 +15,13 @@ type TileInf = 0 | 1;
 
 class SourcedTile extends HalfTile {
 
-  static makeSource0<TS extends TileSource<SourcedTile>, T extends SourcedTile>(
+  protected static makeSource0<TS extends TileSource<SourcedTile>, T extends SourcedTile>(
     stype: new(type: Constructor<T>, p: Player, hex: Hex, counter?: NumCounter) => TS,
     type: Constructor<T>,
     bonus: AuctionBonus,
     player: Player, hex: Hex2, n = 0
   ) {
-    const useCounter = player[`${bonus}Counter`] as NumCounter;
+    const useCounter = player ? player[`${bonus}Counter`] as NumCounter : undefined;
     const source = new stype(type, player, hex, useCounter);
     for (let i = 0; i < n; i++) source.newUnit(new type(source, player, i + 1))
     source.nextUnit();  // unit.moveTo(source.hex)
@@ -70,7 +70,7 @@ class SourcedToken extends SourcedTile {
   }
 
   override dropFunc(hex: Hex2, ctx: DragContext): void {
-    if (hex && hex !== this.source.hex) {
+    if (hex?.isLegal) {
       this.addToken(this.bonusType, hex.tile);
       this.player.updateCounters();
       return;
@@ -99,8 +99,8 @@ export class Infl extends SourcedToken {
     return SourcedTile.makeSource0(TokenSource, Infl, 'infl', player, hex, n);
   }
 
-  constructor(source: TokenSource, player: Player, serial: number) { // , inf=0, vp=0, cost=0, econ=0
-    super(source, 'infl', player, 0, 0, 0, 0);
+  constructor(source: TokenSource, player: Player, serial: number, inf: TileInf = 0, vp = 0, cost = 10, econ = 0) {
+    super(source, 'infl', player, inf, vp, cost, econ);
   }
 
   override makeShape(): Paintable {
@@ -111,6 +111,30 @@ export class Infl extends SourcedToken {
 
   override paint(pColor?: PlayerColor, colorn = Infl.inflGrey): void {
     super.paint(pColor, colorn);
+  }
+}
+
+export class InflBuy extends Infl {
+
+   static override makeSource(player: Player, hex: Hex2, n = 0) {
+    return SourcedTile.makeSource0(TokenSource, InflBuy, 'infl', player, hex, n);
+  }
+
+  constructor(source: TokenSource, player: Player, serial: number, inf: TileInf = 0, vp = 0, cost = 10, econ = 0) {
+    super(source, player, serial, inf, vp, cost, econ);
+    this.isLegalTarget = AuctionTile.prototype.isLegalTarget; // GP.gamePlay.reserveHexes[curPlayer].includes(hex);
+    this.homeHex = source.hex;
+    this.source.counter.visible = false;
+  }
+
+  override dropFunc(hex: Hex2, ctx: DragContext): void {
+    if (hex?.isLegal) {
+      GP.gamePlay.failToPayCost(this, hex, true);
+      GP.gamePlay.curPlayer.inflCounter.incValue(1);  // addToken
+      this.sendHome();
+      return;
+    }
+    super.dropFunc(hex, ctx);
   }
 }
 

@@ -13,7 +13,7 @@ import type { StatsPanel } from "./stats";
 import { PlayerColor, playerColor0, playerColor1, playerColors, TP } from "./table-params";
 import { NoDragTile, Tile, WhiteTile } from "./tile";
 import { TileSource } from "./tile-source";
-import { Econ, Infl } from "./infl";
+import { Econ, Infl, InflBuy } from "./infl";
 //import { TablePlanner } from "./planner";
 
 
@@ -314,6 +314,7 @@ export class Table extends EventDispatcher  {
 
     // TP.auctionMerge + TP.auctionSlots
     const inflH = this.splitRowHex(`inflHex`, this.gamePlay.auctionTiles.length , BonusHex);
+    InflBuy.makeSource(undefined, inflH, 1);
 
     this.gamePlay.recycleHex = this.makeRecycleHex(5, -.5);
     this.gamePlay.debtHex = this.makeDebtHex(5, 13.5);
@@ -585,7 +586,6 @@ export class Table extends EventDispatcher  {
     Tile.allTiles.filter(tile => !(tile instanceof NoDragTile)).forEach(tile => {
       this.makeDragable(tile);
     })
-    this.forEachTargetHex(hex => hex.isLegal = false); // redundant?
 
     this.gamePlay.addBonusTiles();
 
@@ -641,13 +641,6 @@ export class Table extends EventDispatcher  {
     }
   }
 
-  forEachTargetHex(fn: (hex: Hex2) => void, inclRecycle = true) {
-    for (let hex of this.homeRowHexes) { if (hex !== undefined) fn(hex) };
-    this.hexMap.forEachHex(fn);
-    fn(this.gamePlay.debtHex as Hex2);
-    if (inclRecycle) fn(this.gamePlay.recycleHex as Hex2);
-  }
-
   dragStart(tile: Tile, ctx: DragContext) {
     // press SHIFT to capture [recycle] opponent's Criminals or Tiles
     const reason = tile.cantBeMovedBy(this.gamePlay.curPlayer, ctx);
@@ -657,9 +650,9 @@ export class Table extends EventDispatcher  {
       this.stopDragging();
     } else {
       // mark legal targets for tile; SHIFT for all hexes, if payCost
-      // hexMap & homeRowHexes & recycleHex & debtHex
-      this.forEachTargetHex(hex => ctx.nLegal += (hex.isLegal = tile.isLegalTarget(hex, ctx) && hex !== tile.hex) ? 1 : 0, false);
-      this.gamePlay.setIsLegalRecycle(tile, ctx);
+      const hexIsLegal = (hex: Hex2) => ctx.nLegal += ((hex !== tile.hex) && (hex.isLegal = tile.isLegalTarget(hex, ctx)) ? 1 : 0);
+      tile.markLegal(this, hexIsLegal);           // delegate to check each potential target
+      this.gamePlay.recycleHex.isLegal = tile.isLegalRecycle(ctx); // do not increment ctx.nLegal!
       tile.dragStart(ctx);  // which *could* reset nLegal ?
       this.gamePlay.eventHex.cont.updateCache();  // <--- QQQ: is this the right place? conditional?
       this.hexMap.update();
@@ -678,13 +671,14 @@ export class Table extends EventDispatcher  {
   }
 
   dropFunc(tile: Tile, info: DragInfo) {
-    tile.dropFunc0(this.hexUnderObj(tile), this.dragContext)
-    this.forEachTargetHex(hex => (hex.isLegal = false))
+    tile.dropFunc0(this.hexUnderObj(tile), this.dragContext);
+    tile.markLegal(this, hex => (hex.isLegal = false));
+    this.gamePlay.recycleHex.isLegal = false;
     this.dragContext.lastShift = undefined;
     this.dragContext.tile = undefined; // mark not dragging
   }
 
-  isDragging() { return this.dragContext?.tile !== undefined }
+  private isDragging() { return this.dragContext?.tile !== undefined; }
 
   /** Force this.dragger to drop the current drag object on given target Hex */
   stopDragging(target: Hex2 = this.dragContext.tile.fromHex) {
