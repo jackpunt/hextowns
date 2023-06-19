@@ -178,6 +178,11 @@ export class Infl extends XSourcedToken {
   override paint(pColor?: PlayerColor, colorn = Infl.inflGrey): void {
     super.paint(pColor, colorn);
   }
+
+  override addToken(type: AuctionBonus, tile: Tile): void {
+    super.addToken(type, tile);
+    GP.gamePlay.placeEither(tile, tile.hex); // propagateInfl()
+  }
 }
 
 export class Econ extends XSourcedToken {

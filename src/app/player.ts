@@ -73,15 +73,15 @@ export class Player {
     this.actions -= 1;
   }
 
-  takeAction(tile: Tile) {
-    tile.removeBonus('actn');
-    this.actions += 1; // triggers actionCounter.updateValue
-  }
-
-  takeInfl(tile: Tile) {
-    tile.removeBonus('infl');
-    this.infls += 1; // triggers inflCounter.updateValue
-
+  takeBonus(tile: Tile) {
+    if (tile?.bonus['actn']) {
+      this.actions += 1;              // triggers actionCounter.updateValue
+      tile.removeBonus('actn');
+    }
+    if (tile?.bonus['infl']) {
+      this.infls += 1;              // triggers inflCounter.updateValue
+      tile.removeBonus('infl');
+    }
   }
 
   captureCounter: NumCounter;

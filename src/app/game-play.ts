@@ -309,9 +309,8 @@ export class GamePlay0 {
 
   /** after add Tile to hex: propagate its influence in each direction; maybe capture. */
   incrInfluence(hex: Hex, infColor: PlayerColor) {
-    //let infP = hex.getInfP(color);
     H.infDirs.forEach(dn => {
-      let inf = hex.getInf(infColor, dn);
+      const inf = hex.getInf(infColor, dn);
       hex.propagateIncr(infColor, dn, inf); // use test to identify captured Criminals?
     })
   }
@@ -319,8 +318,7 @@ export class GamePlay0 {
   /** after remove Tile [w/tileInf] from hex: propagate influence in each direction. */
   decrInfluence(hex: Hex, tileInf: number, infColor: PlayerColor) {
     H.infDirs.forEach(dn => {
-      let inf = hex.getInf(infColor, dn)
-      //let inc = hex.links[H.dirRev[dn]]?.getInf(color, dn) || 0
+      const inf = hex.getInf(infColor, dn);
       hex.propagateDecr(infColor, dn, inf, tileInf)       // because no-stone, hex gets (inf - 1)
     })
   }
@@ -462,11 +460,11 @@ export class GamePlay0 {
     }
     // update influence on map:
     const fromHex = tile.hex, infColor = tile.infColor || this.curPlayer.color;
-    if (fromHex?.isOnMap && (tile.inf !== 0)) {
-      tile.hex = undefined;      // hex.tile OR hex.meep = undefined; remove tile's infP
-      this.decrInfluence(fromHex, tile.inf, infColor);
+    if (fromHex?.isOnMap && (tile.infP + tile.bonusInf(infColor)) !== 0) {
+      tile.moveTo(undefined);    // (hex.tile OR hex.meep) = undefined; breifly, remove tile's infP
+      this.decrInfluence(fromHex, tile.infP, infColor);
       fromHex.meep?.setInfRays(fromHex.getInfP(infColor));
-      tile.hex = fromHex;        // briefly, until moveTo(toHex)
+      tile.moveTo(fromHex);
     }
     if (toHex === this.recycleHex) {
       this.logText(`Recycle ${tile} from ${fromHex?.Aname || '?'}`, `gamePlay.placeEither`)

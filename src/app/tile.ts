@@ -194,6 +194,8 @@ class Tile0 extends Container {
     return mark;
   }
 
+  bonusInf(color = this.infColor) { return (color === this.infColor && this.bonus['infl']) ? 1 : 0; }
+
   get bonusCount() {
     let rv = 0;
     Object.values(this.bonus).forEach(isBonus => rv += (isBonus ? 1 : 0));
@@ -283,6 +285,7 @@ export class Tile extends Tile0 {
     /** the owning Player. */
     public readonly Aname?: string,
     player?: Player,
+    /** aka: infP */
     public readonly inf: number = 0,
     private readonly _vp: number = 0,
     public readonly _cost: number = 1,
@@ -408,8 +411,8 @@ export class Tile extends Tile0 {
       let k = false;
       if (k) debugger; // unless reserveHexes.includes(hex)
     }
-    console.log(stime(this, `.overSet: removeChild: ${tile}`))
-    tile.parent.removeChild(tile);
+    tile.parent && console.log(stime(this, `.overSet: removeChild: ${tile}`))
+    tile.parent?.removeChild(tile);         // moveBonusTo/sendHome may do this.
   }
 
   // Tile
@@ -423,17 +426,11 @@ export class Tile extends Tile0 {
   placeTile(toHex: Hex, payCost = true) {
     const priorTile = toHex.tile; // generally undefined; except BonusTile (or ReserveHexes.tile)
     GP.gamePlay.placeEither(this, toHex, payCost);
-    if (this.hex?.isOnMap) {
-      if (priorTile instanceof BonusTile) {
-        priorTile.moveBonusTo(this);
-      }
-      // deposit Infls & Actns with Player; ASSERT was from auctionTiles or reserveTiles
-      if (this.bonus.infl && !this.fromHex.isOnMap) {
-        this.player.takeInfl(this);
-      }
-      if (this.bonus.actn) {
-        this.player.takeAction(this);
-      }
+    const bonus = (priorTile instanceof BonusTile) && priorTile.bonus;
+    // now ok to increase 'cost' of this Tile.
+    if (bonus) {
+      this.player.takeBonus(priorTile); // deposit Infls & Actns with Player;
+      priorTile.moveBonusTo(this);      // and priorTile.sendHome()
     }
   }
 
@@ -441,13 +438,13 @@ export class Tile extends Tile0 {
   flipPlayer(player: Player, gamePlay = GP.gamePlay) {
     gamePlay.logText(`Flip ${this} to ${player.colorn}`, `FlipableTile.flipPlayer`);
     this.debt?.sendHome(); // foreclose any mortgage
-    const hex = this.hex;
-    if (this.infP > 0) {
-      this.moveTo(undefined);
+    const hex = this.hex, hadInfP = (this.infP + this.bonusInf()) > 0; // Monument && bonusInf
+    if (hadInfP) {
+      this.moveTo(undefined); // tile.hex = hex.tile = undefined
       gamePlay.decrInfluence(hex, this.infP, this.player.color);
     }
     this.setPlayerAndPaint(player); // Flip ownership
-    if (this.infP > 0) {
+    if (hadInfP) {
       this.moveTo(hex);
       gamePlay.incrInfluence(hex, player.color);
     }
@@ -506,10 +503,13 @@ export class Tile extends Tile0 {
   }
 
   cantBeMovedBy(player: Player, ctx: DragContext) {
-     // captured - allow to recycle
-    if (this.hex.getInfT(criminalColor) > this.hex.getInfT(this.player.color)) return undefined;
-     // captured - allow to flip, no recycle
-    if (this.hex.getInfT(player.color) > this.hex.getInfT(this.player.color)) return undefined;
+    if (this.hex.isOnMap) {
+      const infT = this.hex.getInfT(this.player?.color);
+      // captured - allow to recycle
+      if (this.hex.getInfT(criminalColor) > infT) return undefined;
+      // captured - allow to flip, no recycle
+      if (this.hex.getInfT(player.color) > infT) return undefined;
+    }
     return (ctx.lastShift || this.player === undefined || this.player === player) ? undefined : "Not your Tile";
   }
 

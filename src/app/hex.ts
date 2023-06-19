@@ -210,9 +210,9 @@ export class Hex {
    * @param test after hex.setInf(inf) and hex.propagateIncr(nxt), apply test(hex); [a visitor]
    */
   propagateIncr(color: PlayerColor, dn: InfDir, inf: number, test: ((hex: Hex) => void) = (hex) => hex.assessThreats()) {
-    let infP = this.getInfP(color), inf0 = this.getInf(color, dn);
-    this.setInf(color, dn, inf)
-    let nxt = infP > 0 ? inf + infP : inf - 1;
+    const infP = this.getInfP(color);
+    this.setInf(color, dn, inf);
+    const nxt = inf + ((infP > 0) ? infP : ((this.tile?.bonusInf(color) ?? 0) - 1));
     if (nxt > 0) this.links[dn]?.propagateIncr(color, dn, nxt, test)
     if (test) test(this);
   }
@@ -222,13 +222,14 @@ export class Hex {
    * Pass on based on *orig/current* inf, not the new/decremented inf.
    * @param inf for hex, without infP
    * @param test after hex.setInf(infn) and hex.propagateDecr(nxt), apply test(hex)
+   * @param tileInf
    */
   propagateDecr(color: PlayerColor, dn: InfDir, inf: number, tileInf: number, test: ((hex: Hex) => void) = (hex) => hex.assessThreats()) {
     // if *this* has inf, then next may also have propagated inf.
-    let infP = this.getInfP(color)
-    let inf0 = this.getInf(color, dn) + infP + tileInf; // original, largest inf
+    const infP = this.getInfP(color);
+    const inf0 = this.getInf(color, dn) + infP + tileInf; // original, largest inf
     this.setInf(color, dn, inf);
-    let nxt = infP > 0 ? inf + infP : Math.max(0, inf - 1);
+    const nxt = (infP > 0) ? inf + infP : Math.max(0, inf - 1);
     if (inf0 > 0) this.links[dn]?.propagateDecr(color, dn, nxt, 0, test) // pass-on a smaller number
     if (test) test(this);
   }

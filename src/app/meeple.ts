@@ -92,7 +92,7 @@ export class Meeple extends Tile {
   faceUp(up = true) {
     this.backSide.visible = !up;
     if (up) this.startHex = this.hex; // set at start of turn.
-    this.updateCache()
+    this.updateCache();
     GP.gamePlay.hexMap.update();
   }
 
