@@ -112,7 +112,10 @@ export class EventTile extends EvalTile {
   override moveTo(toHex: Hex): Hex {
     const gamePlay = GP.gamePlay;
     gamePlay.removeFromAuction(this);
-    if (gamePlay.curPlayer.policySlots.includes(toHex)) gamePlay.finishEvent();
+    if (gamePlay.curPlayer.policySlots.includes(toHex)) {
+      // process as if PolicyTile...
+      gamePlay.finishEvent();
+    }
     const rv = super.moveTo(toHex); // presumably can now be on AuctionHex[0] and appear as AuctionTiles[0]
     if (toHex === GP.gamePlay.eventHex) {
       console.log(stime(this, `.moveTo: ${AT.ansiText(['$red'], this.text)}`) );
@@ -121,6 +124,7 @@ export class EventTile extends EvalTile {
     return rv;
   }
 
+  /** load EventTile into Auction TileBag. */
   moveToBag() {
     console.log(this, `.moveToBag: ${AT.ansiText(['$red'], this.text)}`)
     const gamePlay = GP.gamePlay;

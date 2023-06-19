@@ -75,12 +75,12 @@ export class Player {
 
   takeAction(tile: Tile) {
     tile.removeBonus('actn');
-    this.infls += 1; // triggers coinCounter.updateValue
+    this.actions += 1; // triggers actionCounter.updateValue
   }
 
   takeInfl(tile: Tile) {
     tile.removeBonus('infl');
-    this.infls += 1; // triggers coinCounter.updateValue
+    this.infls += 1; // triggers inflCounter.updateValue
 
   }
 

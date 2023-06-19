@@ -6,7 +6,7 @@ import { Hex, Hex2 } from "./hex";
 import type { Player } from "./player";
 import { BalMark, C1, CapMark, CenterText, HexShape, InfRays, InfShape, Paintable, TileShape } from "./shapes";
 import type { DragContext, Table } from "./table";
-import { PlayerColor, PlayerColorRecord, TP, playerColorRecord, playerColorsC } from "./table-params";
+import { PlayerColor, PlayerColorRecord, TP, criminalColor, playerColorRecord, playerColorsC } from "./table-params";
 
 export type Bonus = 'star' | 'infl' | 'actn' | 'econ' | 'Bank' | 'Lake' | 'Star' | 'Econ';
 export type AuctionBonus = Exclude<Bonus, 'Bank' | 'Lake' | 'Star' | 'Econ'>;
@@ -234,6 +234,13 @@ export class Tile extends Tile0 {
   get fB() { return 0; }
   get fR() { return 0; }
 
+  /** location at start-of-game & after-Recycle */
+  homeHex: Hex = undefined;
+  /** location at start-of-turn */
+  startHex: Hex;
+  /** location at start-of-drag */
+  fromHex: Hex2;
+
   _hex: Hex = undefined;
   /** the map Hex on which this Tile sits. */
   get hex() { return this._hex; }
@@ -248,10 +255,6 @@ export class Tile extends Tile0 {
   _debt: Debt;
   get debt() { return this._debt; }
   set debt(debt: Debt) { this._debt = debt; } // Hmm... if (debt === undefined) recycleTile(_debt) ?
-
-  homeHex: Hex = undefined; // location at start-of-game & after-Recycle
-  startHex: Hex;            // location at start-of-turn
-  fromHex: Hex2;            // location at start-of-drag
 
   get infP() { return this.inf }
 
@@ -503,6 +506,10 @@ export class Tile extends Tile0 {
   }
 
   cantBeMovedBy(player: Player, ctx: DragContext) {
+     // captured - allow to recycle
+    if (this.hex.getInfT(criminalColor) > this.hex.getInfT(this.player.color)) return undefined;
+     // captured - allow to flip, no recycle
+    if (this.hex.getInfT(player.color) > this.hex.getInfT(this.player.color)) return undefined;
     return (ctx.lastShift || this.player === undefined || this.player === player) ? undefined : "Not your Tile";
   }
 
@@ -538,7 +545,10 @@ export class Tile extends Tile0 {
     return true;
   }
 
-  isLegalRecycle(ctx: DragContext) { return true; }
+  isLegalRecycle(ctx: DragContext) {
+    if (this.hex.getInfT(GP.gamePlay.curPlayer.color) > this.hex.getInfT(this.player.color)) return false;
+    return true;
+  }
 
   /**
    * Tile.dropFunc; Override in AuctionTile, Civic, Meeple/Leader.
