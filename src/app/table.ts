@@ -13,7 +13,7 @@ import type { StatsPanel } from "./stats";
 import { PlayerColor, playerColor0, playerColor1, playerColors, TP } from "./table-params";
 import { NoDragTile, Tile, WhiteTile } from "./tile";
 import { TileSource } from "./tile-source";
-import { Econ, Infl, InflBuy } from "./infl";
+import { Econ, Infl, BuyInfl, BuyEcon } from "./infl";
 //import { TablePlanner } from "./planner";
 
 
@@ -122,15 +122,15 @@ export class Table extends EventDispatcher  {
     this.textLog.log(`#${this.gamePlay.turnNumber}: ${line}`, from); // scrolling lines below
   }
   setupUndoButtons(xOffs: number, bSize: number, skipRad: number, bgr: XYWH) {
-    let undoC = this.undoCont; undoC.name = "undo buttons" // holds the undo buttons.
-    this.scaleCont.addChild(this.undoCont)
-    let { x: wx, y: wy} = this.hexMap.getCornerHex('W').xywh()
-    this.hexMap.mapCont.hexCont.localToLocal(wx, wy + this.hexMap.rowHeight * 3, undoC.parent, undoC);
-    let progressBg = new Shape(), bgw = 200, bgym = 240, y0 = 0
-    let bgc = C.nameToRgbaString(TP.bgColor, .8)
-    progressBg.graphics.f(bgc).r(-bgw/2, y0, bgw, bgym-y0)
+    const undoC = this.undoCont; undoC.name = "undo buttons"; // holds the undo buttons.
+    this.scaleCont.addChild(this.undoCont);
+    const { x, y } = this.hexMap.getCornerHex('W').xywh();
+    this.hexMap.mapCont.hexCont.localToLocal(x-2.5*TP.hexRad, y - this.hexMap.rowHeight * 5, undoC.parent, undoC);
+    const progressBg = new Shape(), bgw = 200, bgym = 240, y0 = 0;
+    const bgc = C.nameToRgbaString(TP.bgColor, .8);
+    progressBg.graphics.f(bgc).r(-bgw / 2, y0, bgw, bgym - y0);
     undoC.addChildAt(progressBg, 0)
-    this.enableHexInspector()
+    this.enableHexInspector(30)
     this.dragger.makeDragable(undoC)
     if (true && xOffs > 0) return
     this.skipShape.graphics.f("white").dp(0, 0, 40, 4, 0, skipRad)
@@ -161,11 +161,11 @@ export class Table extends EventDispatcher  {
     this.winText.visible = this.winBack.visible = true
     this.hexMap.update()
   }
-  enableHexInspector(qY = 52) {
+  enableHexInspector(qY = 52, cont = this.undoCont) {
     let qShape = new Shape()
     qShape.graphics.f("black").dp(0, 0, 20, 6, 0, 0)
     qShape.y = qY  // size of 'skip' Triangles
-    this.undoCont.addChild(qShape)
+    cont.addChild(qShape)
     this.dragger.makeDragable(qShape, this,
       // dragFunc:
       (qShape: Shape, ctx: DragInfo) => { },
@@ -174,7 +174,7 @@ export class Table extends EventDispatcher  {
         this.downClick = true
         let hex = this.hexUnderObj(qShape)
         qShape.x = 0; qShape.y = qY // return to regular location
-        this.undoCont.addChild(qShape)
+        cont.addChild(qShape)
         if (!hex) return
         let info = hex; //{ hex, stone: hex.playerColor, InfName }
         console.log(`HexInspector:`, hex.Aname, info)
@@ -314,7 +314,11 @@ export class Table extends EventDispatcher  {
 
     // TP.auctionMerge + TP.auctionSlots
     const inflH = this.splitRowHex(`inflHex`, this.gamePlay.auctionTiles.length , BonusHex);
-    InflBuy.makeSource(undefined, inflH, 1);
+    inflH.y -= TP.hexRad/2;
+    BuyInfl.makeSource(undefined, inflH, 1);
+    const econH = this.splitRowHex(`econHex`, this.gamePlay.auctionTiles.length , BonusHex);
+    econH.y += TP.hexRad/2;
+    BuyEcon.makeSource(undefined, econH, 1);
 
     this.gamePlay.recycleHex = this.makeRecycleHex(5, -.5);
     this.gamePlay.debtHex = this.makeDebtHex(5, 13.5);

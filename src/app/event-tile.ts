@@ -105,7 +105,6 @@ export class EventTile extends EvalTile {
     if (!super.isLegalTarget(toHex, ctx)) return false;
     if (toHex.isOnMap) return false;
     if (this.policy && GP.gamePlay.curPlayer.policySlots.includes(toHex)) return true;
-    // TODO: if(this.policy) { allow drop on player's policy slots }
     // else: only drop on recycle
     return false;
   }

@@ -13,17 +13,75 @@ import { UID } from "@thegraid/easeljs-module";
 
 type TileInf = 0 | 1;
 
+/** Token can be applied to a Hex to raise the Player's influence on that hex. */
+export class TokenSource extends TileSource<SourcedToken> {
+
+  constructor(type: Constructor<SourcedToken>, player: Player, hex: Hex2, counter?: NumCounter) {
+    super(type, player, hex, counter);
+    const tcounter = new TokenCounter(this, 'temp', 0, C.WHITE, 15);
+    tcounter.mixinTo(counter);
+  }
+
+  override makeCounter(name: string, initValue: number, color: string, fontSize: number, fontName?: string, textColor?: string) {
+    // Note: this counter is not visible, not actually used!
+    // Here we edit the player.inflCounter so IT will do the right things:
+    const counter = new TokenCounter(this, name, initValue, color, fontSize, fontName, textColor);
+    return counter;
+  }
+}
+
+/** TokenCounter controls the (non-negative) number of items in source.numAvailable */
+class TokenCounter extends NumCounterBox {
+
+  mixinTo(target: NumCounter) {
+    if (!target) return target;
+    const meths = ['source', 'makeUnit', 'setValue'];
+    meths.forEach(meth => {
+      target[meth] = this[meth];
+    })
+    return target;
+  }
+
+  constructor(
+    public readonly source: TokenSource,
+    name: string, initValue: number, color: string, fontSize: number, fontName?: string, textColor?: string
+  ) {
+    super(name, initValue, color, fontSize, fontName, textColor);
+  }
+
+  makeUnit(source: TokenSource) {
+    const table = (GP.gamePlay as GamePlay).table;
+    const player = source.player;
+    const unit = new source.type(source, player); // (source, player, inf, vp, cost, econ)
+    table.makeDragable(unit);
+    source.newUnit(unit);
+    if (!source.hex.tile) source.nextUnit();
+  }
+
+  override setValue(value: number): void {
+    const v = Math.max(0, value);
+    super.setValue(v);
+    while (this.source && v !== this.source.numAvailable) { // in this case: === source.allUnits.length
+      if (v > this.source.numAvailable) {
+        this.makeUnit(this.source);
+      } else {
+        this.source.deleteUnit(this.source.hex.tile as SourcedToken);
+      }
+    }
+  }
+}
+
+// in theory, Debt could be a SourcedTile...
 class SourcedTile extends HalfTile {
 
   protected static makeSource0<TS extends TileSource<SourcedTile>, T extends SourcedTile>(
     stype: new(type: Constructor<T>, p: Player, hex: Hex, counter?: NumCounter) => TS,
     type: Constructor<T>,
-    bonus: AuctionBonus,
+    useCounter: NumCounter,
     player: Player, hex: Hex2, n = 0
   ) {
-    const useCounter = player ? player[`${bonus}Counter`] as NumCounter : undefined;
-    const source = new stype(type, player, hex, useCounter);
-    for (let i = 0; i < n; i++) source.newUnit(new type(source, player, i + 1))
+    const source = new stype(type, player, hex, useCounter);  // useCounter or stype.makeCounter(...)
+    for (let i = 0; i < n; i++) source.newUnit(new type(source, player, i + 1));
     source.nextUnit();  // unit.moveTo(source.hex)
     return source;
   }
@@ -91,20 +149,28 @@ class SourcedToken extends SourcedTile {
     return;
   }
 }
+class XSourcedToken extends SourcedToken {
+  constructor(source: TileSource<SourcedTile>, bonus: AuctionBonus, player: Player, inf: TileInf = 0, vp = 0, cost = 0, econ = 0) {
+    super(source, bonus, player, inf, vp, cost, econ);
+  }
+  get bonusCounter() {
+    return GP.gamePlay.curPlayer[`${this.bonusType}Counter`] as NumCounter;
+  }
+}
 
-export class Infl extends SourcedToken {
+export class Infl extends XSourcedToken {
   static inflGrey = C.nameToRgbaString(C.grey, .8);
 
   static makeSource(player: Player, hex: Hex2, n = 0) {
-    return SourcedTile.makeSource0(TokenSource, Infl, 'infl', player, hex, n);
+    return SourcedTile.makeSource0(TokenSource, Infl, player.inflCounter, player, hex, n);
   }
 
-  constructor(source: TokenSource, player: Player, serial: number, inf: TileInf = 0, vp = 0, cost = 10, econ = 0) {
+  constructor(source: TokenSource, player: Player, inf: TileInf = 0, vp = 0, cost = 0, econ = 0) {
     super(source, 'infl', player, inf, vp, cost, econ);
   }
 
   override makeShape(): Paintable {
-    const shape = new InfShape(Infl.inflGrey);
+    const shape = new InfShape();
     shape.scaleX = shape.scaleY = .5;
     return shape;
   }
@@ -114,39 +180,15 @@ export class Infl extends SourcedToken {
   }
 }
 
-export class InflBuy extends Infl {
-
-   static override makeSource(player: Player, hex: Hex2, n = 0) {
-    return SourcedTile.makeSource0(TokenSource, InflBuy, 'infl', player, hex, n);
-  }
-
-  constructor(source: TokenSource, player: Player, serial: number, inf: TileInf = 0, vp = 0, cost = 10, econ = 0) {
-    super(source, player, serial, inf, vp, cost, econ);
-    this.isLegalTarget = AuctionTile.prototype.isLegalTarget; // GP.gamePlay.reserveHexes[curPlayer].includes(hex);
-    this.homeHex = source.hex;
-    this.source.counter.visible = false;
-  }
-
-  override dropFunc(hex: Hex2, ctx: DragContext): void {
-    if (hex?.isLegal) {
-      GP.gamePlay.failToPayCost(this, hex, true);
-      GP.gamePlay.curPlayer.inflCounter.incValue(1);  // addToken
-      this.sendHome();
-      return;
-    }
-    super.dropFunc(hex, ctx);
-  }
-}
-
-export class Econ extends SourcedToken {
+export class Econ extends XSourcedToken {
   static green = C.GREEN;
 
   static makeSource(player: Player, hex: Hex2, n = 0) {
-    return SourcedTile.makeSource0(TokenSource, Econ, 'econ', player, hex, n);
+    return SourcedTile.makeSource0(TokenSource, Econ, player.econCounter, player, hex, n);
   }
 
-  constructor(source: TokenSource, player: Player, serial: number) { // , inf=0, vp=0, cost=0, econ=0
-    super(source, `econ`, player, 0, 0, 0, 0);
+  constructor(source: TokenSource, player: Player, inf: TileInf = 0, vp = 0, cost = 0, econ = 0) {
+    super(source, 'econ', player, inf, vp, cost, econ);
     this.addChild(new CenterText('$', this.radius * .8, C.GREEN));
     this.updateCache();
   }
@@ -161,60 +203,55 @@ export class Econ extends SourcedToken {
 }
 
 
-/** Token can be applied to a Hex to raise the Player's influence on that hex. */
-export class TokenSource extends TileSource<SourcedToken> {
-
-  constructor(type: Constructor<SourcedToken>, player: Player, hex: Hex2, counter?: NumCounter) {
-    super(type, player, hex, counter);
-    const tcounter = new TokenCounter(this, 'temp', 0, C.WHITE, 15);
-    tcounter.mixinTo(counter);
+export function BuyTokenMixin(Base: Constructor<XSourcedToken>) {
+  return class BuyToken extends Base {
+  static makeSource1(claz: Constructor<BuyToken>, player: Player, hex: Hex2, n = 0) {
+    const source = SourcedTile.makeSource0(TokenSource, claz, undefined, player, hex, n);
+    source.counter.visible = false;
+    return source;
   }
 
-  override makeCounter(name: string, initValue: number, color: string, fontSize: number, fontName?: string, textColor?: string) {
-    // Note: this counter is not visible, not actually used!
-    // Here we edit the player.inflCounter so IT will do the right things:
-    const counter = new TokenCounter(this, name, initValue, color, fontSize, fontName, textColor);
-    return counter;
+  // make this look like
+  constructor(source: TokenSource, player: Player, inf: TileInf = 0, vp = 0, cost = 0, econ = 0) {
+    super(source, player, inf, vp, cost, econ); // new Infl(source, player, serial, inf, ...)
+    this.homeHex = source.hex;
+  }
+
+  override isLegalTarget(toHex: Hex, ctx?: DragContext): boolean {
+    if (!GP.gamePlay.reserveHexes[GP.gamePlay.curPlayerNdx].includes(toHex)) return false;
+    if (GP.gamePlay.failToPayCost(this, toHex, false)) return false;
+    return true;
+  }
+
+  override dropFunc(hex: Hex2, ctx: DragContext): void {
+    if (hex?.isLegal) {
+      GP.gamePlay.failToPayCost(this, hex, true);
+      this.bonusCounter.incValue(1);
+      this.sendHome();
+      return;
+    }
+    super.dropFunc(hex, ctx);
   }
 }
 
-/** TokenCounter controls the (non-negative) number of items in source.numAvailable */
-class TokenCounter extends NumCounterBox {
+}
 
-  mixinTo(target: NumCounter) {
-    if (!target) return target;
-    const meths = ['source', 'makeUnit', 'setValue'];
-    meths.forEach(meth => {
-      target[meth] = this[meth];
-    })
-    return target;
+export class BuyInfl extends BuyTokenMixin(Infl) {
+  static makeSource(player: Player, hex: Hex2, n = 0) {
+    return BuyInfl.makeSource1(BuyInfl, player, hex, n);
   }
-
-  constructor(
-    public readonly source: TokenSource,
-    name: string, initValue: number, color: string, fontSize: number, fontName?: string, textColor?: string
-  ) {
-    super(name, initValue, color, fontSize, fontName, textColor);
+  // invoked from source.newUnit()
+  constructor(source: TokenSource, player: Player, serial?: number) {
+    super(source, player, 0, 0, 10, 0); // new BuyToken(source, player, inf,...)
   }
+}
 
-  makeUnit(source: TokenSource) {
-    const table = (GP.gamePlay as GamePlay).table;
-    const player = source.player;
-    const unit = new source.type(source, player, source.numAvailable);
-    table.makeDragable(unit);
-    source.newUnit(unit);
-    if (!source.hex.tile) source.nextUnit();
+export class BuyEcon extends BuyTokenMixin(Econ) {
+  static makeSource(player: Player, hex: Hex2, n = 0) {
+    return BuyInfl.makeSource1(BuyEcon, player, hex, n);
   }
-
-  override setValue(value: number): void {
-    const v = Math.max(0, value);
-    super.setValue(v);
-    while (this.source && v !== this.source.numAvailable) { // in this case: === source.allUnits.length
-      if (v > this.source.numAvailable) {
-        this.makeUnit(this.source);
-      } else {
-        this.source.deleteUnit(this.source.hex.tile as SourcedToken);
-      }
-    }
+  // invoked from source.newUnit()
+  constructor(source: TokenSource, player: Player, serial?: number) {
+    super(source, player, 0, 0, 10, 0); // new BuyToken(source, player, inf,...)
   }
 }

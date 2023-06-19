@@ -188,7 +188,7 @@ export class TileBag<T extends Tile> extends Array<T> {
     return tile;
   }
 
-  // TODO: also push, pop, shift?
+  // TODO: also override/disable push, pop, shift?
   override unshift(...items: T[]): number {
     const rv = super.unshift(...items);
     this.dispatch();
