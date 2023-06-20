@@ -166,9 +166,9 @@ class Tile0 extends Container {
     this.updateCache();
   }
 
-  // Looks just like the Bonus star!
-  drawStar() {
-    const info = BonusMark.bonusMap.get('Star');
+  // Looks just like the Bonus star! ('Star' y0 = 1.3 * hexRad; 'star' y0 = 0 [center])
+  drawStar(star: Bonus = 'Star') {
+    const info = BonusMark.bonusMap.get(star);
     const mark = this.addChild(new info.dtype());
     info.paint(mark, info);
     this.updateCache();
@@ -179,7 +179,7 @@ class Tile0 extends Container {
     const info = BonusMark.bonusMap.get('Econ');
     const mark = this.addChild(new info.dtype()) as Text;
     info.paint(mark, info);
-    if (econ < 0) mark.text = `${econ}`;
+    if (econ < 0) mark.text = `${econ}`; // show '-n' instead of '$'
     this.updateCache();
     return mark;
   }
@@ -503,7 +503,7 @@ export class Tile extends Tile0 {
   }
 
   cantBeMovedBy(player: Player, ctx: DragContext) {
-    if (this.hex.isOnMap) {
+    if (this.hex?.isOnMap) {
       const infT = this.hex.getInfT(this.player?.color);
       // captured - allow to recycle
       if (this.hex.getInfT(criminalColor) > infT) return undefined;
@@ -587,18 +587,11 @@ export class WhiteTile extends NoDragTile {
   }
 }
 
-export class HalfTile extends Tile {
+/** a half-sized Tile. */
+export class Token extends Tile {
 
   override makeShape(): Paintable {
     return new HexShape(this.radius * .5);
-  }
-
-}
-
-/** see also infl.ts --> InflBonus ? */
-export class EconBonus extends HalfTile {
-  override paint(pColor?: PlayerColor, colorn?: string): void {
-    super.paint(pColor, C.white);
   }
 
 }

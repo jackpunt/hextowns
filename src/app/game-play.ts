@@ -8,13 +8,14 @@ import { BagType, EventTile } from "./event-tile";
 import { GameSetup } from "./game-setup";
 import { Hex, Hex2, HexMap, IHex } from "./hex";
 import { H } from "./hex-intfs";
+import { StarToken } from "./infl";
 import { Criminal, Meeple } from "./meeple";
 import type { Planner } from "./plan-proxy";
 import { Player } from "./player";
 import { CenterText } from "./shapes";
 import { GameStats, TableStats } from "./stats";
 import { LogWriter } from "./stream-writer";
-import { AuctionShifter, DragContext, Table } from "./table";
+import { AuctionShifter, Table } from "./table";
 import { PlayerColor, PlayerColorRecord, TP, criminalColor, otherColor, playerColorRecord, playerColors, } from "./table-params";
 import { AuctionBonus, BonusTile, Monument, Tile, TownRules } from "./tile";
 import { TileSource } from "./tile-source";
@@ -661,6 +662,7 @@ export class GamePlay extends GamePlay0 {
     KeyBinder.keyBinder.setKey('S-K', { thisArg: this, func: () => this.drawTile(Bank) })
     KeyBinder.keyBinder.setKey('S-L', { thisArg: this, func: () => this.drawTile(Lake) })
     KeyBinder.keyBinder.setKey('S-P', { thisArg: this, func: () => this.drawTile(PS) })
+    KeyBinder.keyBinder.setKey('M-s', { thisArg: this, func: () => StarToken.dragToken() })
 
     // diagnostics:
     //KeyBinder.keyBinder.setKey('x', { thisArg: this, func: () => {this.table.enableHexInspector(); }})

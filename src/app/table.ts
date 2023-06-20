@@ -1,5 +1,5 @@
 import { AT, C, Constructor, Dragger, DragInfo, F, KeyBinder, S, ScaleableContainer, stime, XY } from "@thegraid/easeljs-lib";
-import { Container, DisplayObject, EventDispatcher, Graphics, MouseEvent, Shape, Stage, Text } from "@thegraid/easeljs-module";
+import { Container, DisplayObject, EventDispatcher, Graphics, Shape, Stage, Text } from "@thegraid/easeljs-module";
 import { TileBag } from "./auction-tile";
 import { ButtonBox, CostIncCounter, DecimalCounter, NumCounter, NumCounterBox } from "./counters";
 import { Debt } from "./debt";
@@ -7,13 +7,13 @@ import { BagType } from "./event-tile";
 import type { GamePlay } from "./game-play";
 import { BonusHex, DebtHex, EventHex, Hex, Hex2, HexMap, IHex, RecycleHex } from "./hex";
 import { H, HexDir, XYWH } from "./hex-intfs";
+import { BuyEcon, BuyInfl, EconToken, InflToken, StarToken } from "./infl";
 import { Criminal, Police } from "./meeple";
 import { Player } from "./player";
 import type { StatsPanel } from "./stats";
 import { PlayerColor, playerColor0, playerColor1, playerColors, TP } from "./table-params";
 import { NoDragTile, Tile, WhiteTile } from "./tile";
 import { TileSource } from "./tile-source";
-import { Econ, Infl, BuyInfl, BuyEcon } from "./infl";
 //import { TablePlanner } from "./planner";
 
 
@@ -26,6 +26,7 @@ interface StageTable extends Stage {
 }
 
 export interface DragContext {
+  curPlayer: Player;
   targetHex: Hex2;      // last isLegalTarget() or fromHex
   lastShift: boolean;   // true if Shift key is down
   lastCtrl: boolean;    // true if control key is down
@@ -313,12 +314,15 @@ export class Table extends EventDispatcher  {
     this.makePerPlayer();
 
     // TP.auctionMerge + TP.auctionSlots
-    const inflH = this.splitRowHex(`inflHex`, this.gamePlay.auctionTiles.length , BonusHex);
-    inflH.y -= TP.hexRad/2;
+    const inflH = this.splitRowHex(`inflHex`, this.gamePlay.auctionTiles.length, BonusHex);
+    inflH.y += TP.hexRad * -0.5;
     BuyInfl.makeSource(undefined, inflH, 1);
-    const econH = this.splitRowHex(`econHex`, this.gamePlay.auctionTiles.length , BonusHex);
-    econH.y += TP.hexRad/2;
+    const econH = this.splitRowHex(`econHex`, this.gamePlay.auctionTiles.length, BonusHex);
+    econH.y += TP.hexRad * 0.5;
     BuyEcon.makeSource(undefined, econH, 1);
+    const starH = this.splitRowHex(`starHex`, this.gamePlay.auctionTiles.length, BonusHex);
+    starH.y += TP.hexRad * 1.5;
+    StarToken.makeSource(undefined, starH, 1);
 
     this.gamePlay.recycleHex = this.makeRecycleHex(5, -.5);
     this.gamePlay.debtHex = this.makeDebtHex(5, 13.5);
@@ -455,8 +459,8 @@ export class Table extends EventDispatcher  {
         const adjC = (col: number) => ((col - .165) * 1.2);
         const inflH = this.noRowHex(`inflH:${pIndex}`, this.colf(pIndex, adjC(1.5), (2)), BonusHex);
         const econH = this.noRowHex(`econH:${pIndex}`, this.colf(pIndex, adjC(1.21), (2.68)), BonusHex);
-        Infl.makeSource(p, inflH, 0);
-        Econ.makeSource(p, econH, 0);
+        InflToken.makeSource(p, inflH, 0);
+        EconToken.makeSource(p, econH, 0);
       }
       {
         // Show Player's balance text:
@@ -618,6 +622,7 @@ export class Table extends EventDispatcher  {
       const event = info.event?.nativeEvent;
       tile.fromHex = tile.hex as Hex2;
       ctx = this.dragContext = {
+        curPlayer: this.gamePlay.curPlayer,
         tile: tile,                  // ASSERT: hex === tile.hex
         targetHex: tile.fromHex,     // last isLegalTarget() or fromHex
         lastShift: event?.shiftKey,

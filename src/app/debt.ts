@@ -4,7 +4,7 @@ import { GP } from "./game-play";
 import type { Hex2, Hex } from "./hex";
 import type { DragContext } from "./table";
 import { PlayerColor } from "./table-params";
-import { HalfTile, Tile } from "./tile";
+import { Token, Tile } from "./tile";
 import { TileSource } from "./tile-source";
 import { Paintable } from "./shapes";
 
@@ -24,7 +24,7 @@ export class DebtSource extends TileSource<Debt> {
 /**
  * Debt is 'sourced'; Debt moved to a hex is attached to the Tile on that hex.
  */
-export class Debt extends HalfTile {
+export class Debt extends Token {
   static source: DebtSource;
   static debtRust = C.nameToRgbaString(C.debtRust, .8);
 
