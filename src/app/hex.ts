@@ -190,12 +190,12 @@ export class Hex {
   /** Total external inf on this Hex. */
   getInfX(color: PlayerColor) {
     let tinf = 0;
-    H.infDirs.forEach(dn => tinf += this.getInf(color, dn))
+    H.infDirs.forEach(dn => tinf += this.getInf(color, dn));
     return tinf;
   }
   /** Total inf on this Hex. */
   getInfT(color: PlayerColor) {
-    let infP = this.getInfP(color)
+    const infP = this.getInfP(color);
     return infP + this.getInfX(color);
   }
 

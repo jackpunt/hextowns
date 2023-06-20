@@ -1,4 +1,4 @@
-import { AT, stime } from "@thegraid/common-lib";
+import { AT, S, stime } from "@thegraid/common-lib";
 import { EzPromise } from "@thegraid/ezpromise";
 import {} from "wicg-file-system-access"
 
@@ -32,10 +32,10 @@ class FileBase {
 }
 /**
  * Supply a button-id in HTML, when user clicks the file is opened for write-append.
- * 
- * Other code can: new LogWriter().writeLine('first line...') 
+ *
+ * Other code can: new LogWriter().writeLine('first line...')
  * to queue writes before user clicks.
- * 
+ *
  * file is flushed/closed & re-opened after every writeLine.
  * (so log is already saved if browser crashes...)
  */
@@ -58,7 +58,7 @@ export class LogWriter extends FileBase implements ILogWriter {
   }
 
   /**
-   * 
+   *
    * @param name suggested name for write file
    * @param buttonId DOM id of button to click to bring up FilePicker
    */
@@ -92,7 +92,7 @@ export class LogWriter extends FileBase implements ILogWriter {
     let stream = this.streamPromise.value as FileSystemWritableFileStream
     if (!stream) {
       return
-    } 
+    }
     this.writeBacklog() // try write, but do not wait.
   }
   showBacklog() {
@@ -140,7 +140,7 @@ export class LogWriter extends FileBase implements ILogWriter {
     let blob = new Blob([text], { type: "text/plain;charset=utf-8" });
     a.href = URL.createObjectURL(blob);
     a.download = name;
-    a.addEventListener('click', (e) => {
+    a.addEventListener(S.click, (e) => {
       setTimeout(() => URL.revokeObjectURL(a.href), 3 * 1000); // is there no completion callback?
     });
     a.click();
@@ -161,14 +161,14 @@ export class LogReader extends FileBase  {
 
   /* OpenFilePickerOptions
     types?: FilePickerAcceptType[] | undefined;
-    excludeAcceptAllOption?: boolean | undefined;  
+    excludeAcceptAllOption?: boolean | undefined;
     multiple?: false;
    */
   setButtonToReadFile() {
     let options: OpenFilePickerOptions = {}
     let fileReadPromise = new EzPromise<File>()
-    this.setButton('showOpenFilePicker', options, ([fileHandle]) => { 
-        this.fileHandle = fileHandle 
+    this.setButton('showOpenFilePicker', options, ([fileHandle]) => {
+        this.fileHandle = fileHandle
         fileReadPromise.fulfill(fileHandle.getFile())
       })
     return fileReadPromise

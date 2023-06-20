@@ -10,6 +10,7 @@ import { H, HexDir, XYWH } from "./hex-intfs";
 import { BuyEcon, BuyInfl, EconToken, InflToken, StarToken } from "./infl";
 import { Criminal, Police } from "./meeple";
 import { Player } from "./player";
+import { HexShape } from "./shapes";
 import type { StatsPanel } from "./stats";
 import { PlayerColor, playerColor0, playerColor1, playerColors, TP } from "./table-params";
 import { NoDragTile, Tile, WhiteTile } from "./tile";
@@ -163,25 +164,25 @@ export class Table extends EventDispatcher  {
     this.hexMap.update()
   }
   enableHexInspector(qY = 52, cont = this.undoCont) {
-    let qShape = new Shape()
-    qShape.graphics.f("black").dp(0, 0, 20, 6, 0, 0)
-    qShape.y = qY  // size of 'skip' Triangles
-    cont.addChild(qShape)
+    const qShape = new HexShape(TP.hexRad/3, 'N');
+    qShape.paint(C.BLACK);
+    qShape.y = qY;  // size of 'skip' Triangles
+    cont.addChild(qShape);
     this.dragger.makeDragable(qShape, this,
       // dragFunc:
       (qShape: Shape, ctx: DragInfo) => { },
       // dropFunc:
       (qShape: Shape, ctx: DragInfo) => {
-        this.downClick = true
-        let hex = this.hexUnderObj(qShape)
-        qShape.x = 0; qShape.y = qY // return to regular location
-        cont.addChild(qShape)
-        if (!hex) return
-        let info = hex; //{ hex, stone: hex.playerColor, InfName }
+        this.downClick = true;
+        const hex = this.hexUnderObj(qShape);
+        qShape.x = 0; qShape.y = qY; // return to regular location
+        cont.addChild(qShape);
+        if (!hex) return;
+        const info = hex; //{ hex, stone: hex.playerColor, InfName }
         console.log(`HexInspector:`, hex.Aname, info)
       })
-    qShape.on(S.click, () => this.toggleText(), this) // toggle visible
-    this.toggleText(false)         // set initial visibility
+    qShape.on(S.click, () => this.toggleText(), this); // toggle visible
+    this.toggleText(false);         // set initial visibility
   }
 
   set showCap(val) { (this.hexMap.mapCont.capCont.visible = val)}
@@ -317,12 +318,12 @@ export class Table extends EventDispatcher  {
     const inflH = this.splitRowHex(`inflHex`, this.gamePlay.auctionTiles.length, BonusHex);
     inflH.y += TP.hexRad * -0.5;
     BuyInfl.makeSource(undefined, inflH, 1);
+    const starH = this.splitRowHex(`starHex`, this.gamePlay.auctionTiles.length + .5, BonusHex);
+    starH.y += TP.hexRad * -0.0;
+    StarToken.makeSource(undefined, starH, 1);
     const econH = this.splitRowHex(`econHex`, this.gamePlay.auctionTiles.length, BonusHex);
     econH.y += TP.hexRad * 0.5;
     BuyEcon.makeSource(undefined, econH, 1);
-    const starH = this.splitRowHex(`starHex`, this.gamePlay.auctionTiles.length, BonusHex);
-    starH.y += TP.hexRad * 1.5;
-    StarToken.makeSource(undefined, starH, 1);
 
     this.gamePlay.recycleHex = this.makeRecycleHex(5, -.5);
     this.gamePlay.debtHex = this.makeDebtHex(5, 13.5);
@@ -410,7 +411,7 @@ export class Table extends EventDispatcher  {
       const colf = (col: number, row: number) => this.colf(pIndex, col, row);
 
       let col0 = -1;
-      const leaderHexes = p.allLeaders.map((meep, ndx) => this.homeRowHex(meep.Aname, colf(ndx+col0, -1)));
+      const leaderHexes = p.allLeaders.map((meep, ndx) => this.homeRowHex(meep.Aname, colf(ndx + col0 - 1, -1)));
       // place [civic/leader, academy/police] meepleHex on Table/Hex (but not on Map)
       this.leaderHexes[pIndex] = leaderHexes;
       p.allLeaders.forEach((meep, i) => {
@@ -428,7 +429,7 @@ export class Table extends EventDispatcher  {
       this.addCostCounter(crimeHex, undefined, -1, false);
       p.criminalSource = Criminal.makeSource(p, crimeHex, TP.criminalPerPlayer);
 
-      const locs = { Busi: [col0++, 0], Resi: [col0++, 0], Monument: [col0, -1] };
+      const locs = { Busi: [col0++, 0], Resi: [col0++, 0], Monument: [col0 - 1, -1] };
 
       this.gamePlay.marketTypes.forEach((type, ndx) => {
         const [col, row] = locs[type.name];
@@ -619,6 +620,14 @@ export class Table extends EventDispatcher  {
     let ctx = this.dragContext;
 
     if (info?.first) {
+      if (ctx?.tile) {
+        // clickToDrag intercepting a drag in progress!
+        // mouse not over drag object! fix XY in call to dragTarget()
+        console.log(stime(this, `.dragFunc: OOPS! adjust XY on dragTarget`), ctx);
+        this.stopDragging(ctx.targetHex); // stop original drag
+        this.dragger.stopDrag();          // stop new drag;  this.dropFunc(ctx.tile, ctx.info);
+        return;
+      }
       const event = info.event?.nativeEvent;
       tile.fromHex = tile.hex as Hex2;
       ctx = this.dragContext = {
@@ -690,19 +699,22 @@ export class Table extends EventDispatcher  {
   private isDragging() { return this.dragContext?.tile !== undefined; }
 
   /** Force this.dragger to drop the current drag object on given target Hex */
-  stopDragging(target: Hex2 = this.dragContext.tile.fromHex) {
+  stopDragging(target: Hex2 = this.dragContext?.tile?.fromHex) {
     //console.log(stime(this, `.stopDragging: dragObj=`), this.dragger.dragCont.getChildAt(0), {noMove, isDragging: this.isDragging()})
-    if (!this.isDragging()) return
-    if (target) this.dragContext.targetHex = target;
-    this.dragger.stopDrag(); // ---> dropFunc(this.dragContext.tile, info)
+    if (this.isDragging()) {
+      if (target) this.dragContext.targetHex = target;
+      this.dragger.stopDrag(); // ---> dropFunc(this.dragContext.tile, info)
+    }
   }
 
-  /** attach supplied target to mouse-drag (default was CityMap.nextHex) */
-  dragTarget(target: DisplayObject = this.gamePlay.eventHex.tile) {
+  /** Toggle dragging: dragTarget(target) OR stopDragging(targetHex)
+   * - attach supplied target to mouse-drag (default is eventHex.tile)
+   */
+  dragTarget(target: DisplayObject = this.gamePlay.eventHex.tile, xy: XY = { x: TP.hexRad / 2, y: TP.hexRad / 2 }) {
     if (this.isDragging()) {
       this.stopDragging(this.dragContext.targetHex) // drop and make move
     } else if (target) {
-      this.dragger.dragTarget(target, { x: TP.hexRad / 2, y: TP.hexRad / 2 })
+      this.dragger.dragTarget(target, xy);
     }
   }
 
@@ -764,18 +776,19 @@ export class Table extends EventDispatcher  {
   makeScaleCont(bindKeys: boolean): ScaleableContainer {
     /** scaleCont: a scalable background */
     const scaleC = new ScaleableContainer(this.stage, this.scaleParams);
-    this.dragger = new Dragger(scaleC)
+    this.dragger = new Dragger(scaleC);
     if (!!scaleC.stage.canvas) {
       // Special case of makeDragable; drag the parent of Dragger!
       this.dragger.makeDragable(scaleC, scaleC, undefined, undefined, true); // THE case where not "useDragCont"
       //this.scaleUp(Dragger.dragCont, 1.7); // Items being dragged appear larger!
     }
     if (bindKeys) {
-      this.bindKeysToScale("a", scaleC, 820, TP.hexRad)
-      KeyBinder.keyBinder.setKey('Space',   { thisArg: this, func: this.dragTarget })
-      KeyBinder.keyBinder.setKey('S-Space', { thisArg: this, func: this.dragTarget })
+      this.bindKeysToScale("a", scaleC, 820, TP.hexRad);
+      KeyBinder.keyBinder.setKey('Space',   { thisArg: this, func: () => this.dragTarget() });
+      KeyBinder.keyBinder.setKey('S-Space', { thisArg: this, func: () => this.dragTarget() });
+      KeyBinder.keyBinder.setKey('S-s', { thisArg: this, func: () => StarToken.dragToken() });
     }
-    return scaleC
+    return scaleC;
   }
 
   /** put a Rectangle Shape at (0,0) with XYWH bounds as given */

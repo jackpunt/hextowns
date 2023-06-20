@@ -645,6 +645,7 @@ export class GamePlay extends GamePlay0 {
     KeyBinder.keyBinder.setKey('M-K', { thisArg: this, func: this.resignMove })// S-M-k
     KeyBinder.keyBinder.setKey('Escape', {thisArg: table, func: table.stopDragging}) // Escape
     KeyBinder.keyBinder.setKey('C-a', { thisArg: this, func: () => { this.shiftAndProcess(undefined, true)} })  // C-a new Tile
+    KeyBinder.keyBinder.setKey('C-A', { thisArg: this, func: () => { this.shiftAndProcess(undefined, true, true, EventTile)} })  // C-A shift(Event)
     KeyBinder.keyBinder.setKey('C-s', { thisArg: this.gameSetup, func: () => { this.gameSetup.restart() } })// C-s START
     KeyBinder.keyBinder.setKey('C-c', { thisArg: this, func: this.stopPlayer })// C-c Stop Planner
     KeyBinder.keyBinder.setKey('m', { thisArg: this, func: this.makeMove, argVal: true })
@@ -662,7 +663,6 @@ export class GamePlay extends GamePlay0 {
     KeyBinder.keyBinder.setKey('S-K', { thisArg: this, func: () => this.drawTile(Bank) })
     KeyBinder.keyBinder.setKey('S-L', { thisArg: this, func: () => this.drawTile(Lake) })
     KeyBinder.keyBinder.setKey('S-P', { thisArg: this, func: () => this.drawTile(PS) })
-    KeyBinder.keyBinder.setKey('M-s', { thisArg: this, func: () => StarToken.dragToken() })
 
     // diagnostics:
     //KeyBinder.keyBinder.setKey('x', { thisArg: this, func: () => {this.table.enableHexInspector(); }})

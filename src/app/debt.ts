@@ -100,7 +100,7 @@ export class Debt extends Token {
   /** show loanLimit of Tile under Debt. */
   override dragFunc0(hex: Hex2, ctx: DragContext): void {
     if (!this.player) {
-      const loan = (hex?.tile?.player === GP.gamePlay.curPlayer && !hex.tile.debt) ? hex.tile.loanLimit : 0;
+      const loan = (hex?.tile?.player === ctx.curPlayer && !hex.tile.debt) ? hex.tile.loanLimit : 0;
       if (this.balance !== loan) this.balance = loan; // updateCache(); tile?.updateCache();
     }
     super.dragFunc0(hex, ctx);
@@ -122,7 +122,7 @@ export class Debt extends Token {
   override isLegalTarget(hex: Hex, ctx?: DragContext): boolean {
     if (!hex.isOnMap) return false;
     if (this.balance > 0) return false;
-    if (hex?.tile?.player !== GP.gamePlay.curPlayer) return false;
+    if (hex?.tile?.player !== ctx.curPlayer) return false;
     if (hex.tile.loanLimit <= 0) return false; // no first mortgage.
     if (hex.tile.debt) return false;           // no second mortgage.
     return true;

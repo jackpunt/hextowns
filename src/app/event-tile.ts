@@ -104,7 +104,7 @@ export class EventTile extends EvalTile {
   override isLegalTarget(toHex: Hex, ctx?: DragContext): boolean {
     if (!super.isLegalTarget(toHex, ctx)) return false;
     if (toHex.isOnMap) return false;
-    if (this.policy && GP.gamePlay.curPlayer.policySlots.includes(toHex)) return true;
+    if (this.policy && ctx.curPlayer.policySlots.includes(toHex)) return true;
     // else: only drop on recycle
     return false;
   }

@@ -1,15 +1,15 @@
 import { C, Constructor, stime } from "@thegraid/common-lib";
+import { UID } from "@thegraid/easeljs-module";
 import { AuctionTile } from "./auction-tile";
+import { NumCounter, NumCounterBox } from "./counters";
 import { GP, GamePlay } from "./game-play";
 import { Hex, Hex2 } from "./hex";
 import { Player } from "./player";
+import { CenterText, HexShape, InfShape, Paintable } from "./shapes";
 import { DragContext } from "./table";
 import { PlayerColor, TP } from "./table-params";
-import { AuctionBonus, Token, Tile, BonusMark } from "./tile";
+import { AuctionBonus, Tile, Token } from "./tile";
 import { TileSource } from "./tile-source";
-import { CenterText, HexShape, InfShape, Paintable } from "./shapes";
-import { NumCounter, NumCounterBox } from "./counters";
-import { UID } from "@thegraid/easeljs-module";
 
 type TileInf = 0 | 1;
 
@@ -62,7 +62,11 @@ class TokenCounter extends NumCounterBox {
     super(name, initValue, color, fontSize, fontName, textColor);
   }
 
-  makeUnit(source: TokenSource) {
+  /**
+   * Construct new instance, and make it draggable.
+   * - Generally: n=1; homeHex=source.hex; so a single unit recirculates...
+   */
+  protected makeUnit(source: TokenSource) {
     const table = (GP.gamePlay as GamePlay).table;
     const player = source.player;
     const unit = new source.type(source, player); // (source, player, inf, vp, cost, econ)
@@ -226,19 +230,17 @@ export class EconToken extends BonusToken {
 export class StarToken extends BonusToken {
   static source: TokenSource;
   static dragToken() {
+    // TODO: markLegal!
     const source = StarToken.source;
     if (!source.hex.tile) source.counter.incValue(1);
-    const player = GP.gamePlay.curPlayer;
-    const star = new StarToken(StarToken.source, player, 0, 0, 0, 0);
     const table = (GP.gamePlay as GamePlay).table;
-    table.hexMap.mapCont.addChild(star);
-    table.makeDragable(star);
-    table.dragTarget(star);
+    table.dragTarget(source.hex.tile, { x: 10, y: 10 });
   }
 
   static makeSource(player: Player, hex: Hex2, n = 0) {
     const source = BonusToken.makeSource0(TokenSource, StarToken, undefined, player, hex, n);
     source.counter.visible = false;
+    StarToken.source = source;
     return source;
   }
 
@@ -269,7 +271,7 @@ export class StarToken extends BonusToken {
   }
 }
 
-
+// https://www.typescriptlang.org/docs/handbook/mixins.html
 export function BuyTokenMixin(Base: Constructor<BonusToken>) {
   return class BuyToken extends Base {
   static makeSource1(claz: Constructor<BuyToken>, player: Player, hex: Hex2, n = 0) {

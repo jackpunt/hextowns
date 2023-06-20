@@ -392,13 +392,15 @@ export class Tile extends Tile0 {
   }
 
   rightClickable() {
-    this.on(S.click, (evt: MouseEvent) => {
+    const ifRightClick = (evt: MouseEvent) => {
       const nevt = evt.nativeEvent;
-      if (nevt.button != 2) return;
-      this.onRightClick(evt);
-      nevt.preventDefault();           // evt is non-cancelable, but stop the native event...
-      nevt.stopImmediatePropagation(); // TODO: prevent Dragger.clickToDrag() when button !== 0
-    }, this, false, {}, true);
+      if (nevt.button === 2) {
+        this.onRightClick(evt);
+        nevt.preventDefault();           // evt is non-cancelable, but stop the native event...
+        nevt.stopImmediatePropagation(); // TODO: prevent Dragger.clickToDrag() when button !== 0
+      }
+    };
+    this.on(S.click, ifRightClick, this, false, {}, true);
   }
 
   onRightClick(evt: MouseEvent) {
@@ -455,8 +457,9 @@ export class Tile extends Tile0 {
   flipOwner(targetHex: Hex2, ctx: DragContext) {
     const gamePlay = GP.gamePlay, player = ctx.lastCtrl ? this.player.otherPlayer : gamePlay.curPlayer;
 
-    if ((targetHex === this.fromHex)) {
-      if (targetHex.isOnMap && (targetHex.getInfT(player.color) > targetHex.getInfT(this.player.color) || ctx.lastCtrl)) {
+    if (targetHex.isOnMap && (targetHex === this.fromHex)) {
+      const infT = this.hex.getInfT(this.player?.color);
+      if (targetHex.getInfT(player.color) > infT || ctx.lastCtrl) {
         // flip if Infl or ctrlKey:
         this.flipPlayer(player, gamePlay);
       }
