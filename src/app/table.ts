@@ -27,7 +27,6 @@ interface StageTable extends Stage {
 }
 
 export interface DragContext {
-  curPlayer: Player;
   targetHex: Hex2;      // last isLegalTarget() or fromHex
   lastShift: boolean;   // true if Shift key is down
   lastCtrl: boolean;    // true if control key is down
@@ -631,7 +630,6 @@ export class Table extends EventDispatcher  {
       const event = info.event?.nativeEvent;
       tile.fromHex = tile.hex as Hex2;
       ctx = this.dragContext = {
-        curPlayer: this.gamePlay.curPlayer,
         tile: tile,                  // ASSERT: hex === tile.hex
         targetHex: tile.fromHex,     // last isLegalTarget() or fromHex
         lastShift: event?.shiftKey,
@@ -690,7 +688,7 @@ export class Table extends EventDispatcher  {
 
   dropFunc(tile: Tile, info: DragInfo) {
     tile.dropFunc0(this.hexUnderObj(tile), this.dragContext);
-    tile.markLegal(this, hex => (hex.isLegal = false));
+    tile.markLegal(this); // hex => hex.isLegal = false;
     this.gamePlay.recycleHex.isLegal = false;
     this.dragContext.lastShift = undefined;
     this.dragContext.tile = undefined; // mark not dragging
@@ -770,6 +768,19 @@ export class Table extends EventDispatcher  {
   }
   scaleParams = { initScale: .125, scale0: .05, scaleMax: 4, steps: 30, zscale: .20,  };
 
+  dispatchPressup(target: DisplayObject, ctd = true) { return this.dragger.getDragData(target)  }
+  /** Move [dragable] target to mouse as if clickToDrag at {x,y}. */
+  dragTargetPatch(target: DisplayObject, dxy: XY = { x: 0, y: 0 }) {
+    // invoke 'click' to start drag;
+    const dragData = this.dispatchPressup(target);
+    // if pressup -> dragStart -> dragStop then dragCtx = undefined!
+    if (!dragData.dragCtx) return;
+    dragData.dragCtx.dxy = dxy
+    target.parent.globalToLocal(target.stage.mouseX, target.stage.mouseY, target) // move target to mouseXY
+    target.x -= dxy.x                // offset by dxy
+    target.y -= dxy.y
+    target.stage.update()            // move and show new position
+  }
   /** makeScaleableBack and setup scaleParams
    * @param bindkeys true if there's a GUI/user/keyboard
    */
@@ -777,6 +788,7 @@ export class Table extends EventDispatcher  {
     /** scaleCont: a scalable background */
     const scaleC = new ScaleableContainer(this.stage, this.scaleParams);
     this.dragger = new Dragger(scaleC);
+    this.dragger.dragTarget = this.dragTargetPatch; // PATCH until next easeljs-lib
     if (!!scaleC.stage.canvas) {
       // Special case of makeDragable; drag the parent of Dragger!
       this.dragger.makeDragable(scaleC, scaleC, undefined, undefined, true); // THE case where not "useDragCont"

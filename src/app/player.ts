@@ -33,9 +33,16 @@ export class Player {
   }
 
   readonly Aname: string;
-  readonly index: number = 0; // index in playerColors & allPlayers
-  readonly color: PlayerColor = playerColors[this.index];
-  readonly gamePlay: GamePlay;
+
+  constructor(
+    readonly index: number,
+    readonly color: PlayerColor,
+    readonly gamePlay: GamePlay0,
+  ) {
+    this.Aname = `Player${index}-${this.colorn}`
+    Player.allPlayers[index] = this;
+    this.startDir = Player.playerStartDir[index];
+  }
 
   readonly civicTiles: Civic[] = [];            // Player's S, H, C, U Tiles
   get nCivics() { return this.civicTiles.filter(tile => tile.hex.isOnMap).length; }
@@ -145,15 +152,6 @@ export class Player {
   /** if true then invoke plannerMove */
   useRobo: boolean = false
   get colorn() { return TP.colorScheme[this.color] }
-
-  constructor(index: number, color: PlayerColor, gameplay: GamePlay0) {
-    this.index = index
-    this.color = color
-    this.gamePlay = gameplay as GamePlay;
-    this.Aname = `Player${index}-${this.colorn}`
-    Player.allPlayers[index] = this;
-    this.startDir = Player.playerStartDir[index];
-  }
 
   readonly startDir: HexDir;
 

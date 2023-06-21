@@ -67,7 +67,7 @@ class TokenCounter extends NumCounterBox {
    * - Generally: n=1; homeHex=source.hex; so a single unit recirculates...
    */
   protected makeUnit(source: TokenSource) {
-    const table = (GP.gamePlay as GamePlay).table;
+    const table = GP.gamePlay.table;
     const player = source.player;
     const unit = new source.type(source, player); // (source, player, inf, vp, cost, econ)
     table.makeDragable(unit);
@@ -144,10 +144,18 @@ class BonusToken extends SourcedToken {
     super(source, BonusToken.Bname(bonusType, player), player, inf, vp, cost, econ);
   }
 
+  override makeShape(): Paintable {
+    return new HexShape(TP.hexRad * .5);
+  }
+
+  override paint(pColor?: PlayerColor, colorn = C.WHITE): void {
+    super.paint(pColor, colorn);
+  }
+
   override isLegalTarget(toHex: Hex, ctx?: DragContext): boolean {
     return toHex.isOnMap
       && (toHex.tile instanceof AuctionTile)
-      && (toHex.tile.player === ctx.curPlayer)
+      && (toHex.tile.player === GP.gamePlay.curPlayer)
       && (toHex.tile.bonusCount === 0);
   }
 
@@ -159,7 +167,7 @@ class BonusToken extends SourcedToken {
   override dropFunc(hex: Hex2, ctx: DragContext): void {
     if (hex?.isLegal) {
       this.addToken(this.bonusType, hex.tile);
-      ctx.curPlayer.updateCounters();
+      Player.updateCounters();
       return;
     }
     super.dropFunc(hex, ctx);
@@ -191,7 +199,7 @@ export class InflToken extends BonusToken {
   }
 
   override makeShape(): Paintable {
-    const shape = new InfShape();
+    const shape = new InfShape(InflToken.colorn);
     shape.scaleX = shape.scaleY = .5;
     return shape;
   }
@@ -217,24 +225,16 @@ export class EconToken extends BonusToken {
     this.addChild(new CenterText('$', this.radius * .8, C.GREEN));
     this.updateCache();
   }
-
-  override makeShape(): Paintable {
-    return new HexShape(TP.hexRad * .5);
-  }
-
-  override paint(pColor?: PlayerColor, colorn?: string): void {
-    this.baseShape.paint(C.WHITE);
-  }
 }
 
 export class StarToken extends BonusToken {
   static source: TokenSource;
-  static dragToken() {
-    // TODO: markLegal!
+  static targetClaz: Constructor<AuctionTile>;
+  static dragToken(targetClaz?: Constructor<AuctionTile>) {
+    StarToken.targetClaz = targetClaz;
     const source = StarToken.source;
     if (!source.hex.tile) source.counter.incValue(1);
-    const table = (GP.gamePlay as GamePlay).table;
-    table.dragTarget(source.hex.tile, { x: 10, y: 10 });
+    GP.gamePlay.table.dragTarget(source.hex.tile, { x: 10, y: 10 });
   }
 
   static makeSource(player: Player, hex: Hex2, n = 0) {
@@ -247,21 +247,19 @@ export class StarToken extends BonusToken {
   // invoked from TokenSource.newUnit(source, player)
   constructor(source: TokenSource, player: Player, inf: TileInf = 0, vp = 0, cost = 0, econ = 0) {
     super('star', source, player, inf, vp, cost, econ);
+    this.drawStar('star');
     this.updateCache();
     this.homeHex = source.hex;
   }
 
-  override makeShape(): Paintable {
-    return new HexShape(TP.hexRad * .5);
-  }
-
-  override paint(pColor?: PlayerColor, colorn?: string ): void {
-    this.baseShape.paint(C.WHITE);
-    this.drawStar('star');
-  }
-
   override isLegalTarget(toHex: Hex, ctx?: DragContext): boolean {
-    return super.isLegalTarget(toHex, ctx);
+    const allowClaz = StarToken.targetClaz ? (toHex.tile instanceof StarToken.targetClaz) : true;
+    return allowClaz && super.isLegalTarget(toHex, ctx);
+  }
+
+  override dropFunc(hex: Hex2, ctx: DragContext): void {
+    super.dropFunc(hex, ctx);
+    StarToken.targetClaz = undefined;
   }
 
   override addToken(type: AuctionBonus, tile: Tile): void {

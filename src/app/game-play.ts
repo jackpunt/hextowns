@@ -29,7 +29,7 @@ class Move{
 }
 
 export class GP {
-  static gamePlay: GamePlay0;
+  static gamePlay: GamePlay;
 }
 
 /** Implement game, enforce the rules, manage GameStats & hexMap; no GUI/Table required.
@@ -111,7 +111,6 @@ export class GamePlay0 {
   }
 
   constructor() {
-    GP.gamePlay = this;
     this.logWriter = this.logWriterLine0()
     this.hexMap[S.Aname] = `mainMap`
     this.gStats = new GameStats(this.hexMap) // AFTER allPlayers are defined so can set pStats
@@ -538,7 +537,8 @@ export class GamePlay extends GamePlay0 {
   declare readonly gStats: TableStats // https://github.com/TypeStrong/typedoc/issues/1597
   /** GamePlay is the GUI-augmented extension of GamePlay0; uses Table */
   constructor(table: Table, public gameSetup: GameSetup) {
-    super()            // hexMap, history, gStats...
+    super();            // hexMap, history, gStats...
+    GP.gamePlay = this; // table
     // Players have: civics & meeples & TownSpec
     // setTable(table)
     this.table = table

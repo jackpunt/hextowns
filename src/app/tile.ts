@@ -525,7 +525,7 @@ export class Tile extends Tile0 {
   /** state of shiftKey has changed during drag */
   dragShift(shiftKey: boolean, ctx: DragContext) { }
 
-  markLegal(table: Table, setLegal: (hex: Hex2)=>void) {
+  markLegal(table: Table, setLegal = (hex: Hex2) => { hex.isLegal = false; }) {
     table.homeRowHexes.forEach(setLegal);
     table.hexMap.forEachHex(setLegal);
   }
