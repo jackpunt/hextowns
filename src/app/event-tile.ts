@@ -1,13 +1,10 @@
 import { AT, C, Constructor, stime } from "@thegraid/common-lib";
+import { Text } from "@thegraid/easeljs-module";
 import { TileBag } from "./auction-tile";
-import { Tile } from "./tile";
-import { AuctionTile } from "./auction-tile";
+import { BagType, Tile } from "./tile";
 import { DragContext } from "./table";
 import { Hex, } from "./hex";
-import { Text } from "@thegraid/easeljs-module";
 import { GP } from "./game-play";
-
-export type BagType = AuctionTile | EventTile;
 
 type EventSpec = {
   text: string,
@@ -16,25 +13,27 @@ type EventSpec = {
   vp?: number,
   tvp?: number,
   cost?: number,    // coins to purchase Policy
-  eval?: () => void, // eval at start of turn: eval.call(this)
+  ehex?: () => void, // eval when placeTile(eventHex)
+  eval0?: () => void, // eval at start of turn
+  eval1?: () => void, // eval at end of turn
 }
 
 class EvalTile extends Tile {
-  readonly text: string;
-  readonly policy?: boolean;
-  readonly tvp?: number;
-  readonly evalf?: () => void; // eval at start of turn: eval.call(this)
-  eval() { this.evalf.call(this); }
-  readonly eventText: Text;
-
-  constructor(claz: Constructor<EvalTile>, count: number, spec: EventSpec) {
-    super(`${spec.Aname || `${claz.name}-${count}`}`, undefined, 0, spec.vp, spec.cost, 0);
-    this.text = spec.text;
-    this.policy = spec.policy;
-    this.tvp = spec.tvp;
-    this.evalf = spec.eval;
-    this.eventText = this.addTextChild(-0.4 * this.radius, this.lineBreak(this.text), 18, true);
+  static aname(spec: EventSpec, claz?: Constructor<EvalTile>, count = 0) {
+    return `${spec?.Aname || `${claz.name}-${count}`}`;
   }
+
+  get policy() { return this.spec?.policy; } // called in constructor
+  get text() { return this.spec.text; }
+  get ehex() { return this.spec.ehex; }
+  get eval0() { return this.spec.eval0; }
+  get eval1() { return this.spec.eval1; }
+
+  constructor(Aname: string, readonly spec: EventSpec) {
+    super(Aname, undefined, 0, spec?.vp ?? 0, spec?.cost ?? 0, 0); // (Aname, player, inf, vp, cost, econ)
+    this.addTextChild(-0.4 * this.radius, this.lineBreak(this.spec?.text ?? ''), 18, true);
+  }
+
   lineBreak(text: string) {
     return text.split('  ').join('\n');
   }
@@ -42,12 +41,19 @@ class EvalTile extends Tile {
   override showCostMark(show?: boolean): void { }
 
   override paint(pColor?: "b" | "w" | "c", colorn?: string): void {
-    super.paint(pColor, this.policy? C.YELLOW: colorn);
+    super.paint(pColor, this.policy ? C.YELLOW : colorn);
   }
 
+  override placeTile(toHex: Hex, payCost?: boolean): void {
+    super.placeTile(toHex, payCost);
+    const gamePlay = GP.gamePlay;
+    if (this.hex === gamePlay.eventHex) {
+      this.eval0?.call(this, gamePlay);
+    }
+  }
 }
 
-export class EventTile extends EvalTile {
+export class EventTile extends EvalTile implements BagType {
   static allEventSpecs: EventSpec[] = [
     { text: "Do a  Crime  action", Aname: "Crime  Action" },
     { text: "Do a  Build  action", Aname: "Build  Action" },
@@ -77,12 +83,12 @@ export class EventTile extends EvalTile {
 
     // 'policy' Event implies duration until removed by eval [evaluated at start of turn]
     // eval gives the reward.
-    { text: "+1 VP  until  Leader  is hired", Aname: 'No  Leader  Policy', policy: true, eval: () => {}, vp: 1 },
-    { text: "+1 VP  until  opposing  Criminal", Aname: 'No  Victim  Policy', policy: true, eval: () => {}, vp: 1 },
-    { text: "+1 VP  until  Criminal  is hired", Aname: 'No  Perp  Policy', policy: true, eval: () => {}, vp: 1 },
-    { text: "+1 VP  until  Police  is hired", Aname: 'No  Police  Policy', policy: true, eval: () => {}, vp: 1 },
-    { text: "+1 VP  per  Police", Aname: 'Police  happiness  Policy', policy: true, eval: () => {}, vp: 1 },
-    { text: "+1 Coin  per  Police", Aname: 'Police  discount  Policy', policy: true, eval: () => {} },
+    { text: "+1 VP  until  Leader  is hired", Aname: 'No  Leader  Policy', policy: true, ehex: () => {}, vp: 1 },
+    { text: "+1 VP  until  opposing  Criminal", Aname: 'No  Victim  Policy', policy: true, ehex: () => {}, vp: 1 },
+    { text: "+1 VP  until  Criminal  is hired", Aname: 'No  Perp  Policy', policy: true, ehex: () => {}, vp: 1 },
+    { text: "+1 VP  until  Police  is hired", Aname: 'No  Police  Policy', policy: true, ehex: () => {}, vp: 1 },
+    { text: "+1 VP  per  Police", Aname: 'Police  happiness  Policy', policy: true, ehex: () => {}, vp: 1 },
+    { text: "+1 Coin  per  Police", Aname: 'Police  discount  Policy', policy: true, ehex: () => {} },
     // { text: ""},
     // { text: ""},
     // { text: ""},
@@ -98,7 +104,7 @@ export class EventTile extends EvalTile {
   }
 
   constructor(spec: EventSpec, n: number) {
-    super(EventTile, n, spec);
+    super(EventTile.aname(spec, EventTile, n), spec);
   }
 
   override isLegalTarget(toHex: Hex, ctx?: DragContext): boolean {
@@ -125,12 +131,14 @@ export class EventTile extends EvalTile {
   }
 
   /** load EventTile into Auction TileBag. */
-  moveToBag() {
+  sendToBag() {
     console.log(this, `.moveToBag: ${AT.ansiText(['$red'], this.text)}`)
     const gamePlay = GP.gamePlay;
     gamePlay.removeFromAuction(this); // remove from gamePlay.auctionTiles[]
+    this.resetTile();
     super.moveTo(undefined);          // remove from Hex (auctionHexes[0])
-    gamePlay.shifter.tileBag.push(this);
+    GP.gamePlay.shifter.tileBag.unshift(this);
+    if (!this.homeHex) this.parent?.removeChild(this);
     gamePlay.hexMap.update();
   }
 
@@ -146,11 +154,11 @@ export class EventTile extends EvalTile {
 export class PolicyTile extends EvalTile {
   static allPolicySpecs: EventSpec[] = [
     // 'permanent' Policy; evaluated each turn for VP, and end of game for TVP
-    { text: "+1 VP  until  Leader  is hired", Aname: "No Leader", eval: () => {}, vp: 1, cost: 6 },
-    { text: "+1 VP  until  opposing  Criminal", Aname: "No Victim", eval: () => {}, vp: 1, cost: 6 },
-    { text: "+1 VP  until  hire  Criminal", Aname: "No Corruption", eval: () => {}, vp: 1, cost: 8 },
-    { text: "+1 VP  until  hire  Police", Aname: "No Police", eval: () => {}, vp: 1, cost: 8 },
-    { text: "+20 TVP  if never  Police", Aname: "Never Police", eval: () => {}, tvp: 20, cost: 10 }, // discard when hire Police
+    { text: "+1 VP  until  Leader  is hired", Aname: "No Leader", vp: 1, cost: 6, ehex: () => { } },
+    { text: "+1 VP  until  opposing  Criminal", Aname: "No Victim", vp: 1, cost: 6, ehex: () => {} },
+    { text: "+1 VP  until  hire  Criminal", Aname: "No Corruption", vp: 1, cost: 8, ehex: () => {} },
+    { text: "+1 VP  until  hire  Police", Aname: "No Police", vp: 1, cost: 8, ehex: () => {} },
+    { text: "+20 TVP  if never  Police", Aname: "Never Police", tvp: 20, cost: 10, ehex: () => {} }, // discard when hire Police
     { text: "+1 Econ  for one  Police", Aname: "Police discount 1", cost: 10 },
     { text: "+2 Econ  for two  Police", Aname: "Police discount 2", cost: 20 },
     { text: "+3 Econ  for three  Police", Aname: "Police discount 3", cost: 30 },
@@ -171,10 +179,41 @@ export class PolicyTile extends EvalTile {
   ];
   static allPolicy: PolicyTile[];
   static makeAllPolicy() {
-    PolicyTile.allPolicy = PolicyTile.allPolicySpecs.map((spec, ndx) => new PolicyTile(spec, ndx));
+    PolicyTile.allPolicy = new PolicySpecs().allPolicySpecs.map((spec, ndx) => new PolicyTile(spec, ndx));
   }
 
   constructor(spec: EventSpec, n: number) {
-    super(PolicyTile, n, {...spec, policy: true});
+    super(EventTile.aname(spec, EventTile, n), spec);
+    this.spec.policy = true;
   }
+}
+class PolicySpecs extends PolicyTile {
+  constructor() { super({text: ''}, 0);}
+  allPolicySpecs: EventSpec[] = [
+    // 'permanent' Policy; evaluated each turn for VP, and end of game for TVP
+    { text: "+1 VP  until  Leader  is hired", Aname: "No Leader", vp: 1, cost: 6, ehex: () => {
+      this.player
+    } },
+    { text: "+1 VP  until  opposing  Criminal", Aname: "No Victim", vp: 1, cost: 6, ehex: () => {} },
+    { text: "+1 VP  until  hire  Criminal", Aname: "No Corruption", vp: 1, cost: 8, ehex: () => {} },
+    { text: "+1 VP  until  hire  Police", Aname: "No Police", vp: 1, cost: 8, ehex: () => {} },
+    { text: "+20 TVP  if never  Police", Aname: "Never Police", tvp: 20, cost: 10, ehex: () => {} }, // discard when hire Police
+    { text: "+1 Econ  for one  Police", Aname: "Police discount 1", cost: 10 },
+    { text: "+2 Econ  for two  Police", Aname: "Police discount 2", cost: 20 },
+    { text: "+3 Econ  for three  Police", Aname: "Police discount 3", cost: 30 },
+    { text: "+1 VP  per  Police", Aname: "Police happiness", cost: 10 },
+
+    { text: "  +1 Econ", Aname: "Econ Investment", cost: 20 },
+    { text: "+1 Econ  for one  Civic", Aname: "Civic Investment 1", cost: 10} ,
+    { text: "+2 Econ  for two  Civics", Aname: "Civic Investment 2", cost: 20 },
+    { text: "+3 Econ  for three  Civics", Aname: "Civic Investment 3", cost: 30 },
+
+    { text: "+10 TVP  if no  adjancent  Civics", Aname: "No adjacent Civics", cost: 8 },
+    { text: "+30 TVP  if no  colinear  Civics", Aname: "No colinear Civics", cost: 8 },
+    { text: "Extra Reserve Hex", cost: 8, Aname: "Reserve Hex 1" },  // place this as Reserve Hex
+    { text: "Extra Reserve Hex", cost: 8, Aname: "Reserve Hex 2" },  // place this as Reserve Hex
+    // { text: ""},
+    // { text: ""},
+    // { text: ""},
+  ];
 }

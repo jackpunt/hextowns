@@ -18,6 +18,10 @@ type BonusInfo<T extends DisplayObject> = {
   paint?: (s: T, info: BonusInfo<T>) => void
 }
 
+export interface BagType extends Tile {
+  sendToBag(): void;
+}
+
 export class BonusMark extends Container {
 
   static bonusInfo: BonusInfo<DisplayObject>[] = [
@@ -542,7 +546,7 @@ export class Tile extends Tile0 {
     ) return false; // note: from AuctionHexes to Reserve overrides this.
     if (toHex.meep && !(toHex.meep.player === GP.gamePlay.curPlayer)) return false; // QQQ: can place on non-player meep?
     if (GP.gamePlay.failToPayCost(this, toHex, false)) return false;
-    if ((this.hex as Hex2).isOnMap && !ctx?.lastShift) return false;
+    if ((this.hex as Hex2)?.isOnMap && !ctx?.lastShift) return false;
     // [newly] placed tile must be adjacent to an existing [non-BonusTile] Tile:
     if (TP.placeAdjacent && toHex.isOnMap && !toHex.findLinkHex(hex => (hex.tile?.player !== undefined ))) return false;
     return true;
@@ -640,7 +644,7 @@ export class Civic extends Tile {
 
   override sendHome() {   // Civic - put under Leader
     super.sendHome();
-    this.parent.addChildAt(this, 1); // under meeple
+    this.parent.addChildAt(this, 1); // above HexShape, under meeple
   }
 
   override dropFunc(targetHex: Hex2, ctx: DragContext): void {

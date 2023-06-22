@@ -3,7 +3,6 @@ import { Container, DisplayObject, EventDispatcher, Graphics, Shape, Stage, Text
 import { TileBag } from "./auction-tile";
 import { ButtonBox, CostIncCounter, DecimalCounter, NumCounter, NumCounterBox } from "./counters";
 import { Debt } from "./debt";
-import { BagType } from "./event-tile";
 import type { GamePlay } from "./game-play";
 import { BonusHex, DebtHex, EventHex, Hex, Hex2, HexMap, IHex, RecycleHex } from "./hex";
 import { H, HexDir, XYWH } from "./hex-intfs";
@@ -13,7 +12,7 @@ import { Player } from "./player";
 import { HexShape } from "./shapes";
 import type { StatsPanel } from "./stats";
 import { PlayerColor, playerColor0, playerColor1, playerColors, TP } from "./table-params";
-import { NoDragTile, Tile, WhiteTile } from "./tile";
+import { BagType, NoDragTile, Tile, WhiteTile } from "./tile";
 import { TileSource } from "./tile-source";
 //import { TablePlanner } from "./planner";
 
@@ -66,8 +65,8 @@ class TextLog extends Container {
     this.lines.forEach(tline => (tline.y = cy, cy += tline.getMeasuredLineHeight() + lead))
   }
 
-  log(line: string, from = '') {
-    console.log(stime(`${from}:`), line);
+  log(line: string, from = '', toConsole = true) {
+    toConsole && console.log(stime(`${from}:`), line);
     if (line === this.lastLine) {
       this.lines[this.lines.length - 1].text = `[${++this.nReps}] ${line}`;
     } else {
@@ -114,10 +113,14 @@ export class Table extends EventDispatcher  {
     this.stage = stage
     this.scaleCont = this.makeScaleCont(!!this.stage.canvas) // scaleCont & background
   }
+  bagLog = new TextLog('bagLog', 1);    // show 1 line of bag contents
   turnLog = new TextLog('turnLog', 2);  // shows the last 2 start of turn lines
   textLog = new TextLog('textLog', TP.textLogLines); // show other interesting log strings.
+  logInBag(from = `logInBag`) {
+    this.bagLog.log(this.gamePlay.shifter.tileBag.inTheBagStr(), from, false);
+  }
   logTurn(line: string) {
-    this.turnLog.log(line); // in top two lines
+    this.turnLog.log(line, 'table.logTurn'); // in top two lines
   }
   logText(line: string, from = '') {
     this.textLog.log(`#${this.gamePlay.turnNumber}: ${line}`, from); // scrolling lines below
@@ -314,15 +317,15 @@ export class Table extends EventDispatcher  {
     this.makePerPlayer();
 
     // TP.auctionMerge + TP.auctionSlots
-    const inflH = this.splitRowHex(`inflHex`, this.gamePlay.auctionTiles.length, BonusHex);
-    inflH.y += TP.hexRad * -0.5;
-    BuyInfl.makeSource(undefined, inflH, 1);
-    const starH = this.splitRowHex(`starHex`, this.gamePlay.auctionTiles.length + .5, BonusHex);
-    starH.y += TP.hexRad * -0.0;
-    StarToken.makeSource(undefined, starH, 1);
     const econH = this.splitRowHex(`econHex`, this.gamePlay.auctionTiles.length, BonusHex);
-    econH.y += TP.hexRad * 0.5;
+    econH.y += TP.hexRad * -0.5;
     BuyEcon.makeSource(undefined, econH, 1);
+    const inflH = this.splitRowHex(`inflHex`, this.gamePlay.auctionTiles.length + .5, BonusHex);
+    inflH.y += TP.hexRad * 0.0;
+    BuyInfl.makeSource(undefined, inflH, 1);
+    const starH = this.splitRowHex(`starHex`, this.gamePlay.auctionTiles.length, BonusHex);
+    starH.y += TP.hexRad * 0.5;
+    StarToken.makeSource(undefined, starH, 1);
 
     this.gamePlay.recycleHex = this.makeRecycleHex(5, -.5);
     this.gamePlay.debtHex = this.makeDebtHex(5, 13.5);
@@ -333,10 +336,11 @@ export class Table extends EventDispatcher  {
       let parent = this.scaleCont
       let rhex = this.hexMap[7][0] as Hex2; //getCornerHex('W') as Hex2;
       let rhpt = rhex.cont.parent.localToLocal(rhex.x - 9 * this.hexMap.colWidth, rhex.y, parent)
+      this.bagLog.x = rhpt.x; this.bagLog.y = rhpt.y - this.turnLog.height(1);;
       this.turnLog.x = rhpt.x; this.turnLog.y = rhpt.y;
       this.textLog.x = rhpt.x; this.textLog.y = rhpt.y + this.turnLog.height(Player.allPlayers.length + 1);
 
-      parent.addChild(this.turnLog, this.textLog);
+      parent.addChild(this.bagLog, this.turnLog, this.textLog);
       parent.stage.update()
     }
 
@@ -966,6 +970,7 @@ export class AuctionShifter2 extends AuctionShifter {
     counter.attachToContainer(counterCont, { x:  x0 -1.5 * rad, y: y0 - .2 * rad }, this.tileBag, TileBag.event, );
     table.gamePlay.dice.setContainer(counterCont,x0 -1.5 * rad,    y0 + .7 * rad);
     counter.mouseEnabled = true;
-    counter.on(S.click, this.table.gamePlay.showBag, this.table.gamePlay)
+    //counter.on(S.click, (evt) => table.logInBag('onClick'), table);
+    this.tileBag.on(TileBag.event, table.logInBag, table);
   }
 }

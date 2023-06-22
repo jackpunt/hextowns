@@ -4,7 +4,7 @@ import { Container } from "@thegraid/easeljs-module";
 import { EzPromise } from "@thegraid/ezpromise";
 import { AuctionTile, Bank, Busi, Lake, PS, Resi, TileBag, } from "./auction-tile";
 import { CostIncCounter } from "./counters";
-import { BagType, EventTile } from "./event-tile";
+import { EventTile } from "./event-tile";
 import { GameSetup } from "./game-setup";
 import { Hex, Hex2, HexMap, IHex } from "./hex";
 import { H } from "./hex-intfs";
@@ -17,7 +17,7 @@ import { GameStats, TableStats } from "./stats";
 import { LogWriter } from "./stream-writer";
 import { AuctionShifter, Table } from "./table";
 import { PlayerColor, PlayerColorRecord, TP, criminalColor, otherColor, playerColorRecord, playerColors, } from "./table-params";
-import { AuctionBonus, BonusTile, Monument, Tile, TownRules } from "./tile";
+import { AuctionBonus, BagType, BonusTile, Monument, Tile, TownRules } from "./tile";
 import { TileSource } from "./tile-source";
 //import { NC } from "./choosers";
 
@@ -249,7 +249,7 @@ export class GamePlay0 {
     let tile0 = this.shifter.tile0(this.curPlayerNdx);
     while (tile0 instanceof EventTile && !allowEvent) {
       console.log(stime(this, `.shiftAndProcess: event to bag: ${AT.ansiText(['red'], tile0.Aname)}`));
-      tile0.moveToBag();  // note: DO NOT sendHome()
+      tile0.sendToBag();  // note: DO NOT sendHome()/finishEvent()
       this.shiftAuction(undefined, alwaysShift);
       tile0 = this.shifter.tile0(this.curPlayerNdx);
     }
@@ -657,7 +657,6 @@ export class GamePlay extends GamePlay0 {
     KeyBinder.keyBinder.setKey('u', { thisArg: this, func: this.unMove })
     KeyBinder.keyBinder.setKey('i', { thisArg: this, func: () => {table.showInf = !table.showInf; this.hexMap.update() } })
     KeyBinder.keyBinder.setKey('M-C', { thisArg: this, func: this.autoCrime, argVal: true })// S-M-C (force)
-    KeyBinder.keyBinder.setKey('S-?', { thisArg: this, func: () => this.showBag() })
     KeyBinder.keyBinder.setKey('S-B', { thisArg: this, func: () => this.drawTile(Busi) })
     KeyBinder.keyBinder.setKey('S-R', { thisArg: this, func: () => this.drawTile(Resi) })
     KeyBinder.keyBinder.setKey('S-K', { thisArg: this, func: () => this.drawTile(Bank) })
@@ -676,11 +675,6 @@ export class GamePlay extends GamePlay0 {
     table.undoShape.on(S.click, () => this.undoMove(), this)
     table.redoShape.on(S.click, () => this.redoMove(), this)
     table.skipShape.on(S.click, () => this.skipMove(), this)
-  }
-
-  showBag() {
-    this.logText(`${this.shifter.tileBag.inTheBagStr()}`, `GamePlay.showBag`);
-    //console.log(stime(this, `.inTheBag:`), this.shifter.tileBag.inTheBag());
   }
 
   drawTile(type: new (...args: any[]) => AuctionTile) {

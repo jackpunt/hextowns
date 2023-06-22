@@ -7,9 +7,9 @@ import { H } from "./hex-intfs";
 import type { Player } from "./player";
 import { DragContext } from "./table";
 import { TP } from "./table-params";
-import { AuctionBonus, Bonus, BonusMark, Tile } from "./tile";
+import { AuctionBonus, BagType, Bonus, BonusMark, Tile } from "./tile";
 
-export class AuctionTile extends Tile {
+export class AuctionTile extends Tile implements BagType {
 
   static fillBag(tileBag: TileBag<AuctionTile>) {
     const addTiles = (n: number, type: new () => AuctionTile) => {
@@ -34,13 +34,13 @@ export class AuctionTile extends Tile {
 
   sendToBag() {
     console.log(stime(this, `.sendHome: tileBag.unshift()`), this.Aname, this.player?.colorn, this);
+    this.player = undefined;
     GP.gamePlay.shifter.tileBag.unshift(this);
   }
 
   // from map: capture/destroy; from auction: outShift; from Market: recycle [unlikely]
   override sendHome(): void {
     super.sendHome(); // resetTile(); this.hex = undefined
-    this.player = undefined;
     this.sendToBag();
     GP.gamePlay.hexMap.update();
   }
