@@ -138,6 +138,11 @@ export class Meeple extends Tile {
     return hex.isOnMap;
   }
 
+  override isLegalRecycle(ctx: DragContext) {
+    if (this.player !== GP.gamePlay.curPlayer && this.hex.getInfT(GP.gamePlay.curPlayer.color) <= this.hex.getInfT(this.player.color)) return false;
+    return true;
+  }
+
   override showCostMark(show?: boolean): void {
     super.showCostMark(show, -.4);
   }
@@ -193,9 +198,9 @@ export class Leader extends Meeple {
   civicTile: Civic;               // Leader deploys to civicTile & extra VP when on civicTile
 
   // VP bonus when Leader is on CivicTile
-  override get vp()   { return super.vp   + (this.civicTile !== this.hex.tile ? 0 : TP.vpOnCivic); }
+  override get vp()   { return super.vp   + (this.civicTile !== this.hex?.tile ? 0 : TP.vpOnCivic); }
   // InfP bonus when Leader is on CivicTile [if enabled by TP.infOnCivic]
-  override get infP() { return super.infP + (this.civicTile !== this.hex.tile ? 0 : TP.infOnCivic); }
+  override get infP() { return super.infP + (this.civicTile !== this.hex?.tile ? 0 : TP.infOnCivic); }
 
   constructor(tile: Civic, abbrev: string) {  // Leader(name, player, inf, vp, cost, econ)
     super(`${abbrev}:${tile.player.index}`, tile.player, 1, 1, TP.leaderCost, TP.leaderEcon);

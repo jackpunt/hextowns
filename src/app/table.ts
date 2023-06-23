@@ -453,11 +453,11 @@ export class Table extends EventDispatcher  {
       }
 
       const pRowCol = [[2, 0], [2, -1], [1, -1], [3, -1], [4, -1], [4, 0]];
-      p.policySlots.forEach((hex, ndx, ary) => { TP.nPolicySlots;
+      TP.nPolicySlots; p.policyHexes.forEach((hex, ndx, ary) => {
         const [r, c] = pRowCol[ndx];
         const pHex = this.homeRowHex(`policy:${pIndex}-${ndx}`, colf(c, r), 0);
         ary[ndx] = pHex;
-      })
+      });
       {
         // the [colx, rowy] grid is NOT aligned with hexMap... (although 2 is close...)
         const adjC = (col: number) => ((col - .165) * 1.2);
@@ -537,11 +537,11 @@ export class Table extends EventDispatcher  {
     };
     const adjC = (n: number) => (n * 1.2);
     layoutCounter('action', C.YELLOW, rowy(0));
-    layoutCounter('Coin', C.coinGold, rowy(1));
-    layoutCounter('Econ', C.GREEN, rowy(1), adjC(1 + index), false);
+    layoutCounter('coin', C.coinGold, rowy(1)); // --> player.coins
+    layoutCounter('econ', C.GREEN, rowy(1), adjC(1 + index), false); // --> player.econs
     layoutCounter('expense', C.GREEN, rowy(1), adjC(2 - index), false);
-    layoutCounter('infl', 'grey', rowy(2));
-    layoutCounter('econ', 'white', rowy(3));
+    layoutCounter('Infl', 'grey', rowy(2));
+    layoutCounter('Econ', 'white', rowy(3));
     layoutCounter('capture', 'lightblue', rowy(4), adjC(-2));
     const vpC = layoutCounter('vp', C.briteGold, rowy(4), 0, false);
     layoutCounter('vp0', C.briteGold, rowy(4), adjC(-1), vpC);
@@ -732,7 +732,7 @@ export class Table extends EventDispatcher  {
     const info = { turn: `#${tn}`, plyr: plyr.Aname, coins, econs, vps, tvps, vpr, prev, gamePlay: this.gamePlay, board }
     console.log(stime(this, `.logCurPlayer --${robo}--`), info);
     const inc = plyr.econs + plyr.expenses;
-    this.logTurn(`#${tn}: ${plyr.Aname} ${dice} \$${plyr.coins} ${inc >= 0 ? '+' : '-'}${inc} vp: ${plyr.vps} vp/r: ${vpr}`);
+    this.logTurn(`#${tn}: ${plyr.Aname} ${dice} \$${coins} ${inc >= 0 ? '+' : '-'}${inc} vp: ${vps} tvp: ${tvps}`);
   }
   showRedoUndoCount() {
     this.undoText.text = `${this.gamePlay.undoRecs.length}`

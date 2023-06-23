@@ -191,7 +191,7 @@ export class InflToken extends BonusToken {
   static colorn = C.nameToRgbaString(C.grey, .8);
 
   static makeSource(player: Player, hex: Hex2, n = 0) {
-    return BonusToken.makeSource0(TokenSource, InflToken, player.inflCounter, player, hex, n);
+    return BonusToken.makeSource0(TokenSource, InflToken, player.InflCounter, player, hex, n);
   }
 
   constructor(source: TokenSource, player: Player, inf: TileInf = 0, vp = 0, cost = 0, econ = 0) {
@@ -217,7 +217,7 @@ export class InflToken extends BonusToken {
 export class EconToken extends BonusToken {
 
   static makeSource(player: Player, hex: Hex2, n = 0) {
-    return BonusToken.makeSource0(TokenSource, EconToken, player.econCounter, player, hex, n);
+    return BonusToken.makeSource0(TokenSource, EconToken, player.EconCounter, player, hex, n);
   }
 
   constructor(source: TokenSource, player: Player, inf: TileInf = 0, vp = 0, cost = 0, econ = 0) {
@@ -272,39 +272,40 @@ export class StarToken extends BonusToken {
 // https://www.typescriptlang.org/docs/handbook/mixins.html
 export function BuyTokenMixin(Base: Constructor<BonusToken>) {
   return class BuyToken extends Base {
-  static makeSource1(claz: Constructor<BuyToken>, player: Player, hex: Hex2, n = 0) {
-    const source = BonusToken.makeSource0(TokenSource, claz, undefined, player, hex, n);
-    source.counter.visible = false;
-    return source;
-  }
+    static makeSource1(claz: Constructor<BuyToken>, player: Player, hex: Hex2, n = 0) {
+      const source = BonusToken.makeSource0(TokenSource, claz, undefined, player, hex, n);
+      source.counter.visible = false;
+      return source;
+    };
 
-  // make this look like
-  constructor(source: TokenSource, player: Player, inf: TileInf = 0, vp = 0, cost = 0, econ = 0) {
-    super(source, player, inf, vp, cost, econ); // new Infl(source, player, serial, inf, ...)
-    this.homeHex = source.hex;
-  }
+    static counterName = { infl: 'InflCounter', econ: 'EconCounter' };
 
-  override isLegalTarget(toHex: Hex, ctx?: DragContext): boolean {
-    if (!GP.gamePlay.reserveHexes[GP.gamePlay.curPlayerNdx].includes(toHex)) return false;
-    if (GP.gamePlay.failToPayCost(this, toHex, false)) return false;
-    return true;
-  }
-
-  get bonusCounter() {
-    return GP.gamePlay.curPlayer[`${this.bonusType}Counter`] as NumCounter;
-  }
-
-  override dropFunc(hex: Hex2, ctx: DragContext): void {
-    if (hex?.isLegal) {
-      GP.gamePlay.failToPayCost(this, hex, true);
-      this.bonusCounter.incValue(1);
-      this.sendHome();
-      return;
+    // make this look like
+    constructor(source: TokenSource, player: Player, inf: TileInf = 0, vp = 0, cost = 0, econ = 0) {
+      super(source, player, inf, vp, cost, econ); // new Infl(source, player, serial, inf, ...)
+      this.homeHex = source.hex;
     }
-    super.dropFunc(hex, ctx);
-  }
-}
 
+    override isLegalTarget(toHex: Hex, ctx?: DragContext): boolean {
+      if (!GP.gamePlay.reserveHexes[GP.gamePlay.curPlayerNdx].includes(toHex)) return false;
+      if (GP.gamePlay.failToPayCost(this, toHex, false)) return false;
+      return true;
+    }
+
+    get bonusCounter() {
+      return GP.gamePlay.curPlayer[`${BuyToken.counterName[this.bonusType]}`] as NumCounter;
+    }
+
+    override dropFunc(hex: Hex2, ctx: DragContext): void {
+      if (hex?.isLegal) {
+        GP.gamePlay.failToPayCost(this, hex, true);
+        this.bonusCounter.incValue(1);
+        this.sendHome();
+        return;
+      }
+      super.dropFunc(hex, ctx);
+    }
+  }
 }
 
 export class BuyInfl extends BuyTokenMixin(InflToken) {

@@ -413,7 +413,7 @@ export class Tile extends Tile0 {
 
   overSet(tile: Tile) {
     if (!(tile instanceof BonusTile)
-      && !(GP.gamePlay.playerReserveHexes.includes(tile.hex))) {
+      && !(GP.gamePlay.isReserveHex(tile.hex))) {
       let k = false;
       if (k) debugger; // unless reserveHexes.includes(hex)
     }
@@ -430,18 +430,23 @@ export class Tile extends Tile0 {
 
   /** Tile.dropFunc() --> placeTile (to Map, reserve, ~>auction; not Recycle); semantic move/action. */
   placeTile(toHex: Hex, payCost = true) {
-    const priorTile = toHex.tile; // generally undefined; except BonusTile (or ReserveHexes.tile)
     GP.gamePlay.placeEither(this, toHex, payCost);
-    const bonus = (priorTile instanceof BonusTile) && priorTile.bonus;
-    // now ok to increase 'cost' of this Tile.
-    if (bonus) {
-      this.player.takeBonus(priorTile); // deposit Infls & Actns with Player;
-      priorTile.moveBonusTo(this);      // and priorTile.sendHome()
-    }
   }
 
-  // compare to gamePlay.placeEither()
-  flipPlayer(player: Player, gamePlay = GP.gamePlay) {
+  flipOwner(targetHex: Hex2, ctx: DragContext) {
+    const gamePlay = GP.gamePlay, player = ctx.lastCtrl ? this.player.otherPlayer : gamePlay.curPlayer;
+    if (targetHex.isOnMap && (targetHex === this.fromHex)) {
+      const infT = this.hex.getInfT(this.player?.color);
+      if (targetHex.getInfT(player.color) > infT || ctx.lastCtrl) {
+        this.flipPlayer(player, gamePlay); // flip if Infl or ctrlKey:
+      }
+      return true;
+    }
+    return false;
+  }
+
+  // flipOwer->flipPlayer; compare to gamePlay.placeEither()
+  private flipPlayer(player: Player, gamePlay = GP.gamePlay) {
     gamePlay.logText(`Flip ${this} to ${player.colorn}`, `FlipableTile.flipPlayer`);
     this.debt?.sendHome(); // foreclose any mortgage
     const hex = this.hex, hadInfP = (this.infP + this.bonusInf()) > 0; // Monument && bonusInf
@@ -456,20 +461,6 @@ export class Tile extends Tile0 {
     }
     player.updateCounters();
     gamePlay.hexMap.update();
-  }
-
-  flipOwner(targetHex: Hex2, ctx: DragContext) {
-    const gamePlay = GP.gamePlay, player = ctx.lastCtrl ? this.player.otherPlayer : gamePlay.curPlayer;
-
-    if (targetHex.isOnMap && (targetHex === this.fromHex)) {
-      const infT = this.hex.getInfT(this.player?.color);
-      if (targetHex.getInfT(player.color) > infT || ctx.lastCtrl) {
-        // flip if Infl or ctrlKey:
-        this.flipPlayer(player, gamePlay);
-      }
-      return true;
-    }
-    return false;
   }
 
   resetTile() {
@@ -542,7 +533,7 @@ export class Tile extends Tile0 {
     if (!toHex) return false;
     if (!!toHex.tile
       && !(toHex.tile instanceof BonusTile)
-      && !(GP.gamePlay.playerReserveHexes.includes(toHex))
+      && !(GP.gamePlay.isReserveHex(toHex))
     ) return false; // note: from AuctionHexes to Reserve overrides this.
     if (toHex.meep && !(toHex.meep.player === GP.gamePlay.curPlayer)) return false; // QQQ: can place on non-player meep?
     if (GP.gamePlay.failToPayCost(this, toHex, false)) return false;

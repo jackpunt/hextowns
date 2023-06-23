@@ -7,7 +7,7 @@ import { H } from "./hex-intfs";
 import type { Player } from "./player";
 import { DragContext } from "./table";
 import { TP } from "./table-params";
-import { AuctionBonus, BagType, Bonus, BonusMark, Tile } from "./tile";
+import { AuctionBonus, BagType, Bonus, BonusMark, BonusTile, Tile } from "./tile";
 
 export class AuctionTile extends Tile implements BagType {
 
@@ -68,23 +68,18 @@ export class AuctionTile extends Tile implements BagType {
 
   override isLegalTarget(toHex: Hex, ctx?: DragContext): boolean {
     if (!super.isLegalTarget(toHex, ctx))
-      return false; // allows dropping on occupied reserveHexes
+      return false;
     const gamePlay = GP.gamePlay;
+    // allows dropping on occupied reserveHexes:
     if (!toHex.isOnMap) {
-      const reserveHexes = gamePlay.playerReserveHexes;
-      // AuctionTile can go toReserve:
-      if (reserveHexes.includes(toHex))
-        return true;
+      if (gamePlay.isReserveHex(toHex)) return true;   // AuctionTile can go toReserve:
       // TODO: during dev/testing: allow return to auctionHexes, if fromReserve
-      if (ctx?.lastShift
-        && gamePlay.auctionHexes.includes(toHex as Hex2)
-        && reserveHexes.includes(this.hex))
+      if (ctx?.lastShift && gamePlay.isReserveHex(this.hex) && gamePlay.auctionHexes.includes(toHex))
         return true;
       return false;
     }
     // Now consider toHex.isOnMap:
-    if (ctx.lastShift)
-      return true; // Shift key makes all isOnMap legal!
+    if (ctx.lastShift) return true; // Shift key allows map-to-map & failToBalance
 
     // Cannot move a tile that is already on the map:
     if (this.hex.isOnMap)
@@ -99,17 +94,26 @@ export class AuctionTile extends Tile implements BagType {
 
   // AuctionTile
   override dropFunc(targetHex: Hex2, ctx: DragContext) {
-    const gamePlay = GP.gamePlay, player = gamePlay.curPlayer;
-    if (this.flipOwner(targetHex, ctx)) {
-      super.dropFunc(targetHex, ctx);
-      return;
-    }
-
-    gamePlay.removeFromReserve(this);
-    gamePlay.removeFromAuction(this);
-
-    // placeTile(this, targetHex); moveTo(targetHex);
+    this.flipOwner(targetHex, ctx);
     super.dropFunc(targetHex, ctx); // set this.hex = targetHex, this.fromHex.tile = undefined;
+  }
+
+  override placeTile(hex: Hex, payCost?: boolean): void {
+    const gamePlay = GP.gamePlay, player = gamePlay.curPlayer;
+
+    gamePlay.removeFromAuction(this);
+    gamePlay.removeFromReserve(this);
+
+    const priorTile = hex.tile; // generally undefined; except BonusTile (or ReserveHexes.tile)
+    const bonus = (priorTile instanceof BonusTile) && priorTile.bonus;
+
+    super.placeTile(hex, payCost);
+
+    // now ok to increase 'cost' of this Tile.
+    if (bonus) {
+      this.player.takeBonus(priorTile); // deposit Infls & Actns with Player;
+      priorTile.moveBonusTo(this);      // and priorTile.sendHome()
+    }
 
     // if from market source:
     gamePlay.fromMarket(this.fromHex)?.nextUnit();
@@ -118,7 +122,8 @@ export class AuctionTile extends Tile implements BagType {
     // special treatment for where tile landed:
     const toHex = this.hex as Hex2; // where GamePlay.placeTile() put it (recycle: homeHex or undefined)
 
-    if (toHex?.isOnMap) {
+    if (toHex?.isOnMap && !this.fromHex.isOnMap) { // ctx.lastCtrl allows map-to-map
+      this.player.takeBonus(this);
       player.useAction(); // Build
     }
     // add TO auctionTiles (from reserveHexes; see isLegalTarget) FOR TEST & DEV
@@ -131,8 +136,8 @@ export class AuctionTile extends Tile implements BagType {
     }
     // add TO reserveTiles:
     const rIndex = gamePlay.playerReserveHexes.indexOf(toHex);
-    const info = [this.Aname, ctx.targetHex.Aname, this.bonus];
     if (rIndex >= 0) {
+      const info = [this.Aname, this.hex?.Aname, this.bonus];
       console.log(stime(this, `.dropFunc: Reserve[${rIndex}]`), ...info);
       gamePlay.reserveAction(this, rIndex);
       player.useAction(); // Reserve

@@ -4,11 +4,10 @@ import { Container } from "@thegraid/easeljs-module";
 import { EzPromise } from "@thegraid/ezpromise";
 import { AuctionTile, Bank, Busi, Lake, PS, Resi, TileBag, } from "./auction-tile";
 import { CostIncCounter } from "./counters";
-import { EventTile } from "./event-tile";
+import { EvalTile, EventTile, PolicyTile } from "./event-tile";
 import { GameSetup } from "./game-setup";
 import { Hex, Hex2, HexMap, IHex } from "./hex";
 import { H } from "./hex-intfs";
-import { StarToken } from "./infl";
 import { Criminal, Meeple } from "./meeple";
 import type { Planner } from "./plan-proxy";
 import { Player } from "./player";
@@ -67,6 +66,7 @@ export class GamePlay0 {
   readonly reserveTiles: AuctionTile[][] = [[],[]];   // per player; 2-players, TP.reserveTiles
   readonly reserveHexes: Hex[][] = [[], []];          // target Hexes for reserving a Tile.
   get playerReserveHexes() { return this.reserveHexes[this.curPlayerNdx]; }
+  isReserveHex(hex: Hex) { return this.playerReserveHexes.includes(hex) };
 
   readonly marketTypes = [Busi, Resi, Monument];
   readonly marketSource: { Busi?: TileSource<Busi>, Resi?: TileSource<Resi>, Monument?: TileSource<Monument> }[] = [{},{}];
@@ -158,7 +158,7 @@ export class GamePlay0 {
   rollDiceForBonus() {
     let dice = this.dice.roll();
     dice.sort(); // ascending
-    console.log(stime(this, `.startTurn: Dice =`), dice)
+    console.log(stime(this, `.endTurn2: Dice =`), dice)
     if (dice[0] == 1 && dice[1] == 1) { this.addBonus('actn'); }
     if (dice[0] == 2 && dice[1] == 2) { this.addBonus('star'); }
     if (dice[0] == 3 && dice[1] == 3) { this.addBonus('infl'); }
@@ -207,6 +207,7 @@ export class GamePlay0 {
     return stack;
   }
 
+  /** put BonusTiles on map */
   addBonusTiles() {
     const tiles = (this.permute(['infl', 'star', 'econ', 'actn']) as AuctionBonus[]).map(type => new BonusTile(type));
     let hex = this.hexMap.centerHex as Hex;
@@ -219,7 +220,7 @@ export class GamePlay0 {
     this.shifter.shift(pNdx, alwaysShift, forceDraw);
   }
   private forceDrawNdx = -1;   // tweak in debugger to force draw Tile of specific type:
-  get forceDrawType(): Constructor<BagType> { return [EventTile, Resi, Busi, PS, Lake, Bank][this.forceDrawNdx]; }
+  get forceDrawType(): Constructor<BagType> { return [EventTile, PolicyTile, Resi, Busi, PS, Lake, Bank][this.forceDrawNdx]; }
 
   eventInProcess: EzPromise<void>;
   async awaitEvent(init: () => void) {
@@ -231,29 +232,30 @@ export class GamePlay0 {
     this.eventInProcess.fulfill();
   }
 
-  async processEventTile(tile0: EventTile) {
+  async processEventTile(tile0: EvalTile) {
     // manually D&D event (to Player.Policies or RecycleHex)
     // EventTile.dropFunc will: gamePlay.finishEvent();
     await this.awaitEvent(() => {
       // tile0.setPlayerAndPaint(this.curPlayer);
-      tile0.moveTo(this.eventHex)
+      tile0.moveTo(this.eventHex);
+      this.hexMap.update();
     });
   }
 
   async shiftAndProcess(func?: () => void, alwaysShift = false, allowEvent = true, drawType?: Constructor<BagType>) {
-    if (this.eventHex.tile) {
-      console.log(stime(this, `.shiftAndProcess: must dismiss event: ${AT.ansiText(['red'], this.eventHex.tile.Aname)}`))
+    if (this.eventHex.tile instanceof EvalTile) {
+      console.log(stime(this, `.shiftAndProcess: must dismiss event: ${this.eventHex.tile.nameString()}`))
       return;
     }
     this.shiftAuction(undefined, alwaysShift, drawType);
     let tile0 = this.shifter.tile0(this.curPlayerNdx);
-    while (tile0 instanceof EventTile && !allowEvent) {
-      console.log(stime(this, `.shiftAndProcess: event to bag: ${AT.ansiText(['red'], tile0.Aname)}`));
+    while (tile0 instanceof EvalTile && !allowEvent) {
+      console.log(stime(this, `.shiftAndProcess: event to bag: ${tile0.nameString()}`));
       tile0.sendToBag();  // note: DO NOT sendHome()/finishEvent()
       this.shiftAuction(undefined, alwaysShift);
       tile0 = this.shifter.tile0(this.curPlayerNdx);
     }
-    if (tile0 instanceof EventTile) {
+    if (tile0 instanceof EvalTile) {
       await this.processEventTile(tile0);
       this.shiftAndProcess(func, alwaysShift, TP.allowMultiEvent);
     } else {
@@ -267,7 +269,7 @@ export class GamePlay0 {
    */
   endTurn() {
     if (!!this.eventHex.tile) {
-      console.log(stime(this, `.endTurn: must dismiss Event: ${AT.ansiText(['red'], this.eventHex.tile.Aname)}`));
+      console.log(stime(this, `.endTurn: must dismiss Event: ${this.eventHex.tile.nameText}`));
       return; // can't end turn until Event is dismissed.
     }
     if (!this.eventsInBag && !Player.allPlayers.find(plyr => plyr.econs < TP.econsForEvents)) {
@@ -279,6 +281,7 @@ export class GamePlay0 {
   }
   endTurn2() {
     this.rollDiceForBonus();
+    this.curPlayer.policyHexes.forEach(hex => hex.tile instanceof PolicyTile && hex.tile.eval1());
     this.curPlayer.totalVps += this.curPlayer.vps;
     this.setNextPlayer();
   }
@@ -438,7 +441,7 @@ export class GamePlay0 {
   /** Meeple.dropFunc() --> place Meeple (to Map, reserve; not Recycle) */
   // from Meeple.dropFunc, recruitAction, autoCrime, unmove2
   placeMeep(meep: Meeple, toHex: Hex, payCost = true) {
-    meep.placeTile(toHex, payCost);
+    meep.placeTile(toHex, payCost); // --> GP.placeEither()
   }
 
   // from tile.dropFunc, buildAction, placeTown
@@ -515,7 +518,7 @@ export class GamePlay0 {
     if (rIndex > 0) this.reserveTiles[pIndex][rIndex] = undefined;
     let aIndex = this.auctionTiles.indexOf(tile);
     if (aIndex > 0) this.auctionTiles[aIndex] = undefined;
-    this.placeTile(tile, hex);
+    this.placeTile(tile, hex);  // buildAction
     return true;
   }
 }
@@ -646,6 +649,7 @@ export class GamePlay extends GamePlay0 {
     KeyBinder.keyBinder.setKey('Escape', {thisArg: table, func: table.stopDragging}) // Escape
     KeyBinder.keyBinder.setKey('C-a', { thisArg: this, func: () => { this.shiftAndProcess(undefined, true)} })  // C-a new Tile
     KeyBinder.keyBinder.setKey('C-A', { thisArg: this, func: () => { this.shiftAndProcess(undefined, true, true, EventTile)} })  // C-A shift(Event)
+    KeyBinder.keyBinder.setKey('C-M-a', { thisArg: this, func: () => { this.shiftAndProcess(undefined, true, true, PolicyTile)} })  // C-M-a shift(Policy)
     KeyBinder.keyBinder.setKey('C-s', { thisArg: this.gameSetup, func: () => { this.gameSetup.restart() } })// C-s START
     KeyBinder.keyBinder.setKey('C-c', { thisArg: this, func: this.stopPlayer })// C-c Stop Planner
     KeyBinder.keyBinder.setKey('m', { thisArg: this, func: this.makeMove, argVal: true })
@@ -823,7 +827,7 @@ export class GamePlay extends GamePlay0 {
     super.setNextPlayer(plyr);
     this.paintForPlayer();
     this.updateCostCounters();
-    Player.updateCounters(plyr); // beginning of round...
+    Player.updateCounters(); // beginning of round...
     this.logText(this.shifter.tileNames(this.curPlayerNdx), `GamePlay.setNextPlayer`);
     this.table.buttonsForPlayer[this.curPlayerNdx].visible = true;
     this.table.showNextPlayer(); // get to nextPlayer, waitPaused when Player tries to make a move.?

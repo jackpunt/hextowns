@@ -1,15 +1,15 @@
-import { stime } from "@thegraid/common-lib"
-import { DecimalCounter, NumCounter } from "./counters"
-import { Debt } from "./debt"
-import { GamePlay, GamePlay0 } from "./game-play"
-import { GP } from "./game-play";
-import type { Hex } from "./hex"
-import { HexDir } from "./hex-intfs"
-import { Criminal, CriminalSource, Leader, Meeple, Police } from "./meeple"
-import { IPlanner, newPlanner } from "./plan-proxy"
-import { CenterText } from "./shapes"
-import { PlayerColor, TP, playerColors } from "./table-params"
-import { Civic, Tile, TownRules, TownStart } from "./tile"
+import { stime } from "@thegraid/common-lib";
+import { DecimalCounter, NumCounter } from "./counters";
+import { Debt } from "./debt";
+import { PolicyTile } from "./event-tile";
+import { GP, GamePlay, GamePlay0 } from "./game-play";
+import type { Hex } from "./hex";
+import { HexDir } from "./hex-intfs";
+import { Criminal, CriminalSource, Leader, Meeple, Police } from "./meeple";
+import { IPlanner, newPlanner } from "./plan-proxy";
+import { CenterText } from "./shapes";
+import { PlayerColor, TP } from "./table-params";
+import { Civic, Tile, TownRules, TownStart } from "./tile";
 import { UnitSource } from "./tile-source";
 
 export class Player {
@@ -17,19 +17,18 @@ export class Player {
   static playerStartDir: HexDir[] = ['NW', 'E', 'SW'];
 
 
-  /** econ, expense, vp */
-  static updateCounters(curPlayer?: Player) {
-    Player.allPlayers.forEach(player => {
-      player.EconCounter.setValue(player.econs)
-      player.expenseCounter.setValue(player.expenses)
-      player.vpCounter.setValue(player.vps)
-      //if (player && player !== curPlayer) player.totalVpCounter.setValue(player.totalVps)
-      player.balanceText.text = GP.gamePlay.playerBalanceString(player);
-    })
-    GP.gamePlay.hexMap.update()
+  /** update Counters (econ, expense, vp) for ALL players. */
+  static updateCounters() {
+    Player.allPlayers.forEach(player => player.updateCounters());
   }
-  updateCounters(curPlayer?: Player) {
-    Player.updateCounters(curPlayer);
+
+  updateCounters() {
+    this.econCounter.setValue(this.econs)
+    this.expenseCounter.setValue(this.expenses)
+    this.vpCounter.setValue(this.vps)
+    //if (player && player !== curPlayer) player.totalVpCounter.setValue(player.totalVps)
+    this.balanceText.text = GP.gamePlay.playerBalanceString(this);
+    GP.gamePlay.hexMap.update();
   }
 
   readonly Aname: string;
@@ -48,6 +47,7 @@ export class Player {
   get nCivics() { return this.civicTiles.filter(tile => tile.hex.isOnMap).length; }
   // Player's B, M, P, D, Police & Criminals-claimed
   get meeples() { return Meeple.allMeeples.filter(meep => meep.player == this) };
+  get criminals() { return Meeple.allMeeples.filter(meep => meep instanceof Criminal) };
   // Resi/Busi/PS/Lake/Civics in play on Map
   get debts() { return Tile.allTiles.filter(t => (t instanceof Debt) && t.tile?.player === this) as Debt[] }
   get tiles() { return Tile.allTiles.filter(t => !(t instanceof Meeple) && t.player == this) }
@@ -56,22 +56,29 @@ export class Player {
 
   policeSource: UnitSource<Police>;
   criminalSource: CriminalSource;
-  readonly policySlots: Hex[] = new Array<Hex>(TP.nPolicySlots).fill(undefined);
+  readonly policyHexes: Hex[] = new Array<Hex>(TP.nPolicySlots).fill(undefined);
+  isPolicyHex(hex: Hex) {
+    return this.policyHexes.includes(hex);
+  }
 
   readonly balanceText = new CenterText('[...]')
 
   // Created in masse by Table.layoutCounter
-  inflCounter: NumCounter;
-  get infls() { return this.inflCounter?.getValue(); }
-  set infls(v: number) { this.inflCounter?.updateValue(v); }
+  coinCounter: NumCounter; // set by layoutCounters: `${'Coin'}Counter`
+  get coins() { return this.coinCounter?.getValue(); }
+  set coins(v: number) { this.coinCounter?.updateValue(v); }
 
   econCounter: NumCounter;
-  // get econs() { return this.inflCounter?.getValue(); }
-  // set econs(v: number) { this.inflCounter?.updateValue(v); }
-
-  CoinCounter: NumCounter;
-  get coins() { return this.CoinCounter?.getValue(); }
-  set coins(v: number) { this.CoinCounter?.updateValue(v); }
+  get econs() {
+    let econ = 0;
+    this.gamePlay.hexMap.forEachHex(hex => {
+      if ((hex.tile?.player == this) && !(hex.meep instanceof Criminal)) {
+        econ += hex.tile.econ;
+        // console.log(stime(this, `.econs`), hex.tile.Aname, hex.Aname, hex.tile.econ, econ);
+      }
+    })
+    return econ;
+  }
 
   actionCounter: NumCounter;
   get actions() { return this.actionCounter?.getValue(); }
@@ -80,6 +87,7 @@ export class Player {
     this.actions -= 1;
   }
 
+  /** deposit Infls & Actns with Player */
   takeBonus(tile: Tile) {
     if (tile?.bonus['actn']) {
       this.actions += 1;              // triggers actionCounter.updateValue
@@ -91,21 +99,6 @@ export class Player {
     }
   }
 
-  captureCounter: NumCounter;
-  get captures() { return this.captureCounter?.getValue(); }
-  set captures(v: number) { this.captureCounter?.updateValue(v); }
-
-  EconCounter: NumCounter;
-  get econs() {
-    let econ = 0;
-    this.gamePlay.hexMap.forEachHex(hex => {
-      if ((hex.tile?.player == this) && !(hex.meep instanceof Criminal)) {
-        econ += hex.tile.econ;
-        // console.log(stime(this, `.econs`), hex.tile.Aname, hex.Aname, hex.tile.econ, econ);
-      }
-    })
-    return econ;
-  }
   expenseCounter: NumCounter;
   get expenses() {
     let expense = 0
@@ -120,6 +113,16 @@ export class Player {
     })
     return expense
   }
+
+  // incremented via: player[`${BuyToken.counterNames['infl','econ']}`].incValue();
+  EconCounter: NumCounter; // TokenSource<EconToken>.counter C.white counter
+  InflCounter: NumCounter; // TokenSource<InflToken>.counter C.grey counter
+  get infls() { return this.InflCounter?.getValue(); }       // for gamePlay.failToPayCost()
+  set infls(v: number) { this.InflCounter?.updateValue(v); }
+
+  captureCounter: NumCounter;
+  get captures() { return this.captureCounter?.getValue(); }
+  set captures(v: number) { this.captureCounter?.updateValue(v); }
 
   vp0Counter: NumCounter; // adjustment to VP from Event/Policy
   get vp0() { return this.vp0Counter.getValue(); }
@@ -195,6 +198,7 @@ export class Player {
     // }) : undefined
     this.planner = newPlanner(gamePlay.hexMap, this.index)
   }
+
   newTurn() {
     // faceUp and record start location:
     this.meeples.forEach(meep => meep.hex?.isOnMap ? meep.faceUp() : meep.startHex = undefined);
@@ -209,7 +213,9 @@ export class Player {
       }
     });
     this.actions = 1;
+    this.policyHexes.forEach(hex => (hex.tile instanceof PolicyTile) && hex.tile.eval0());
   }
+
   stopMove() {
     this.planner?.roboMove(false)
   }
