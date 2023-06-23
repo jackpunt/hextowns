@@ -1,4 +1,4 @@
-import { stime } from "@thegraid/common-lib";
+import { Constructor, stime } from "@thegraid/common-lib";
 import { DecimalCounter, NumCounter } from "./counters";
 import { Debt } from "./debt";
 import { PolicyTile } from "./event-tile";
@@ -9,7 +9,7 @@ import { Criminal, CriminalSource, Leader, Meeple, Police } from "./meeple";
 import { IPlanner, newPlanner } from "./plan-proxy";
 import { CenterText } from "./shapes";
 import { PlayerColor, TP } from "./table-params";
-import { Civic, Tile, TownRules, TownStart } from "./tile";
+import { Civic, MapTile, Tile, TownRules, TownStart } from "./tile";
 import { UnitSource } from "./tile-source";
 
 export class Player {
@@ -44,18 +44,22 @@ export class Player {
   }
 
   readonly civicTiles: Civic[] = [];            // Player's S, H, C, U Tiles
+  /** Civic.hex.isOnMap */
   get nCivics() { return this.civicTiles.filter(tile => tile.hex.isOnMap).length; }
-  // Player's B, M, P, D, Police & Criminals-claimed
-  get meeples() { return Meeple.allMeeples.filter(meep => meep.player == this) };
-  get criminals() { return Meeple.allMeeples.filter(meep => meep instanceof Criminal) };
-  // Resi/Busi/PS/Lake/Civics in play on Map
+  allOf(claz: Constructor<Tile>) { return Tile.allTiles.filter(t => t instanceof claz && t.player === this); }
+  allOnMap(claz: Constructor<Tile>) { return this.allOf(claz).filter(t => t.hex?.isOnMap); }
+  /** Resi/Busi/PS/Lake/Civics in play on Map */
+  get mapTiles() { return this.allOf(MapTile) as MapTile[] }
   get debts() { return Tile.allTiles.filter(t => (t instanceof Debt) && t.tile?.player === this) as Debt[] }
-  get tiles() { return Tile.allTiles.filter(t => !(t instanceof Meeple) && t.player == this) }
-  get allLeaders() { return this.meeples.filter(m => m instanceof Leader && m.player == this) as Leader[] }
-  get allPolice() { return this.meeples.filter(m => m instanceof Police && m.player == this) as Police[] }
+  // Player's Leaders, Police & Criminals
+  get meeples() { return Meeple.allMeeples.filter(meep => meep.player == this) };
+  get allLeaders() { return this.meeples.filter(m => m instanceof Leader) as Leader[] }
+  get allPolice() { return this.meeples.filter(m => m instanceof Police) as Police[] }
+  get criminals() { return this.meeples.filter(meep => meep instanceof Criminal) };
 
   policeSource: UnitSource<Police>;
   criminalSource: CriminalSource;
+
   readonly policyHexes: Hex[] = new Array<Hex>(TP.nPolicySlots).fill(undefined);
   isPolicyHex(hex: Hex) {
     return this.policyHexes.includes(hex);
@@ -202,7 +206,7 @@ export class Player {
   newTurn() {
     // faceUp and record start location:
     this.meeples.forEach(meep => meep.hex?.isOnMap ? meep.faceUp() : meep.startHex = undefined);
-    this.tiles.forEach(tile => tile.startHex = tile.hex);
+    this.mapTiles.forEach(tile => tile.startHex = tile.hex);
     this.coins += (this.econs + this.expenses); // expenses include P & I
     this.debts.forEach(debt => {
       debt.balance -= 1;   // pay down principle

@@ -18,10 +18,6 @@ type BonusInfo<T extends DisplayObject> = {
   paint?: (s: T, info: BonusInfo<T>) => void
 }
 
-export interface BagType extends Tile {
-  sendToBag(): void;
-}
-
 export class BonusMark extends Container {
 
   static bonusInfo: BonusInfo<DisplayObject>[] = [
@@ -230,6 +226,7 @@ class Tile0 extends Container {
 
 }
 
+/** all the [Hexagonal] game pieces that appear; can be dragged/dropped. */
 export class Tile extends Tile0 {
   static allTiles: Tile[] = [];
 
@@ -570,13 +567,12 @@ export class Tile extends Tile0 {
     console.log(stime(this, `.recycleTile[${loc}]: ${verb}`), info);
     GP.gamePlay.logText(`${cp.Aname} ${verb} ${this}`, `GamePlay.recycle`);
   }
-
 }
 
 /** Marker class: a Tile that is not draggable */
 export class NoDragTile extends Tile {}
 
-// Show Debt on plain WHITE tile:
+/** A plain WHITE tile; for Debt */
 export class WhiteTile extends NoDragTile {
   override makeShape(): Paintable { return new HexShape(this.radius); }
 
@@ -594,6 +590,17 @@ export class Token extends Tile {
 
 }
 
+/** Tiles that are placed in the TileBag (AuctionTile & EvalTile). */
+export interface BagType extends Tile {
+  sendToBag(): void;
+}
+
+/** Tiles that can be played to the Map: AuctionTile, Civic, Monument, BonusTile */
+export class MapTile extends Tile {
+
+}
+
+
 /**
  * Tiles with Bonus placed on map (preGame). When replaced by another AuctionTile,
  * the placing player receives the bonus indicated (as if that bonus was on the newly placed tile)
@@ -602,7 +609,7 @@ export class Token extends Tile {
  *
  * BonusTile.isOnMap but tile.player === undefined!
  */
-export class BonusTile extends Tile {
+export class BonusTile extends MapTile {
   constructor(
     public type: AuctionBonus | undefined,
   ) {
@@ -618,7 +625,7 @@ export class BonusTile extends Tile {
 }
 
 // Leader.civicTile -> Civic; Civic does not point to its leader...
-export class Civic extends Tile {
+export class Civic extends MapTile {
   constructor(player: Player, type: string, image: string, inf = 1, vp = 1, cost = 2, econ = 1) {
     super(`${type}:${player.index}`, player, inf, vp, cost, econ); // CivicTile
     this.player = player;
@@ -701,7 +708,7 @@ export class Church extends Civic {
   }
 }
 
-export class Monument extends Tile {
+export class Monument extends MapTile {
   static inst = [0,0];
   static fibcost = [1, 1, 2, 3, 5, 8, 13, 21];
   static tricost = [1, 3, 6, 10, 15, 21, 28, 36];

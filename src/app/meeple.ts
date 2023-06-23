@@ -328,6 +328,8 @@ export class CriminalSource extends UnitSource<Criminal> {
  * if negative influence exceeds positive influence on hex, meep or tile is removed.
  *
  * Owned & Operated by Player, to destroy Tiles of the opposition.
+ *
+ * if autoCrime, then owning Player is not charged for econ cost.
  */
 export class Criminal extends SourcedMeeple {
   private static source: CriminalSource[] = [];

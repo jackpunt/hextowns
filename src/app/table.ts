@@ -729,7 +729,7 @@ export class Table extends EventDispatcher  {
     const board = !!this.hexMap.allStones[0] && lm?.board // TODO: hexMap.allStones>0 but history.len == 0
     const robo = plyr.useRobo ? AT.ansiText(['red','bold'],"robo") : "----";
     const coins = plyr.coins, econs = plyr.econs, vps = plyr.vps, tvps = plyr.totalVps, vpr = plyr.vpsPerRound.toFixed(1);
-    const info = { turn: `#${tn}`, plyr: plyr.Aname, coins, econs, vps, tvps, vpr, prev, gamePlay: this.gamePlay, board }
+    const info = { turn: `#${tn}`, plyr: plyr.Aname, coins, econs, vps, tvps, vpr, prev, gamePlay: this.gamePlay, curPlayer: plyr, board }
     console.log(stime(this, `.logCurPlayer --${robo}--`), info);
     const inc = plyr.econs + plyr.expenses;
     this.logTurn(`#${tn}: ${plyr.Aname} ${dice} \$${coins} ${inc >= 0 ? '+' : '-'}${inc} vp: ${vps} tvp: ${tvps}`);

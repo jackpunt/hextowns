@@ -7,9 +7,9 @@ import { H } from "./hex-intfs";
 import type { Player } from "./player";
 import { DragContext } from "./table";
 import { TP } from "./table-params";
-import { AuctionBonus, BagType, Bonus, BonusMark, BonusTile, Tile } from "./tile";
+import { AuctionBonus, BagType, Bonus, BonusMark, BonusTile, MapTile, Tile } from "./tile";
 
-export class AuctionTile extends Tile implements BagType {
+export class AuctionTile extends MapTile implements BagType {
 
   static fillBag(tileBag: TileBag<AuctionTile>) {
     const addTiles = (n: number, type: new () => AuctionTile) => {
@@ -99,6 +99,10 @@ export class AuctionTile extends Tile implements BagType {
   }
 
   override placeTile(hex: Hex, payCost?: boolean): void {
+    if (this.fromHex == hex) {
+      super.placeTile(hex, payCost);
+      return;  // self-drop: nothing to do
+    }
     const gamePlay = GP.gamePlay, player = gamePlay.curPlayer;
 
     gamePlay.removeFromAuction(this);
@@ -106,13 +110,19 @@ export class AuctionTile extends Tile implements BagType {
 
     const priorTile = hex.tile; // generally undefined; except BonusTile (or ReserveHexes.tile)
     const bonus = (priorTile instanceof BonusTile) && priorTile.bonus;
+    if (hex?.isOnMap) {                 // not to Reserve!
+      this.player.takeBonus(priorTile); // deposit infl & actn with Player;
+      if (!this.fromHex.isOnMap) {      // ctx.lastCtrl allows map-to-map
+        this.player.takeBonus(this);    // build: takeBonus (infl & actn)
+        player.useAction(); // Build
+      }
+    }
 
     super.placeTile(hex, payCost);
 
     // now ok to increase 'cost' of this Tile.
     if (bonus) {
-      this.player.takeBonus(priorTile); // deposit Infls & Actns with Player;
-      priorTile.moveBonusTo(this);      // and priorTile.sendHome()
+      priorTile.moveBonusTo(this);      // Econ & Star; priorTile.sendHome();
     }
 
     // if from market source:
@@ -122,10 +132,6 @@ export class AuctionTile extends Tile implements BagType {
     // special treatment for where tile landed:
     const toHex = this.hex as Hex2; // where GamePlay.placeTile() put it (recycle: homeHex or undefined)
 
-    if (toHex?.isOnMap && !this.fromHex.isOnMap) { // ctx.lastCtrl allows map-to-map
-      this.player.takeBonus(this);
-      player.useAction(); // Build
-    }
     // add TO auctionTiles (from reserveHexes; see isLegalTarget) FOR TEST & DEV
     const auctionTiles = gamePlay.auctionTiles;
     const auctionNdx = gamePlay.auctionHexes.indexOf(toHex);
@@ -139,13 +145,13 @@ export class AuctionTile extends Tile implements BagType {
     if (rIndex >= 0) {
       const info = [this.Aname, this.hex?.Aname, this.bonus];
       console.log(stime(this, `.dropFunc: Reserve[${rIndex}]`), ...info);
-      gamePlay.reserveAction(this, rIndex);
+      gamePlay.reserveAction(this, rIndex); // recycle priorTile
       player.useAction(); // Reserve
     }
   }
 }
 
-export class TileBag<T extends Tile> extends Array<T> {
+export class TileBag<T extends BagType> extends Array<T> {
   static event = 'TileBagEvent';
   constructor() {
     super()

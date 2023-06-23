@@ -179,7 +179,8 @@ export class GamePlay0 {
   addBonus(type: AuctionBonus, tile?: Tile) {
     if (!tile) tile = this.shifter.tile0(this.curPlayerNdx) as AuctionTile;
     if ((tile instanceof AuctionTile) && tile.bonusCount === 0) {
-      tile.addBonus(type);
+      tile.addBonus(type); // TODO: update costinccounter
+      this.updateCostCounter(this.costIncHexCounters.get(tile.hex));
       this.hexMap.update();
       return true;
     }
@@ -381,20 +382,25 @@ export class GamePlay0 {
   readonly costInc = this.costIncMatrix()
 
   /** show player color and cost. */
-  readonly costIncHexCounters = new Map<Hex,CostIncCounter>()
+  readonly costIncHexCounters = new Map<Hex, CostIncCounter>()
   private costNdxFromHex(hex: Hex) {
     return this.costIncHexCounters.get(hex)?.ndx ?? -1; // Criminal/Police[constant cost]: no CostIncCounter, no ndx
   }
 
-  /** update when Auction, Market or Civic Tiles are dropped. */
-  updateCostCounters() {}
+  updateCostCounter(cic: CostIncCounter) {
+    const plyr = (cic.repaint instanceof Player) ? cic.repaint : this.curPlayer;
+    const [infR] = this.getInfR(cic.hex.tile, cic.ndx, plyr);
+    cic.setValue(infR);
+  }
 
-  /** Influence Required; must supply tile.hex OR ndx */
+  /** update when Auction, Market or Civic Tiles are dropped. */
+  updateCostCounters() {
+    this.costIncHexCounters.forEach(cic => this.updateCostCounter(cic));
+  }
+
+  /** Influence & Coins Required to place tile; from offMap to onMap */
   getInfR(tile: Tile | undefined, ndx = this.costNdxFromHex(tile.hex), plyr = this.curPlayer) {
-    // assert: !tile.hex.isOnMap (esp fromHex: tile.hex == tile.homeHex)
-    // Influence required:
     const infR = (tile?.cost ?? 0) + (tile?.bonusCount ?? 0) + (this.costInc[plyr.nCivics][ndx] ?? 0);
-    // if (tile instanceof AuctionTile)
     const coinR = infR + ((tile?.econ ?? 0) < 0 ? -tile.econ : 0);  // Salary is required when recruited.
     if (Number.isNaN(coinR)) debugger;
     return [infR, coinR];
@@ -798,15 +804,6 @@ export class GamePlay extends GamePlay0 {
   }
   resignMove() {
     this.table.stopDragging() // drop on nextHex (no Move)
-  }
-
-  override updateCostCounters() {
-    super.updateCostCounters();
-    this.costIncHexCounters.forEach((cic, hex) => {
-      const plyr = (cic.repaint instanceof Player) ? cic.repaint : this.curPlayer;
-      const [infR] = this.getInfR(hex.tile, cic.ndx, plyr);
-      cic.setValue(infR);
-    });
   }
 
   /** for KeyBinding test */

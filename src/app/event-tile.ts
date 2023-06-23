@@ -4,6 +4,7 @@ import { GP, GamePlay } from "./game-play";
 import { Hex } from "./hex";
 import { DragContext } from "./table";
 import { BagType, Tile } from "./tile";
+import { Criminal, Leader, Police } from "./meeple";
 
 interface EvalSpec {
   text?: string,
@@ -59,7 +60,7 @@ export class EvalTile extends Tile implements BagType {
   // dropFunc-->placeTile:
   override placeTile(toHex: Hex, payCost?: boolean): void {
     console.log(stime(this, `.placeTile: ${this.textString()}`), toHex?.Aname);
-    super.placeTile(toHex, payCost); // --> moveTo(toHex) or recycle->undefined;
+    super.placeTile(toHex, payCost); // --> moveTo(toHex) or recycle->sendHome()->undefined;
     // no effect from self drop:
     if (this.fromHex === this.hex) return;
     if (this.player.isPolicyHex(this.hex) && this.player.isPolicyHex(this.fromHex)) return;
@@ -198,13 +199,16 @@ export class PolicyTile extends EvalTile {
   }
 }
 class SpecClass implements EvalSpec {
-  constructor(spec: EvalSpec) {
+  constructor(public text: string, spec: EvalSpec) {
     Object.keys(spec).forEach(key => this[key] = spec[key]);
   }
-  vp = 0;
+  cost?: number;      // coins to purchase Policy
+  vp?: number;
+  tvp = 0;
+
   tile?: EvalTile;
-  areOnMap(tiles: Tile[]) {
-    return tiles.filter(f => f.hex?.isOnMap);
+  nOnMap(claz: Constructor<Tile>) {
+    return this.tile.player.allOnMap(claz).length;
   }
   incVp(v = 1) {
     this.tile.player.vp0Counter.incValue(v);
@@ -216,26 +220,25 @@ class SpecClass implements EvalSpec {
   }
 }
 
-class UntilIsHired extends SpecClass {
+class VpUntilHired extends SpecClass {
   curMeeps: Tile[];
   meepf: () => Tile[];
-  constructor(spec: EvalSpec, meepf: (tile?: Tile) => Tile[],) {
-    super(spec);
-    this.meepf = () => meepf.call(this.tile, this.tile);
+  constructor(text: string, spec: EvalSpec, claz: Constructor<Tile>, other = false) {
+    super(text, spec);
+    this.meepf = () => (other ? this.tile.player.otherPlayer : this.tile.player).allOnMap(claz);
     this.vp = this.vp ?? 1;
   }
   ehex() { this.curMeeps = undefined; }
   phex() {
     console.log(stime(this, `.phex:`), this);
     this.incVp(this.vp);
-    const meeps = this.meepf();
-    this.curMeeps = this.areOnMap(meeps);
+    this.curMeeps = this.meepf();
   }
   eval0() {
-    this.curMeeps = this.areOnMap(this.meepf());
+    this.curMeeps = this.meepf();
   };
   eval1() {
-    if (this.areOnMap(this.meepf()).find(meep => !this.curMeeps.includes(meep))) {
+    if (this.meepf().find(meep => !this.curMeeps.includes(meep))) {
       this.incVp(-this.vp);
       this.curMeeps = undefined;
       this.tile.sendHome();
@@ -248,12 +251,12 @@ class UntilIsHired extends SpecClass {
     }
   }
 }
-class UntilOtherHires extends UntilIsHired {
+class VpUntilOtherHires extends VpUntilHired {
   override eval1() {
-    this.curMeeps = this.areOnMap(this.meepf());
+    this.curMeeps = this.meepf();
   };
   override eval0() {
-    if (this.areOnMap(this.meepf()).find(meep => !this.curMeeps.includes(meep))) {
+    if (this.meepf().find(meep => !this.curMeeps.includes(meep))) {
       this.incVp(-this.vp);
       this.curMeeps = undefined;
       this.tile.sendHome();
@@ -269,20 +272,22 @@ class PolicySpecs  {
   // Policy in effect while on player.isPolicyHex (phex --> rhex)
   // 'until' Policy loses effect when condition fails; and is removed by eval0 or eval1.
 
-  allPolicySpecs: EvalSpec[] = [
-    new UntilIsHired({ text: '+1 VP  until  Leader  is hired', Aname: 'No Leader Event', cost: 6 }, (tile: Tile) => tile.player.allLeaders, ),
-    new UntilOtherHires({ text: "+1 VP  until  opposing  Criminal", Aname: "No Victim Event", cost: 6 }, (tile: Tile) => tile.player?.otherPlayer.criminals),
-    new UntilIsHired({ text: "+1 VP  until  Criminal  is hired", Aname: "No Corruption Event", cost: 8 }, (tile: Tile) => tile.player?.criminals),
-    new UntilIsHired({ text: "+1 VP  until  Police  is hired", Aname: "No Police Event", cost: 8 }, (tile: Tile) => tile.player?.allPolice),
-    new SpecClass({ text: "+1 VP  per  Police", Aname: "Police happiness Event", cost: 10, eval1: function() {
-      this.vp = this.areOnMap(this.tile.player.allPolice).length - this.vp;
-      this.incVp(this.vp);
-    } }),
-    new SpecClass({ text: "+1 Coin  per  Police", Aname: "Police discount Event", cost: 10, eval1: function() {
-      this.incCoins(this.areOnMap(this.player.allPolice).length);
-    } }),
-
-    { text: "+20 TVP  if never  Police", Aname: "Never Police", tvp: 20, cost: 10, ehex: function() {} }, // discard when hire Police
+  allPolicySpecs: EvalSpec[] = [ // TODO: use claz, otherPlyr: boolean
+    new VpUntilHired('+1 VP  until  Leader  is hired', { Aname: 'No Leader Event', cost: 6 }, Leader,),
+    new VpUntilOtherHires('+1 VP  until  opposing  Criminal', { Aname: "No Victim Event", cost: 6 }, Criminal),
+    new VpUntilHired('+1 VP  until  Criminal  is hired', { Aname: "No Corruption Event", cost: 8 }, Criminal),
+    new VpUntilHired('+1 VP  until  Police  is hired', { Aname: "No Police Event", cost: 8 }, Police),
+    new SpecClass("+1 VP  per  Police", {
+      Aname: "Police happiness Event", vp: 0, cost: 10,
+      eval1: function () { this.incVp(- this.vp); this.incVp(this.vp = this.nOnMap(Police)); },
+      rhex: function () { this.incVp(- this.vp); this.vp = 0; }
+    }),
+    new SpecClass('+1 Coin  per  Police', { Aname: "Police discount Event", cost: 10,
+      eval1: function () { this.incCoins(this.nOnMap(Police)); }
+    }),
+    new SpecClass('+20 TVP  if never  Police', { Aname: "Never Police", tvp: 20, cost: 10, eval1: function() {
+      if (this.areOnMap(this.tile.player.allPolice).length > 0) this.tile.sendHome();
+    } }), // discard when hire Police
     { text: "+1 Econ  for one  Police", Aname: "Police discount 1", cost: 10 },
     { text: "+2 Econ  for two  Police", Aname: "Police discount 2", cost: 20 },
     { text: "+3 Econ  for three  Police", Aname: "Police discount 3", cost: 30 },
