@@ -656,16 +656,16 @@ type TownSpec = string
 
 export class TownRules {
   static rulesText: Array<Array<TownSpec>> = [
-    ['2nd build from TC', '+6 Econ (fast start)'],
-    ['+1 to each R/B in 37 meta-hex around TC, -1 each empty/non-econ tile'],
-    ['+1 per R/B*, R/B* are Level-1 (compact)',
-    '+2 for each adj TC, H, M, C', '+1 per edge of TC,H,M,C meta-triad (tactical)'],
-    ['+1 per tile in longest 1-connected strip of R & B', '+6 per strip >= length 5 (strip)'],
-    ['+1 to each business triad', '+4 for 3 business triads (triads)'],
-    ['+4 to each residential hex', '+10 for 2 residential hex (hexes)'],
-    ['+1 VP for Police & Station & Prisoner (police state)'],
-    ['+10, -1 per Police & Station (libertarian)'],
-    ['+1 for each Criminal placed', '+1 for each tile corrupted (crime lord)'],
+    ['+1 Actn, +1 Coins  (fast start)', '+6 Econ  (fast start)'], // 6 Econ buys Police/Mayor
+    ['+1 TVP per R/B in 37 meta-hex around TC, -2 TVP per other hex', // (compact) ~23 (4-Civic, Lake, Bank, PS)
+     '+1 TVP per R/B*, R/B* are Level-1 (compact)'], // -1 inflR on R/B*
+    ['+4 TVP per Civic-adj-Civic', '+1 per edge of Civic meta-triad'], // 12-20 TVP (dense), 6,12,24 (tactical/spread)
+    ['+2 TVP per tile in longest strip', '+4 TVP per strip >= length 5 (strip)'], // 10-20 ; 12-24
+    ['+3 TVP per business triad', '+3 per resi triad'], // 18-27 & Banks!; more R, but Lakes
+    ['+10 TVP per business r-hex', '+10 per residential r-hex (hexes)'], // 6 in ring
+    ['+1 TVP per Police & Station & Prisoner & Threat (police state)'],  // threats at EoG (also regular prisoner points)
+    ['+24 TVP, -1 per Police & Station & Police Action (libertarian)'], // -1 everytime you build/recruit!
+    ['+1 TVP, +1 Coin per Criminal hired', '+1 TVP for each tile/meep destroyed (crime boss)'], //
   ];
   rulesBag: TownSpec[] = [];
   fillRulesBag() {

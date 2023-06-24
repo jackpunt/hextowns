@@ -60,10 +60,11 @@ export class EvalTile extends Tile implements BagType {
   // dropFunc-->placeTile:
   override placeTile(toHex: Hex, payCost?: boolean): void {
     console.log(stime(this, `.placeTile: ${this.textString()}`), toHex?.Aname);
-    super.placeTile(toHex, payCost); // --> moveTo(toHex) or recycle->sendHome()->undefined;
-    // no effect from self drop:
+    super.placeTile(toHex, payCost); // --> moveTo(toHex) maybe recycle->sendHome()->undefined;
+    // no effect from self drop, or phex to phex:
     if (this.fromHex === this.hex) return;
     if (this.player.isPolicyHex(this.hex) && this.player.isPolicyHex(this.fromHex)) return;
+
     const gamePlay = GP.gamePlay;
     if (toHex === gamePlay.recycleHex) {
       console.log(stime(this, `.rhex: ${this.textString()}`));
@@ -205,17 +206,20 @@ class SpecClass implements EvalSpec {
   cost?: number;      // coins to purchase Policy
   vp?: number;
   tvp = 0;
-
   tile?: EvalTile;
   nOnMap(claz: Constructor<Tile>) {
     return this.tile.player.allOnMap(claz).length;
   }
-  incVp(v = 1) {
+  incVp0(v = 1) {
     this.tile.player.vp0Counter.incValue(v);
     this.tile.player.updateCounters();
   }
   incCoins(v = 1) {
     this.tile.player.coinCounter.incValue(v);
+    this.tile.player.updateCounters();
+  }
+  incTvp0(v = 1) {
+    this.tile.player.tvp0Counter.incValue(v);
     this.tile.player.updateCounters();
   }
 }
@@ -231,7 +235,7 @@ class VpUntilHired extends SpecClass {
   ehex() { this.curMeeps = undefined; }
   phex() {
     console.log(stime(this, `.phex:`), this);
-    this.incVp(this.vp);
+    this.incVp0(this.vp);
     this.curMeeps = this.meepf();
   }
   eval0() {
@@ -239,14 +243,14 @@ class VpUntilHired extends SpecClass {
   };
   eval1() {
     if (this.meepf().find(meep => !this.curMeeps.includes(meep))) {
-      this.incVp(-this.vp);
+      this.incVp0(-this.vp);
       this.curMeeps = undefined;
       this.tile.sendHome();
     }
   };
   rhex() {
     if (this.curMeeps !== undefined) {
-      this.incVp(-this.vp);
+      this.incVp0(-this.vp);
       this.curMeeps = undefined;
     }
   }
@@ -257,7 +261,7 @@ class VpUntilOtherHires extends VpUntilHired {
   };
   override eval0() {
     if (this.meepf().find(meep => !this.curMeeps.includes(meep))) {
-      this.incVp(-this.vp);
+      this.incVp0(-this.vp);
       this.curMeeps = undefined;
       this.tile.sendHome();
     }
@@ -265,9 +269,9 @@ class VpUntilOtherHires extends VpUntilHired {
 
 }
 
-class PolicySpecs  {
+class PolicySpecs extends SpecClass {
 
-  constructor() { }
+  constructor() { super('', {}); }
   // Policy is 'permanent'; evaluated each turn for effect; and end of game for TVP
   // Policy in effect while on player.isPolicyHex (phex --> rhex)
   // 'until' Policy loses effect when condition fails; and is removed by eval0 or eval1.
@@ -282,12 +286,16 @@ class PolicySpecs  {
       eval1: function () { this.incVp(- this.vp); this.incVp(this.vp = this.nOnMap(Police)); },
       rhex: function () { this.incVp(- this.vp); this.vp = 0; }
     }),
-    new SpecClass('+1 Coin  per  Police', { Aname: "Police discount Event", cost: 10,
+    new SpecClass('+1 Coin  per  Police', {
+      Aname: "Police discount Event", cost: 10,
       eval1: function () { this.incCoins(this.nOnMap(Police)); }
     }),
-    new SpecClass('+20 TVP  if never  Police', { Aname: "Never Police", tvp: 20, cost: 10, eval1: function() {
-      if (this.areOnMap(this.tile.player.allPolice).length > 0) this.tile.sendHome();
-    } }), // discard when hire Police
+    new SpecClass('+20 TVP  until  Police', {          // discard when Police are hired
+      Aname: "No Police Event", tvp: 20, cost: 10, vp: 0,
+      phex: function () { this.incTvp0(this.vp = 20) },
+      eval1: function (gp: GamePlay) { if (this.nOnMap(Police) > 0) { this.tile.placeTile(gp.recycleHex, false) } },
+      rhex: function () { this.incTvp0(-this.vp) },
+    }),
     { text: "+1 Econ  for one  Police", Aname: "Police discount 1", cost: 10 },
     { text: "+2 Econ  for two  Police", Aname: "Police discount 2", cost: 20 },
     { text: "+3 Econ  for three  Police", Aname: "Police discount 3", cost: 30 },

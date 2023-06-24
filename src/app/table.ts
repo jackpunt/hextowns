@@ -528,25 +528,21 @@ export class Table extends EventDispatcher  {
       counter.setLabel(`${name}s`, { x: 0, y: fSize/2 }, 12);
       const pt = cont.localToLocal(colx(coff), rowy, counterCont)
       counter.attachToContainer(counterCont, pt);
-      counter.mouseEnabled = true;
-      if (incr) {
-        counter.clickToInc();
-        if (incr instanceof NumCounter) counter.clickToInc(incr);
-      }
+      counter.clickToInc(incr);
       return counter
     };
     const adjC = (n: number) => (n * 1.2);
-    layoutCounter('action', C.YELLOW, rowy(0));
-    layoutCounter('coin', C.coinGold, rowy(1)); // --> player.coins
-    layoutCounter('econ', C.GREEN, rowy(1), adjC(1 + index), false); // --> player.econs
-    layoutCounter('expense', C.GREEN, rowy(1), adjC(2 - index), false);
-    layoutCounter('Infl', 'grey', rowy(2));
-    layoutCounter('Econ', 'white', rowy(3));
-    layoutCounter('capture', 'lightblue', rowy(4), adjC(-2));
-    const vpC = layoutCounter('vp', C.briteGold, rowy(4), 0, false);
-    layoutCounter('vp0', C.briteGold, rowy(4), adjC(-1), vpC);
-    const tvpC = layoutCounter('totalVp', C.briteGold, rowy(5), 0, false, DecimalCounter);
-    layoutCounter('tvp0', C.briteGold, rowy(5), adjC(-1), tvpC);
+    layoutCounter('action', C.YELLOW, rowy(0)); player.actionCounter;
+    layoutCounter('coin', C.coinGold, rowy(1)); player.coinCounter;                      // --> player.coins
+    layoutCounter('econ', C.GREEN, rowy(1), adjC(1 + index), false); player.econCounter; // --> player.econs
+    layoutCounter('expense', C.GREEN, rowy(1), adjC(2 - index), false); player.expenseCounter;
+    layoutCounter('Infl', 'grey', rowy(2)); player.InflCounter;
+    layoutCounter('Econ', 'white', rowy(3)); player.EconCounter;
+    layoutCounter('capture', 'lightblue', rowy(4), adjC(-2)); player.captureCounter;
+    layoutCounter('vp', C.briteGold, rowy(4), 0, false); player.vpCounter;
+    layoutCounter('vp0', C.briteGold, rowy(4), adjC(-1), player.vpCounter); player.vp0Counter;
+    layoutCounter('totalVp', C.briteGold, rowy(5), 0, false, DecimalCounter); player.totalVpCounter;
+    layoutCounter('tvp0', C.briteGold, rowy(5), adjC(-1), player.totalVpCounter); player.tvp0Counter;
   }
 
   /**

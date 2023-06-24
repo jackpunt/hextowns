@@ -459,7 +459,10 @@ export class GamePlay0 {
     this.placeEither(tile, toHex, payCost);
   }
 
+  /** move tile to hex (or recycle), updating influence */
   placeEither(tile: Tile, toHex: Hex, payCost = true) {
+    const info = { tile, fromHex: tile.hex, toHex, infStr: toHex?.infStr ?? '?' };
+    if (toHex !== tile.hex) console.log(stime(this, `.placeEither:`), info);
     // commit to pay, and verify payment made:
     if (payCost && this.failToPayCost(tile, toHex)) {
       console.log(stime(this, `.placeEither: payment failed`), tile, toHex);
@@ -475,18 +478,16 @@ export class GamePlay0 {
       fromHex.meep?.setInfRays(fromHex.getInfP(infColor));
       tile.moveTo(fromHex);
     }
+    if (toHex !== fromHex) this.logText(`Place ${tile}`, `gamePlay.placeEither`)
+    tile.moveTo(toHex);  // placeEither(tile, hex) --> moveTo(hex)
     if (toHex === this.recycleHex) {
       this.logText(`Recycle ${tile} from ${fromHex?.Aname || '?'}`, `gamePlay.placeEither`)
       this.recycleTile(tile);    // Score capture; log; return to homeHex
-    } else {
-      tile.moveTo(toHex);  // placeEither(tile, hex) --> moveTo(hex)
-      if (toHex !== fromHex) this.logText(`Place ${tile}`, `gamePlay.placeEither`)
-      if (toHex?.isOnMap) {
-        this.incrInfluence(tile.hex, infColor);
-        const infP = toHex.getInfP(infColor);
-        tile.setInfRays(infP);
-        toHex.meep?.setInfRays(infP);
-      }
+    } else if (toHex?.isOnMap) {
+      this.incrInfluence(tile.hex, infColor);
+      const infP = toHex.getInfP(infColor);
+      tile.setInfRays(infP);
+      toHex.meep?.setInfRays(infP);
     }
     Player.updateCounters();
   }
@@ -729,12 +730,6 @@ export class GamePlay extends GamePlay0 {
     this.makeMove(true, undefined, 1)
   }
 
-  override placeEither(tile: Tile, toHex: Hex, payCost = true): void {
-    const info = { tile, fromHex: tile.hex, toHex, infStr: toHex?.infStr ?? '?' };
-    if (toHex !== tile.hex) console.log(stime(this, `.placeEither:`), info);
-    super.placeEither(tile, toHex, payCost);
-  }
-
   /**
    * Current Player takes action.
    *
@@ -816,8 +811,7 @@ export class GamePlay extends GamePlay0 {
 
   override endTurn2(): void {
     this.table.buttonsForPlayer[this.curPlayerNdx].visible = false;
-    super.endTurn2();   // shift(), roll()
-    this.curPlayer.totalVpCounter.updateValue(this.curPlayer.totalVps);
+    super.endTurn2();   // shift(), roll(); totalVps += vps
   }
 
   override setNextPlayer(plyr?: Player) {

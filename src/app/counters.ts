@@ -5,7 +5,7 @@ import type { Hex2 } from "./hex";
 import { H } from "./hex-intfs";
 import { TP } from "./table-params";
 import { InfShape } from "./shapes";
-import { ValueCounter } from "@thegraid/easeljs-lib"; // "./value-counter";
+import { ValueCounter, ValueEvent } from "@thegraid/easeljs-lib"; // "./value-counter";
 import type { Player } from "./player";
 
 /** ValueCounter in a Rectangle. */
@@ -41,12 +41,24 @@ export class NumCounter extends ValueCounter {
   }
   incValue(incr: number) {
     this.updateValue(this.getValue() + incr);
+    this.dispatchEvent(new ValueEvent('incr', incr));
   }
-  incValueEvent(evt: MouseEvent, counter: NumCounter = this) {
-    counter.incValue((evt.nativeEvent.ctrlKey ? -1 : 1) * (evt.nativeEvent.shiftKey ? 10 : 1));
-  }
-  clickToInc(counter: NumCounter = this) {
-    this.on(S.click, (evt: MouseEvent) => this.incValueEvent(evt, counter));
+  /**
+   *
+   * @param incr configure click/incValue:
+   * - false: click does nothing
+   * - !false: click -> this.incValue()
+   * - NumCounter: this.incValue(x) -> incr.incValue(x)
+   */
+  clickToInc(incr: NumCounter | boolean = true) {
+    const incv = (evt: NativeMouseEvent) => (evt?.ctrlKey ? -1 : 1) * (evt?.shiftKey ? 10 : 1);
+    if (incv) {
+      this.mouseEnabled = true;
+      this.on(S.click, (evt: MouseEvent) => this.incValue(incv(evt.nativeEvent)));
+      if (incr instanceof NumCounter) {
+        this.on('incr', (evt: ValueEvent) => incr.incValue(evt.value as number));
+      }
+    }
   }
 }
 

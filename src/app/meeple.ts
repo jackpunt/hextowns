@@ -99,9 +99,9 @@ export class Meeple extends Tile {
   override moveTo(hex: Hex): Hex {
     if (hex?.meep) hex.meep.x += 10; // make double occupancy apparent [gamePlay.unMove()]
     const fromHex = this.hex;
-    const toHex = super.moveTo(hex); // this.x/y = hex.x/y;
-    this.faceUp(!!toHex && (!toHex?.isOnMap || !fromHex?.isOnMap || toHex === this.startHex));
-    return toHex;
+    super.moveTo(hex); // this.x/y = hex.x/y;
+    this.faceUp(!!hex && (!hex?.isOnMap || !fromHex?.isOnMap || hex === this.startHex));
+    return hex;
   }
 
   override cantBeMovedBy(player: Player, ctx: DragContext) {
