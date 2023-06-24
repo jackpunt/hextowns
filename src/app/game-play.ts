@@ -444,23 +444,16 @@ export class GamePlay0 {
     return false;
   }
 
-  /** Meeple.dropFunc() --> place Meeple (to Map, reserve; not Recycle) */
-  // from Meeple.dropFunc, recruitAction, autoCrime, unmove2
-  placeMeep(meep: Meeple, toHex: Hex, payCost = true) {
-    meep.placeTile(toHex, payCost); // --> GP.placeEither()
-  }
-
-  // from tile.dropFunc, buildAction, placeTown
-  /** Tile.dropFunc() --> place Tile (to Map, reserve, ~>auction; not Recycle) */
-  placeTile(tile: Tile, toHex: Hex, payCost = true) {
-    if (!tile.hex.isOnMap && toHex.isOnMap) {
-      this.curPlayer.useAction(); // TODO: put this in moveTo? (and NOT apply to Debt)
-    }
-    this.placeEither(tile, toHex, payCost);
-  }
-
-  /** move tile to hex (or recycle), updating influence */
+  /**
+   * Move tile to hex (or recycle), updating influence.
+   *
+   * Tile.dropFunc() -> Tile.placeTile() -> gp.placeEither()
+   * @param tile ignore if undefined
+   * @param toHex tile.moveTo(toHex)
+   * @param payCost commit and verify payment
+   */
   placeEither(tile: Tile, toHex: Hex, payCost = true) {
+    if (!tile) return;
     const info = { tile, fromHex: tile.hex, toHex, infStr: toHex?.infStr ?? '?' };
     if (toHex !== tile.hex) console.log(stime(this, `.placeEither:`), info);
     // commit to pay, and verify payment made:
@@ -476,7 +469,7 @@ export class GamePlay0 {
       tile.moveTo(undefined);    // (hex.tile OR hex.meep) = undefined; breifly, remove tile's infP
       this.decrInfluence(fromHex, tile.infP, infColor);
       fromHex.meep?.setInfRays(fromHex.getInfP(infColor));
-      tile.moveTo(fromHex);
+      if (toHex) tile.moveTo(fromHex); // note: undef->fromHex[isOnMap] sets meep.startHex!
     }
     if (toHex !== fromHex) this.logText(`Place ${tile}`, `gamePlay.placeEither`)
     tile.moveTo(toHex);  // placeEither(tile, hex) --> moveTo(hex)
@@ -516,18 +509,18 @@ export class GamePlay0 {
     return true;
   }
 
-  /** from AuctionTiles or ReserveTiles to hexMap: */
-  buildAction(tile: AuctionTile, hex: Hex) {
-    if (!tile.isLegalTarget(hex)) return false
-    let pIndex = this.curPlayerNdx;
-    let player = Player.allPlayers[pIndex];
-    let rIndex = this.reserveTiles[pIndex].indexOf(tile);
-    if (rIndex > 0) this.reserveTiles[pIndex][rIndex] = undefined;
-    let aIndex = this.auctionTiles.indexOf(tile);
-    if (aIndex > 0) this.auctionTiles[aIndex] = undefined;
-    this.placeTile(tile, hex);  // buildAction
-    return true;
-  }
+  // /** from AuctionTiles or ReserveTiles to hexMap: */
+  // buildAction(tile: AuctionTile, hex: Hex) {
+  //   if (!tile.isLegalTarget(hex)) return false
+  //   let pIndex = this.curPlayerNdx;
+  //   let player = Player.allPlayers[pIndex];
+  //   let rIndex = this.reserveTiles[pIndex].indexOf(tile);
+  //   if (rIndex > 0) this.reserveTiles[pIndex][rIndex] = undefined;
+  //   let aIndex = this.auctionTiles.indexOf(tile);
+  //   if (aIndex > 0) this.auctionTiles[aIndex] = undefined;
+  //   this.placeTile(tile, hex);  // buildAction
+  //   return true;
+  // }
 }
 
 /** GamePlayD has compatible hexMap(mh, nh) but does not share components. used by Planner */
@@ -582,7 +575,7 @@ export class GamePlay extends GamePlay0 {
     if (!meep) return;               // no Criminals available
     meep.autoCrime = true;           // no econ charge to curPlayer
     const targetHex = this.autoCrimeTarget(meep);
-    this.placeMeep(meep, targetHex, false); // meep.player == undefined --> no failToPayCost()
+    meep.placeTile(targetHex, false); // meep.player == undefined --> no failToPayCost()
     this.logText(`AutoCrime: ${meep}`, 'GamePlay.autoCrime');
     this.processAttacks(meep.infColor);
   }
@@ -613,10 +606,10 @@ export class GamePlay extends GamePlay0 {
   unMove() {
 
     const unmove2 = (meepA: Meeple) => {
-      this.placeMeep(meepA, undefined, false);  // take meepA off the map; meepA.startHex = undefined!!
+      meepA.placeTile(undefined, false);  // take meepA off the map; meepA.startHex = undefined!!
       const meepB = meepA.startHex.meep;
       if (meepB) unmove2(meepB);         // move meepB to hexB
-      this.placeMeep(meepA, meepA.startHex, false); // unMove update influence; Note: no unMove for Hire! (sendHome)
+      meepA.placeTile(meepA.startHex, false); // unMove update influence; Note: no unMove for Hire! (sendHome)
       meepA.faceUp();
     }
 
@@ -657,6 +650,7 @@ export class GamePlay extends GamePlay0 {
     KeyBinder.keyBinder.setKey('C-a', { thisArg: this, func: () => { this.shiftAndProcess(undefined, true)} })  // C-a new Tile
     KeyBinder.keyBinder.setKey('C-A', { thisArg: this, func: () => { this.shiftAndProcess(undefined, true, true, EventTile)} })  // C-A shift(Event)
     KeyBinder.keyBinder.setKey('C-M-a', { thisArg: this, func: () => { this.shiftAndProcess(undefined, true, true, PolicyTile)} })  // C-M-a shift(Policy)
+    KeyBinder.keyBinder.setKey('C-q', { thisArg: this, func: () => { this.placeEither(this.eventHex.tile, this.recycleHex)} })  // C-q recycle from eventHex
     KeyBinder.keyBinder.setKey('C-s', { thisArg: this.gameSetup, func: () => { this.gameSetup.restart() } })// C-s START
     KeyBinder.keyBinder.setKey('C-c', { thisArg: this, func: this.stopPlayer })// C-c Stop Planner
     KeyBinder.keyBinder.setKey('m', { thisArg: this, func: this.makeMove, argVal: true })

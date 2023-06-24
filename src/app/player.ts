@@ -182,7 +182,7 @@ export class Player {
     let ruleCard = TownRules.inst.selectOne();
     town.rule = ruleCard[Math.floor(Math.random() * 2)];
     // in principle this could change based on the town.rule...
-    this.gamePlay.placeTile(town, this.startHex) // place and assert influence.
+    this.gamePlay.placeEither(town, this.startHex) // place and assert influence.
   }
 
   endGame(): void {
