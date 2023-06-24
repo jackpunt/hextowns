@@ -474,8 +474,20 @@ export class Table extends EventDispatcher  {
         hexC2.cont.parent.localToLocal(x, y, parent, bText);
         parent.addChild(bText);
       }
+      {
+        // Win indicators:
+        const parent = this.hexMap.mapCont.capCont;
+        const cont = this.winIndForPlayer[pIndex] = new Container();
+        const refHex = this.hexMap.centerHex;
+        const { x, y, w, h } = refHex.xywh();
+        const x0 = x - 3 * w * (1 - 2 * pIndex);
+        const y0 = y - 8 * this.hexMap.rowHeight;
+        refHex.cont.parent.localToLocal(x0, y0, parent, cont);
+        parent.addChild(cont);
+      }
     });
   }
+  readonly winIndForPlayer: Container[] = [];
 
   readonly buttonsForPlayer: Container[] = [];
   private contForPlayer(index: number) {

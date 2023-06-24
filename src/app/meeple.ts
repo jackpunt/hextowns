@@ -188,12 +188,14 @@ export class Meeple extends Tile {
 
 export class Leader extends Meeple {
   /** new Civic Tile with a Leader 'on' it. */
-  static makeLeaders(p: Player, nPolice = 10) {
+  static makeLeaders(p: Player) {
     new Mayor(new TownStart(p))   // King
     new Chancellor(new University(p))   // Rook: Chariot, Rector, Count
     new Priest(new Church(p))     // Bishop
     new Judge(new Courthouse(p))  // Queen
+    Leader.nLeader = p.civicTiles.length;
   }
+  static nLeader = 4;
 
   civicTile: Civic;               // Leader deploys to civicTile & extra VP when on civicTile
 

@@ -1,4 +1,4 @@
-import { AT, Constructor, json } from "@thegraid/common-lib";
+import { Constructor, json } from "@thegraid/common-lib";
 import { KeyBinder, S, Undo, stime } from "@thegraid/easeljs-lib";
 import { Container } from "@thegraid/easeljs-module";
 import { EzPromise } from "@thegraid/ezpromise";
@@ -8,7 +8,7 @@ import { EvalTile, EventTile, PolicyTile } from "./event-tile";
 import { GameSetup } from "./game-setup";
 import { Hex, Hex2, HexMap, IHex } from "./hex";
 import { H } from "./hex-intfs";
-import { Criminal, Meeple } from "./meeple";
+import { Criminal, Leader, Meeple } from "./meeple";
 import type { Planner } from "./plan-proxy";
 import { Player } from "./player";
 import { CenterText } from "./shapes";
@@ -16,7 +16,7 @@ import { GameStats, TableStats } from "./stats";
 import { LogWriter } from "./stream-writer";
 import { AuctionShifter, Table } from "./table";
 import { PlayerColor, PlayerColorRecord, TP, criminalColor, otherColor, playerColorRecord, playerColors, } from "./table-params";
-import { AuctionBonus, BagType, BonusTile, Monument, Tile, TownRules } from "./tile";
+import { AuctionBonus, BagType, BonusTile, MapTile, Monument, Tile, TownRules } from "./tile";
 import { TileSource } from "./tile-source";
 //import { NC } from "./choosers";
 
@@ -179,8 +179,9 @@ export class GamePlay0 {
   addBonus(type: AuctionBonus, tile?: Tile) {
     if (!tile) tile = this.shifter.tile0(this.curPlayerNdx) as AuctionTile;
     if ((tile instanceof AuctionTile) && tile.bonusCount === 0) {
-      tile.addBonus(type); // TODO: update costinccounter
-      this.updateCostCounter(this.costIncHexCounters.get(tile.hex));
+      tile.addBonus(type);
+      const cic = this.costIncHexCounters.get(tile.hex); // auctionHexes
+      if (cic) this.updateCostCounter(cic);
       this.hexMap.update();
       return true;
     }
@@ -284,7 +285,30 @@ export class GamePlay0 {
     this.rollDiceForBonus();
     this.curPlayer.policyHexes.forEach(hex => hex.tile instanceof PolicyTile && hex.tile.eval1());
     this.curPlayer.totalVps += this.curPlayer.vps;
-    this.setNextPlayer();
+    if (this.isEndOfGame()) {
+      this.endGame();
+    } else {
+      this.setNextPlayer();
+    }
+  }
+
+  endGame() {
+    const scores = [];
+    let topScore = -1, winner: Player;
+    console.log(stime(this, `.endGame: Game Over`), this.vca);
+    this.allPlayers.forEach(p => {
+      p.endGame();
+      p.policyHexes.forEach(hex => (hex.tile as PolicyTile)?.eog());
+      // TODO: include TownRules bonuses
+      const score = p.totalVps;
+      scores.push(score);
+      console.log(stime(this, `.endGame: ${p.Aname} score =`), score);
+      if (topScore < score) {
+        topScore = score;
+        winner = p;
+      }
+    });
+    console.log(stime(this, `.endGame: Winner = ${winner.Aname}`), scores);
   }
 
   setNextPlayer(plyr = this.otherPlayer()): void {
@@ -295,6 +319,30 @@ export class GamePlay0 {
     this.curPlayer.actions = 0;
     this.curPlayer.newTurn();
     this.assessThreats();
+  }
+
+  vca: {vc1: boolean, vc2: boolean}[] = [{vc1: false, vc2: false}, {vc1: false, vc2: false}];
+  /** true if curVal true, twice in a row... */
+  vc2(player: Player, vc: 'vc1'|'vc2', curVal: boolean) {
+    const rv = this.vca[player.index][vc] && curVal;
+    // console.log(stime(this, `.vc2: [${player.index}][${vc}] = ${rv}; curVal=`), curVal);
+    this.vca[player.index][vc] = curVal;
+    return rv;
+  }
+  isPlayerWin(player: Player) {
+    const n = Leader.nLeader;
+    const end1 = this.vc2(player, 'vc1', player.otherPlayer.allOnMap(MapTile).length == 0);
+    const end2 = this.vc2(player, 'vc2', (player.nCivics == n) && (player.allOnMap(Leader).length == n) && player.econs + player.expenses >= 0);
+    return end1 || end2;
+  }
+
+  isEndOfGame() {
+    let end = false;
+    this.allPlayers.forEach(player => {
+      const endp = this.isPlayerWin(player);
+      end = end || endp;
+    })
+    return end;
   }
 
   assessThreats() {
@@ -806,6 +854,22 @@ export class GamePlay extends GamePlay0 {
   override endTurn2(): void {
     this.table.buttonsForPlayer[this.curPlayerNdx].visible = false;
     super.endTurn2();   // shift(), roll(); totalVps += vps
+  }
+
+  override isPlayerWin(player: Player): boolean {
+    const rv = super.isPlayerWin(player), cont = this.table.winIndForPlayer[player.index];
+    const warn = this.vca[player.index]['vc1'] || this.vca[player.index]['vc2'];
+    if (warn) {
+      // console.log(stime(this, `.isPlayerWin: ${AT.ansiText(['$red'], 'warn!')} ${player.Aname}`))
+      const ddd = new CenterText('!!', 80, 'rgba(0,180,0,.8)'); // F.fontSpec()
+      cont.addChild(ddd);
+      this.hexMap.update();
+    } else if(cont.numChildren > 0) {
+      // console.log(stime(this, `.isPlayerWin: cancel!`))
+      cont.removeAllChildren();
+      this.hexMap.update();
+    }
+    return rv;
   }
 
   override setNextPlayer(plyr?: Player) {

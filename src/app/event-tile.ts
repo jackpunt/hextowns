@@ -1,10 +1,10 @@
-import { AT, C, Constructor, stime } from "@thegraid/common-lib";
-import { TileBag } from "./auction-tile";
-import { GP, GamePlay } from "./game-play";
-import { Hex } from "./hex";
-import { DragContext } from "./table";
-import { BagType, Tile } from "./tile";
-import { Criminal, Leader, Police } from "./meeple";
+import { AT, C, Constructor, stime } from '@thegraid/common-lib';
+import { TileBag } from './auction-tile';
+import { GP, GamePlay } from './game-play';
+import { Hex } from './hex';
+import { DragContext } from './table';
+import { BagType, Civic, Tile } from './tile';
+import { Criminal, Leader, Police } from './meeple';
 
 interface EvalSpec {
   text?: string,
@@ -18,6 +18,7 @@ interface EvalSpec {
   eval0?: (gp?: GamePlay) => void, // eval at start of turn
   eval1?: (gp?: GamePlay) => void, // eval at end of turn
   rhex?: (gp?: GamePlay) => void,  // eval when recycle()
+  eog?: (gp?: GamePlay) => void,   // eval at End of Game
 }
 
 export class EvalTile extends Tile implements BagType {
@@ -39,6 +40,7 @@ export class EvalTile extends Tile implements BagType {
   eval0(gp = GP.gamePlay) { return this.spec?.eval0?.(gp);}
   eval1(gp = GP.gamePlay) { return this.spec?.eval1?.(gp);}
   rhex(gp = GP.gamePlay) { return this.spec?.rhex?.(gp);}
+  eog(gp = GP.gamePlay) { return this.spec?.eog?.(gp);}
 
   textString(color: AT.AnsiKey = '$red'): string {
     return `'${AT.ansiText([color], this.text)}'`
@@ -144,35 +146,35 @@ class EventSpecs extends EventTile {
   constructor() { super({text: ''}, 0);}
 
   allEventSpecs: EvalSpec[] = [
-    { text: "Do a  Crime  action", Aname: "Crime Action" },
-    { text: "Do a  Build  action", Aname: "Build Action" },
-    { text: "Do a  Police  action", Aname: 'Police Action' },
-    { text: "Move  your  Meeples", Aname: 'Move Meeples' },
-    { text: "Gain  Influence  token", Aname: 'Influence Token' },
-    { text: "Add  Influence  token to  Resi", Aname: 'Influence Resi' },
-    { text: "Add  Influence  token to  Busi", Aname: 'Influence Busi' },
-    { text: "Add  Econ token  to  Resi", Aname: 'Econ on Resi' }, // Home Business (adj Bank?)
-    { text: "Add  Econ token  to  Lake", Aname: 'Econ on Lake' }, // lakeside resort
-    { text: "Add  Econ token  to  Police", Aname: 'Econ on PS' }, // ~discount police
-    { text: "Add  VP token  to  Busi", Aname: 'VP on Busi' },     // Happy Business
-    { text: "Add  VP token  to  Bank", Aname: 'VP on Bank' },     // Happy Business
-    { text: "Move  one  Criminal", Aname: 'Move Criminal' },
-    { text: "Capture  one  Criminal", Aname: 'Capture Criminal' },
-    { text: "Build  Monument  on site adj  3 types", Aname: 'Build Monument' },
-    { text: "+2 Coins  per  un-placed  Leader", Aname: 'Coins per Leader' },
-    { text: "  +3 Coins", Aname: '+3 Coins' },
-    { text: "  +1 VP", Aname: '+1 VP', vp: 1 },
-    { text: "  +10 TVP", Aname: '+10 TVP' },
+    { text: 'Do a  Crime  action', Aname: 'Crime Action' },
+    { text: 'Do a  Build  action', Aname: 'Build Action' },
+    { text: 'Do a  Police  action', Aname: 'Police Action' },
+    { text: 'Move  your  Meeples', Aname: 'Move Meeples' },
+    { text: 'Gain  Influence  token', Aname: 'Influence Token' },
+    { text: 'Add  Influence  token to  Resi', Aname: 'Influence Resi' },
+    { text: 'Add  Influence  token to  Busi', Aname: 'Influence Busi' },
+    { text: 'Add  Econ token  to  Resi', Aname: 'Econ on Resi' }, // Home Business (adj Bank?)
+    { text: 'Add  Econ token  to  Lake', Aname: 'Econ on Lake' }, // lakeside resort
+    { text: 'Add  Econ token  to  Police', Aname: 'Econ on PS' }, // ~discount police
+    { text: 'Add  VP token  to  Busi', Aname: 'VP on Busi' },     // Happy Business
+    { text: 'Add  VP token  to  Bank', Aname: 'VP on Bank' },     // Happy Business
+    { text: 'Move  one  Criminal', Aname: 'Move Criminal' },
+    { text: 'Capture  one  Criminal', Aname: 'Capture Criminal' },
+    { text: 'Build  Monument  on site adj  3 types', Aname: 'Build Monument' },
+    { text: '+2 Coins  per  un-placed  Leader', Aname: 'Coins per Leader' },
+    { text: '  +3 Coins', Aname: '+3 Coins' },
+    { text: '  +1 VP', Aname: '+1 VP', vp: 1 },
+    { text: '  +10 TVP', Aname: '+10 TVP' },
     // Urban renewal:
-    { text: "Demolish  your Resi  +5 TVP", Aname: 'Demo Resi +5 TVP' },
-    { text: "Demolish  your Lake  +5 TVP", Aname: 'Demo Lake +5 TVP' },
-    { text: "Demolish  your Busi  +5 Coins", Aname: 'Demo Busi +5 TVP' },
-    { text: "Demolish  your Bank  +5 Coins", Aname: 'Demo Bank +5 TVP' },
-    { text: "Demolish  any  Auction  tile", Aname: 'Demo Auction' },
+    { text: 'Demolish  your Resi  +5 TVP', Aname: 'Demo Resi +5 TVP' },
+    { text: 'Demolish  your Lake  +5 TVP', Aname: 'Demo Lake +5 TVP' },
+    { text: 'Demolish  your Busi  +5 Coins', Aname: 'Demo Busi +5 TVP' },
+    { text: 'Demolish  your Bank  +5 Coins', Aname: 'Demo Bank +5 TVP' },
+    { text: 'Demolish  any  Auction  tile', Aname: 'Demo Auction' },
 
-    // { text: ""},
-    // { text: ""},
-    // { text: ""},
+    // { text: ''},
+    // { text: ''},
+    // { text: ''},
   ];
 }
 
@@ -190,7 +192,7 @@ export class PolicyTile extends EvalTile {
     this.spec.policy = true;
   }
 
-  override paint(pColor?: "b" | "w" | "c", colorn = C.YELLOW): void {
+  override paint(pColor?: 'b' | 'w' | 'c', colorn = C.YELLOW): void {
     super.paint(pColor, colorn);
   }
 
@@ -200,10 +202,14 @@ export class PolicyTile extends EvalTile {
   }
 }
 class SpecClass implements EvalSpec {
-  constructor(public text: string, spec: EvalSpec) {
+  /**
+   * @param cost coins to purchase Policy
+   * @param text appears on Tile
+   * @param spec implementation details
+   */
+  constructor(public cost: number, public text: string, spec: EvalSpec) {
     Object.keys(spec).forEach(key => this[key] = spec[key]);
   }
-  cost?: number;      // coins to purchase Policy
   vp?: number;
   tvp = 0;
   tile?: EvalTile;
@@ -222,13 +228,16 @@ class SpecClass implements EvalSpec {
     this.tile.player.tvp0Counter.incValue(v);
     this.tile.player.updateCounters();
   }
+  recycle() {
+    this.tile.placeTile(GP.gamePlay.recycleHex, false);
+  }
 }
 
 class VpUntilHired extends SpecClass {
   curMeeps: Tile[];
   meepf: () => Tile[];
-  constructor(text: string, spec: EvalSpec, claz: Constructor<Tile>, other = false) {
-    super(text, spec);
+  constructor(cost: number, text: string, spec: EvalSpec, claz: Constructor<Tile>, other = false) {
+    super(cost, text, spec);
     this.meepf = () => (other ? this.tile.player.otherPlayer : this.tile.player).allOnMap(claz);
     this.vp = this.vp ?? 1;
   }
@@ -271,46 +280,65 @@ class VpUntilOtherHires extends VpUntilHired {
 
 class PolicySpecs extends SpecClass {
 
-  constructor() { super('', {}); }
+  constructor() { super(0, '', {}); }
   // Policy is 'permanent'; evaluated each turn for effect; and end of game for TVP
   // Policy in effect while on player.isPolicyHex (phex --> rhex)
   // 'until' Policy loses effect when condition fails; and is removed by eval0 or eval1.
 
   allPolicySpecs: EvalSpec[] = [ // TODO: use claz, otherPlyr: boolean
-    new VpUntilHired('+1 VP  until  Leader  is hired', { Aname: 'No Leader Event', cost: 6 }, Leader,),
-    new VpUntilOtherHires('+1 VP  until  opposing  Criminal', { Aname: "No Victim Event", cost: 6 }, Criminal),
-    new VpUntilHired('+1 VP  until  Criminal  is hired', { Aname: "No Corruption Event", cost: 8 }, Criminal),
-    new VpUntilHired('+1 VP  until  Police  is hired', { Aname: "No Police Event", cost: 8 }, Police),
-    new SpecClass("+1 VP  per  Police", {
-      Aname: "Police happiness Event", vp: 0, cost: 10,
+    new VpUntilHired(6, '+1 VP  until  Leader  is hired', { Aname: 'No Leader Event' }, Leader,),
+    new VpUntilOtherHires(6, '+1 VP  until  opposing  Criminal', { Aname: 'No Victim Event' }, Criminal),
+    new VpUntilHired(8, '+1 VP  until  Criminal  is hired', { Aname: 'No Corruption Event' }, Criminal),
+    new VpUntilHired(8, '+1 VP  until  Police  is hired', { Aname: 'No Police Event' }, Police),
+    new SpecClass(10, '+1 VP  per  Police', {
+      Aname: 'Police happiness Event', vp: 0,
       eval1: function () { this.incVp(- this.vp); this.incVp(this.vp = this.nOnMap(Police)); },
       rhex: function () { this.incVp(- this.vp); this.vp = 0; }
     }),
-    new SpecClass('+1 Coin  per  Police', {
-      Aname: "Police discount Event", cost: 10,
+    new SpecClass(10, '+1 Coin  per  Police', {
+      Aname: 'Police discount Event',
       eval1: function () { this.incCoins(this.nOnMap(Police)); }
     }),
-    new SpecClass('+20 TVP  until  Police', {          // discard when Police are hired
-      Aname: "No Police Event", tvp: 20, cost: 10, vp: 0,
+    new SpecClass(10, '+20 TVP  until  Police', {          // discard when Police are hired
+      Aname: 'No Police Event', tvp: 20, vp: 0,
       phex: function () { this.incTvp0(this.vp = 20) },
-      eval1: function (gp: GamePlay) { if (this.nOnMap(Police) > 0) { this.tile.placeTile(gp.recycleHex, false) } },
+      eval1: function () { if (this.nOnMap(Police) > 0) { this.recycle() } },
       rhex: function () { this.incTvp0(-this.vp) },
     }),
-    { text: "+1 Econ  for one  Police", Aname: "Police discount 1", cost: 10 },
-    { text: "+2 Econ  for two  Police", Aname: "Police discount 2", cost: 20 },
-    { text: "+3 Econ  for three  Police", Aname: "Police discount 3", cost: 30 },
+    // Note: by 'Econ' we mean: '+1 Coin  per turn'
+    new SpecClass(10, '+1 Econ  for one  Police', { Aname: 'Police discount 1', vp: 1,
+      eval1: function () { if (this.nOnMap(Police) >= this.vp) { this.incCoins(this.vp) } }
+    }),
+    new SpecClass(20, '+2 Econ  for two  Police', { Aname: 'Police discount 2', vp: 2,
+      eval1: function () { if (this.nOnMap(Police) >= this.vp) { this.incCoins(this.vp) } }
+    }),
+    new SpecClass(30, '+3 Econ  for three  Police', { Aname: 'Police discount 3', vp: 3,
+      eval1: function () { if (this.nOnMap(Police) >= this.vp) { this.incCoins(this.vp) } }
+    }),
+    new SpecClass(20, '  +1 Econ', { Aname: 'Investment', eval0: function () { this.tile.incCoins(1) } }),
+    new SpecClass(20, '+1 Econ  for one  Civic', {
+      Aname: 'Civic Investment 1', vp: 1,
+      eval1: function () { if (this.nOnMap(Civic) >= this.vp) { this.incCoins(this.vp) } }
+    }),
+    new SpecClass(15, '+2 Econ  for two  Civics', {
+      Aname: 'Civic Investment 2', vp: 2,
+      eval1: function () { if (this.nOnMap(Civic) >= this.vp) { this.incCoins(this.vp) } }
+    }),
+    new SpecClass(10, '+3 Econ  for three  Civics', {
+      Aname: 'Civic Investment 3', vp: 3,
+      eval1: function () { if (this.nOnMap(Civic) >= this.vp) { this.incCoins(this.vp) } }
+    }),
 
-    { text: "  +1 Econ", Aname: "Econ Investment", cost: 20 },
-    { text: "+1 Econ  for one  Civic", Aname: "Civic Investment 1", cost: 10} ,
-    { text: "+2 Econ  for two  Civics", Aname: "Civic Investment 2", cost: 20 },
-    { text: "+3 Econ  for three  Civics", Aname: "Civic Investment 3", cost: 30 },
-
-    { text: "+10 TVP  if no  adjancent  Civics", Aname: "No adjacent Civics", cost: 8 },
-    { text: "+30 TVP  if no  colinear  Civics", Aname: "No colinear Civics", cost: 8 },
-    { text: "Extra Reserve Hex", cost: 8, Aname: "Reserve Hex 1" },  // place this as Reserve Hex
-    { text: "Extra Reserve Hex", cost: 8, Aname: "Reserve Hex 2" },  // place this as Reserve Hex
-    // { text: ""},
-    // { text: ""},
-    // { text: ""},
+    new SpecClass(8, '+10 TVP  if no  adjancent  Civics', { Aname: 'No adjacent Civics',
+      eval1: function() {
+        this.tile.player.allOnMap(Civic).find((civ: Civic) => civ.hex.findLinkHex(hex => hex.tile instanceof Civic))
+      },
+    }),
+    new SpecClass(8, '+30 TVP  if no  colinear  Civics', { Aname: 'No colinear Civics', }),
+    new SpecClass(8, 'Extra Reserve Hex', { Aname: 'Reserve Hex 1', }),  // place this as Reserve Hex
+    new SpecClass(8, 'Extra Reserve Hex', { Aname: 'Reserve Hex 2', }),  // place this as Reserve Hex
+    // { text: ''},
+    // { text: ''},
+    // { text: ''},
   ];
 }
