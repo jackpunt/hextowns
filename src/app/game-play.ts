@@ -121,8 +121,9 @@ export class GamePlay0 {
     this.curPlayerNdx = 0;
     this.curPlayer = Player.allPlayers[this.curPlayerNdx];
 
-    this.crimePlayer = new Player(2, criminalColor, this);
-    Player.allPlayers.length = playerColors.length; // 2
+    const len = playerColors.length; // actual players
+    this.crimePlayer = new Player(len, criminalColor, this);  //
+    Player.allPlayers.length = len; // truncate allPlayers: exclude crimePlayer
 
     this.auctionTiles = new Array<AuctionTile>(TP.auctionSlots + TP.auctionMerge);
     this.reserveTiles = [[],[]];
@@ -275,7 +276,9 @@ export class GamePlay0 {
       return; // can't end turn until Event is dismissed.
     }
     if (!this.eventsInBag && !Player.allPlayers.find(plyr => plyr.econs < TP.econsForEvents)) {
-      EventTile.addToBag(TP.eventsPerPlayer * 2, this.shifter.tileBag);
+      const np = Player.allPlayers.length;
+      EventTile.addToBag(TP.eventsPerPlayer * np, this.shifter.tileBag, EventTile.allEvents);
+      PolicyTile.addToBag(TP.policyPerPlayer * np, this.shifter.tileBag, PolicyTile.goInBag());
       this.eventsInBag = true;
       console.log(stime(this, `.endTurn: eventsInBag`), this.shifter.tileBag);
     }
@@ -368,10 +371,10 @@ export class GamePlay0 {
   }
 
   /** after remove Tile [w/tileInf] from hex: propagate influence in each direction. */
-  decrInfluence(hex: Hex, tileInf: number, infColor: PlayerColor) {
+  decrInfluence(hex: Hex, tile: Tile, infColor: PlayerColor) {
     H.infDirs.forEach(dn => {
       const inf = hex.getInf(infColor, dn);
-      hex.propagateDecr(infColor, dn, inf, tileInf)       // because no-stone, hex gets (inf - 1)
+      hex.propagateDecr(infColor, dn, inf, tile);       // because no-stone, hex gets (inf - 1)
     })
   }
 
@@ -418,12 +421,13 @@ export class GamePlay0 {
   // each succeeding is 1 less; to min of 1, except last slot is min of -1;
   // costInc[nCivOnMap][slotN] => [0, 0, 0, -1], [1, 0, 0, -1], [2, 1, 0, -1], [3, 2, 1, 0], [4, 3, 2, 1]
   costIncMatrix(maxCivics = TP.maxCivics, nSlots = TP.auctionSlots) {
+    const d3 = nSlots - 4;//nSlot=3:0, 4:1, 5:2 + mCivics
     // nCivics = [0...maxCivics]
     return new Array(maxCivics + 1).fill(1).map((civElt, nCivics) => {
       // iSlot = [0...nSlots - 1]
       return new Array(nSlots).fill(1).map((costIncElt, iSlot) => {
         let minVal = (iSlot === (nSlots - 1)) ? -1 : 0;
-        return Math.max(minVal, nCivics - iSlot) // assert nSlots <= maxCivics; final slot always = 0
+        return Math.max(minVal, nCivics + d3 - iSlot) // assert nSlots <= maxCivics; final slot always = 0
       })
     })
   }
@@ -512,23 +516,27 @@ export class GamePlay0 {
       return;
     }
     // update influence on map:
-    const fromHex = tile.hex, infColor = tile.infColor || this.curPlayer.color;
-    if (fromHex?.isOnMap && (tile.infP + tile.bonusInf(infColor)) !== 0) {
-      tile.moveTo(undefined);    // (hex.tile OR hex.meep) = undefined; breifly, remove tile's infP
-      this.decrInfluence(fromHex, tile.infP, infColor);
-      fromHex.meep?.setInfRays(fromHex.getInfP(infColor));
-      if (toHex) tile.moveTo(fromHex); // note: undef->fromHex[isOnMap] sets meep.startHex!
+    const fromHex = tile.hex;
+    const infColor = tile.infColor || this.curPlayer.color;
+    const tileInfP = tile.infP + tile.bonusInf(infColor);
+    if (fromHex?.isOnMap && tileInfP !== 0) {
+      this.decrInfluence(fromHex, tile, infColor);        // as if tile has no influence
     }
     if (toHex !== fromHex) this.logText(`Place ${tile}`, `gamePlay.placeEither`)
     tile.moveTo(toHex);  // placeEither(tile, hex) --> moveTo(hex)
-    if (toHex === this.recycleHex) {
-      this.logText(`Recycle ${tile} from ${fromHex?.Aname || '?'}`, `gamePlay.placeEither`)
-      this.recycleTile(tile);    // Score capture; log; return to homeHex
-    } else if (toHex?.isOnMap) {
+    if (fromHex) {
+      const infP = fromHex.getInfP(infColor);
+      fromHex.meep?.setInfRays(infP); // meep inf w/o tile moved
+      fromHex.tile?.setInfRays(infP); // tile inf w/o meep moved
+    }
+    if (toHex?.isOnMap) {
       this.incrInfluence(tile.hex, infColor);
       const infP = toHex.getInfP(infColor);
-      tile.setInfRays(infP);
-      toHex.meep?.setInfRays(infP);
+      toHex.meep?.setInfRays(infP);   // meep inf with tile placed
+      toHex.tile?.setInfRays(infP);   // tile inf with meep placed
+    } else if (toHex === this.recycleHex) {
+      this.logText(`Recycle ${tile} from ${fromHex?.Aname || '?'}`, `gamePlay.placeEither`)
+      this.recycleTile(tile);    // Score capture; log; return to homeHex
     }
     Player.updateCounters();
   }
@@ -536,7 +544,7 @@ export class GamePlay0 {
   recycleTile(tile: Tile) {
     if (!tile) return;
     let verb = tile.recycleVerb ?? 'recycled';
-    if (tile.hex?.isOnMap) {
+    if (tile.fromHex?.isOnMap) {
       if (tile.player !== this.curPlayer) {
         this.curPlayer.captures++;
         verb = 'captured';
@@ -652,17 +660,16 @@ export class GamePlay extends GamePlay0 {
   // Note: with multiple/illegal moves, meepA -> hexB, meepB -> hexA; infinite recurse
   // So: remove meepA from hexB before moving meepB -> hexB
   unMove() {
-
     const unmove2 = (meepA: Meeple) => {
-      meepA.placeTile(undefined, false);  // take meepA off the map; meepA.startHex = undefined!!
+      meepA.placeTile(undefined, false);      // take meepA off the map; meepA.startHex = undefined!!
       const meepB = meepA.startHex.meep;
-      if (meepB) unmove2(meepB);         // move meepB to hexB
-      meepA.placeTile(meepA.startHex, false); // unMove update influence; Note: no unMove for Hire! (sendHome)
+      if (meepB) unmove2(meepB);              // recurse to move meepB to meepB.startHex
+      meepA.placeTile(meepA.startHex, false); // Move & update influence; Note: no unMove for Hire! (sendHome)
       meepA.faceUp();
     }
 
     this.curPlayer.meeples.forEach(meep => {
-      if (meep.hex?.isOnMap && meep.startHex && meep.startHex !== meep.hex ) {
+      if (meep.hex?.isOnMap && meep.startHex !== meep.hex ) {
         unmove2(meep);
       }
     })

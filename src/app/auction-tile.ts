@@ -47,7 +47,7 @@ export class AuctionTile extends MapTile implements BagType {
 
   override cantBeMovedBy(player: Player, ctx: DragContext) {
     const reason1 = super.cantBeMovedBy(player, ctx);
-    if (reason1)
+    if (reason1 || reason1 === false)
       return reason1;
     // allow shift-demolish/fire/capture(Tile,Meeple) from map [Debt & EventTile override]
     if (player.actions <= 0 && !this.hex.isOnMap && !ctx.lastShift)

@@ -282,7 +282,7 @@ export class Table extends EventDispatcher  {
   }
 
   splitRowHex(name: string, ndx: number, claz?: Constructor<Hex2>) {
-    const nm = TP.auctionMerge, col0 = 5.5, row = 0;
+    const nm = TP.auctionMerge, col0 = 7 - TP.auctionSlots / 2, row = 0;
     return ndx < nm ? this.homeRowHex(name, { row, col: col0 + ndx }, -2, claz) :      // split: UP 2
       ndx >= 2 * nm ? this.homeRowHex(name, { row, col: col0 + ndx - nm }, -1, claz) : // middle
         /*ndx<2*nm */ this.homeRowHex(name, { row, col: col0 + ndx - nm }, 0, claz);   // split: DOWN 0
@@ -421,7 +421,7 @@ export class Table extends EventDispatcher  {
         const homeHex = meep.homeHex = meep.civicTile.homeHex = leaderHexes[i];
         meep.moveTo(homeHex);
         meep.civicTile.moveTo(homeHex);
-        this.addCostCounter(homeHex, `${meep.Aname}-c`, 1, p); // leaderHex[plyr]
+        this.addCostCounter(homeHex, `${meep.Aname}-c`, TP.auctionSlots - 3, p); // leaderHex[plyr]
       })
 
       const policeHex = this.homeRowHex(`PHex:${pIndex}`, colf(col0++, 0));
@@ -442,7 +442,7 @@ export class Table extends EventDispatcher  {
           source.availUnit(new type(undefined, p));
         }
         source.nextUnit();
-        this.addCostCounter(hex, type.name, 1, p);  // Busi/Resi/Monument market
+        this.addCostCounter(hex, type.name, TP.auctionSlots - 3, p);  // Busi/Resi/Monument market
       })
 
       this.reserveHexes[pIndex] = [];
@@ -610,11 +610,11 @@ export class Table extends EventDispatcher  {
     this.gamePlay.addBonusTiles();
 
     this.gamePlay.forEachPlayer(p => {
-      p.startHex.forEachLinkHex(hex => hex.isLegal = true, true )
+      p.initialHex.forEachLinkHex(hex => hex.isLegal = true, true )
       this.hexMap.update();
       // place Town on hexMap
       p.placeTown();
-      p.startHex.forEachLinkHex(hex => hex.isLegal = false, true )
+      p.initialHex.forEachLinkHex(hex => hex.isLegal = false, true )
       this.toggleText(false)
     })
     this.gamePlay.setNextPlayer(this.gamePlay.allPlayers[0])
@@ -972,11 +972,11 @@ export class AuctionShifter2 extends AuctionShifter {
       // from Table.layoutTable(); sets parent = hexMap.mapCont.hexCont; hex.x, hex.y
       this.hexes.push(newHex(`auction${i}`, i))
     }
-    const counterCont = table.hexMap.mapCont.counterCont;
-    const x0 = this.hexes[0].x, y0 = (this.hexes[0].y + this.hexes[this.nm].y) / 2, rad = TP.hexRad;
-    const counter = this.tileCounter = new NumCounter('tileCounter', this.tileBag.length, 'lightblue', rad/2);
-    counter.attachToContainer(counterCont, { x:  x0 -1.5 * rad, y: y0 - .2 * rad }, this.tileBag, TileBag.event, );
-    table.gamePlay.dice.setContainer(counterCont,x0 -1.5 * rad,    y0 + .7 * rad);
+    const counterCont = table.hexMap.mapCont.counterCont, gamePlay = table.gamePlay, rad = TP.hexRad;
+    const counter = this.tileCounter = new NumCounter('tileCounter', this.tileBag.length, 'lightblue', rad / 2);
+    const hex0 = this.hexes[0], x0 = hex0.x, x = x0 - 1.3 * rad, y0 = (hex0.y + this.hexes[this.nm].y) / 2;
+    counter.attachToContainer(counterCont, { x, y: y0 - .2 * rad }, this.tileBag, TileBag.event, );
+    gamePlay.dice.setContainer(counterCont,  x,    y0 + .7 * rad);
     counter.mouseEnabled = true;
     //counter.on(S.click, (evt) => table.logInBag('onClick'), table);
     this.tileBag.on(TileBag.event, table.logInBag, table);

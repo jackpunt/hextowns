@@ -5,6 +5,7 @@ import { Hex } from './hex';
 import { DragContext } from './table';
 import { BagType, Civic, Tile } from './tile';
 import { Criminal, Leader, Police } from './meeple';
+import { TP } from './table-params';
 
 interface EvalSpec {
   text?: string,
@@ -22,6 +23,19 @@ interface EvalSpec {
 }
 
 export class EvalTile extends Tile implements BagType {
+  /** add all EventTile and selected PolicyTile. */
+  static addToBag(max: number, tileBag: TileBag<BagType>, allTiles: BagType[]) {
+    const tiles = allTiles.slice() as BagType[]; // draw without replacement from copy of Tile[]
+    // tiles.splice(0, 0, ...PolicyTile.goInBag() as BagType[]);
+    if (max >= tiles.length) {
+      tileBag.push(...tiles);  // push them all, in order
+      return;
+    }
+    // push a sample selection:
+    const n = Math.min(max, tiles.length);
+    for (let i = 0; i < n; i++) tileBag.push(tileBag.selectOne(true, tiles));
+  }
+
   static aname(spec: EvalSpec, claz?: Constructor<EvalTile>, count = 0) {
     return `${spec?.Aname || `${claz.name}-${count}`}`;
   }
@@ -113,18 +127,6 @@ export class EventTile extends EvalTile {
   static makeAllEvent() {
     EventTile.allEvents = new EventSpecs().allEventSpecs.map((spec, ndx) => new EventTile(spec, ndx));
   }
-  /** add all EventTile and selected PolicyTile. */
-  static addToBag(max: number, tileBag: TileBag<BagType>) {
-    const tiles = EventTile.allEvents.slice() as BagType[]; // draw without replacement from copy of Tile[]
-    tiles.splice(0, 0, ...PolicyTile.getEvents() as BagType[]);
-    if (max >= tiles.length) {
-      tileBag.push(...tiles);  // push them all, in order
-      return;
-    }
-    // push a sample selection:
-    const n = Math.min(max, tiles.length);
-    for (let i = 0; i < n; i++) tileBag.push(tileBag.selectOne(true, tiles));
-  }
 
   constructor(spec: EvalSpec, n: number) {
     super(EventTile.aname(spec, EventTile, n), spec);
@@ -183,9 +185,9 @@ export class PolicyTile extends EvalTile {
   static makeAllPolicy() {
     PolicyTile.allPolicy = new PolicySpecs().allPolicySpecs.map((spec, ndx) => new PolicyTile(spec, ndx));
   }
-  static getEvents() { return PolicyTile.allPolicy.filter(p => p.isEvent); }
+  static goInBag() { return PolicyTile.allPolicy.filter(p => p.goesInBag); }
 
-  get isEvent() { return this.Aname.endsWith('Event') }
+  get goesInBag() { return TP.allPolicyInBag || this.Aname.endsWith('Event'); }
 
   constructor(spec: EvalSpec, n: number) {
     super(EventTile.aname(spec, EventTile, n), spec);
@@ -329,9 +331,12 @@ class PolicySpecs extends SpecClass {
       eval1: function () { if (this.nOnMap(Civic) >= this.vp) { this.incCoins(this.vp) } }
     }),
 
-    new SpecClass(8, '+10 TVP  if no  adjancent  Civics', { Aname: 'No adjacent Civics',
-      eval1: function() {
-        this.tile.player.allOnMap(Civic).find((civ: Civic) => civ.hex.findLinkHex(hex => hex.tile instanceof Civic))
+    new SpecClass(8, '+10 TVP  if no  adjacent  Civics', { Aname: 'No adjacent Civics',
+      phex: function () { this.incTvp0(this.vp = 10) },
+      rhex: function () { this.incTvp0(-this.vp) },
+      eval1: function () {
+        const adj = this.tile.player.allOnMap(Civic).find((civ: Civic) => civ.hex.findLinkHex(hex => hex.tile instanceof Civic));
+        this.incTvp0(this.vp = (adj ? 0 : 10) - this.vp);
       },
     }),
     new SpecClass(8, '+30 TVP  if no  colinear  Civics', { Aname: 'No colinear Civics', }),

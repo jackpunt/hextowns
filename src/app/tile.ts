@@ -239,7 +239,7 @@ export class Tile extends Tile0 {
 
   /** location at start-of-game & after-Recycle */
   homeHex: Hex = undefined;
-  /** location at start-of-turn */
+  /** location at start-of-turn; Meeples */
   startHex: Hex;
   /** location at start-of-drag */
   fromHex: Hex2;
@@ -302,7 +302,6 @@ export class Tile extends Tile0 {
     this.nameText = this.addTextChild(rad / 4);
     this.infText = this.addTextChild(rad / 2, '');
     this.setPlayerAndPaint(player);
-    if (inf > 0) this.setInfRays(inf);
     if (_vp > 0) this.drawStar();
     if (_econ !== 0) this.drawEcon(_econ);
   }
@@ -330,11 +329,12 @@ export class Tile extends Tile0 {
   /** add influence rays to Tile (for infP).
    * @inf this.hex.getInfP(this.infColor)
    */
-  setInfRays(inf = this.inf, rad = this.radius) {
+  setInfRays(inf = this.hex?.getInfP(this.infColor) ?? this.infP, ) {
     this.removeChildType(InfRays);
     if (inf !== 0) {
       this.addChild(new InfRays(inf, this.infColor));
     }
+    const rad = this.radius;
     this.cache(-rad, -rad, 2 * rad, 2 * rad);
   }
 
@@ -449,7 +449,7 @@ export class Tile extends Tile0 {
     const hex = this.hex, hadInfP = (this.infP + this.bonusInf()) > 0; // Monument && bonusInf
     if (hadInfP) {
       this.moveTo(undefined); // tile.hex = hex.tile = undefined
-      gamePlay.decrInfluence(hex, this.infP, this.player.color);
+      gamePlay.decrInfluence(hex, this, this.player.color);
     }
     this.setPlayerAndPaint(player); // Flip ownership
     if (hadInfP) {
@@ -497,13 +497,13 @@ export class Tile extends Tile0 {
     ctx.targetHex.map.showMark(undefined);
   }
 
-  cantBeMovedBy(player: Player, ctx: DragContext) {
+  cantBeMovedBy(player: Player, ctx: DragContext): string | boolean {
     if (this.hex?.isOnMap) {
       const infT = this.hex.getInfT(this.player?.color);
       // captured - allow to recycle
-      if (this.hex.getInfT(criminalColor) > infT) return undefined;
+      if (this.hex.getInfT(criminalColor) > infT) return false;
       // captured - allow to flip, no recycle
-      if (this.hex.getInfT(player.color) > infT) return undefined;
+      if (this.hex.getInfT(player.color) > infT) return false;
     }
     return (ctx.lastShift || this.player === undefined || this.player === player) ? undefined : "Not your Tile";
   }
@@ -577,6 +577,7 @@ export class WhiteTile extends NoDragTile {
   override makeShape(): Paintable { return new HexShape(this.radius); }
 
   override paint(pColor?: PlayerColor, colorn?: string): void {
+    this.setInfRays();
     super.paint(pColor, C.WHITE);
   }
 }
@@ -597,7 +598,11 @@ export interface BagType extends Tile {
 
 /** Tiles that can be played to the Map: AuctionTile, Civic, Monument, BonusTile */
 export class MapTile extends Tile {
-
+  override dragStart(ctx: DragContext): void {
+    super.dragStart(ctx);
+    if (this.infP > 0) this.setInfRays(this.infP);  // tile influence w/o meeple
+    this.hex?.meep?.setInfRays(this.hex.meep.infP); // meeple influence w/o tile
+  }
 }
 
 

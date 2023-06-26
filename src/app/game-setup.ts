@@ -148,10 +148,9 @@ export class GameSetup {
     }
     gui.spec("colorScheme").onChange = (item: ParamItem) => {
       gui.setValue(item)
-      Tile.allTiles.forEach(tile => tile.paint()); // tile.player or C1.grey
-      this.gamePlay.paintForPlayer();  // re-paint ActionCont tiles
-      Meeple.allMeeples.forEach(meep => meep.setInfRays());
+      Tile.allTiles.forEach(tile => { tile.paint() }); // tile.player or C1.grey
       InfMark.setInfGraphics();
+      this.gamePlay.paintForPlayer();  // re-paint ActionCont tiles
       this.gamePlay.hexMap.update()
     }
     parent.addChild(gui)

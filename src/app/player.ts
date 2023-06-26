@@ -45,7 +45,7 @@ export class Player {
 
   readonly civicTiles: Civic[] = [];            // Player's S, H, C, U Tiles
   /** Civic.hex.isOnMap */
-  get nCivics() { return this.civicTiles.filter(tile => tile.hex.isOnMap).length; }
+  get nCivics() { return this.civicTiles.filter(tile => tile.hex?.isOnMap).length; }
   allOf(claz: Constructor<Tile>) { return Tile.allTiles.filter(t => t instanceof claz && t.player === this); }
   allOnMap(claz: Constructor<Tile>) { return this.allOf(claz).filter(t => t.hex?.isOnMap); }
   /** Resi/Busi/PS/Lake/Civics in play on Map */
@@ -163,7 +163,7 @@ export class Player {
   readonly startDir: HexDir;
 
   // HexMap is populated AFTER Players are created!
-  get startHex() {
+  get initialHex() { // TODO: c/startHex/initialHex/
     let hex = this.gamePlay.hexMap.centerHex as Hex;
     let path = [this.startDir, this.startDir, this.startDir];
     path.forEach(dir => hex = hex.nextHex(dir));
@@ -182,7 +182,7 @@ export class Player {
     let ruleCard = TownRules.inst.selectOne();
     town.rule = ruleCard[Math.floor(Math.random() * 2)];
     // in principle this could change based on the town.rule...
-    this.gamePlay.placeEither(town, this.startHex) // place and assert influence.
+    this.gamePlay.placeEither(town, this.initialHex) // place and assert influence.
   }
 
   endGame(): void {
@@ -205,8 +205,7 @@ export class Player {
 
   newTurn() {
     // faceUp and record start location:
-    this.meeples.forEach(meep => meep.hex?.isOnMap ? meep.faceUp() : meep.startHex = undefined);
-    this.mapTiles.forEach(tile => tile.startHex = tile.hex);
+    this.meeples.forEach(meep => meep.faceUp());
     this.coins += (this.econs + this.expenses); // expenses include P & I
     this.debts.forEach(debt => {
       debt.balance -= 1;   // pay down principle

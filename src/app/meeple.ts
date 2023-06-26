@@ -19,14 +19,14 @@ class MeepleShape extends Shape implements Paintable {
     super();
     this.y = TP.meepleY0;
     this.paint();
-    this.backSide = this.makeOverlay();
+    this.backSide = this.makeOverlay(this.y);
   }
 
   backSide: Shape;  // visible when Meeple is 'faceDown' after a move.
-  makeOverlay() {
-    let {x, y, width: w, height: h} = this.getBounds();
+  makeOverlay(y0: number) {
+    const { x, width: w } = this.getBounds();
     const over = new Shape();
-    over.graphics.f(MeepleShape.backColor).dc(x + w / 2, y + h / 2, w / 2)
+    over.graphics.f(MeepleShape.backColor).dc(x + w / 2, y0, w / 2);
     over.visible = false;
     over.name = over[S.Aname] = 'backSide';
     return over;
@@ -70,7 +70,7 @@ export class Meeple extends Tile {
     this.nameText.visible = true;
     this.nameText.y = this.baseShape.y;
     let { x, y, width, height } = this.baseShape.getBounds();
-    this.cache(x, y, width, height);
+    this.setInfRays();  // cache(x, y, w, y)
     this.paint();
     Meeple.allMeeples.push(this);
   }
@@ -93,20 +93,20 @@ export class Meeple extends Tile {
     this.backSide.visible = !up;
     if (up) this.startHex = this.hex; // set at start of turn.
     this.updateCache();
-    GP.gamePlay.hexMap.update();
+    if (this.hex?.isOnMap) GP.gamePlay.hexMap.update();
   }
 
   override moveTo(hex: Hex): Hex {
     if (hex?.meep) hex.meep.x += 10; // make double occupancy apparent [gamePlay.unMove()]
     const fromHex = this.hex;
     super.moveTo(hex); // this.x/y = hex.x/y;
-    this.faceUp(!!hex && (!hex?.isOnMap || !fromHex?.isOnMap || hex === this.startHex));
+    this.faceUp(!!hex && (!hex.isOnMap || !fromHex?.isOnMap || hex === this.startHex));
     return hex;
   }
 
   override cantBeMovedBy(player: Player, ctx: DragContext) {
     const reason1 = super.cantBeMovedBy(player, ctx);
-    if (reason1) return reason1;
+    if (reason1 || reason1 === false) return reason1;
     if (this.backSide.visible && !ctx.lastShift) return "already moved"; // no move if not faceUp
     return undefined;
   }
@@ -115,7 +115,7 @@ export class Meeple extends Tile {
   /** decorate with influence rays (playerColorn)
    * @param inf 0 ... n (see also: this.infColor)
    */
-  override setInfRays(inf = this.inf): void {
+  override setInfRays(inf = this.hex?.getInfP(this.infColor) ?? this.infP): void {
     this.removeChildType(InfRays)
     if (inf !== 0) {
       this.addChildAt(new InfRays(inf, this.infColor), this.children.length - 1)
@@ -161,23 +161,8 @@ export class Meeple extends Tile {
 
   override dragStart(ctx?: DragContext): void {
     super.dragStart(ctx);
-    this.hex.tile?.setInfRays(); // tile influence after removing meeple
-    this.setInfRays();           // show influence rays on this meeple
-  }
-
-  // override dropFunc(targetHex: Hex2, ctx: DragContext): void {
-  //   GP.gamePlay.placeMeep(this, targetHex); // Drop: isOnMap or recycleHex
-  // }
-
-  // Meeple
-  override placeTile(toHex: Hex, payCost?: boolean): void {
-    const fromHex = this.hex;
-    GP.gamePlay.placeEither(this, toHex, payCost); // meep.hex = toHex (OR homeHex; incl undefined)
-    fromHex?.tile?.setInfRays(fromHex.getInfP(this.infColor) ?? 0); // recalc after this is removed
-
-    const infP = this.hex?.getInfP(this.infColor) ?? 0; // combined tile & meep influence
-    this.hex?.tile?.setInfRays(infP);
-    this.setInfRays(infP);
+    if (this.infP > 0) this.setInfRays(this.infP);   // meeple influence w/o tile
+    this.hex.tile?.setInfRays(this.hex.tile.infP);   // tile influence w/o meeple
   }
 
   override sendHome(): void { // Meeple

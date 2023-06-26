@@ -33,24 +33,26 @@ export class TP {
   static bankAdjBank = false;
   static vpOnCivic = 1;
   static infOnCivic = 0;
-  static preShiftCount = 1;  // plus 1 at start of turn
   static maxCivics = 4;
   static auctionMerge = 0;
-  static auctionSlots = 4;
+  static auctionSlots = 5;
   static reserveSlots = 1;
   static nPolicySlots = 3;
+  static preShiftCount = Math.max(1, TP.auctionSlots - 3);  // plus 1 at start of turn; auctionMerge+1 OR auctionSlots-3
   static resiPerPlayer = 11
   static busiPerPlayer = 9;
   static lakePerPlayer = 3;
   static bankPerPlayer = 3;
   static pstaPerPlayer = 3;
   static eventsPerPlayer = 3;
+  static policyPerPlayer = 3;
+  static econsForEvents = 6;
+  static allPolicyInBag = true;
   static inMarket = { Busi: 2, Resi: 2, Monument: 3 } as const;
   // 58 Baggable Tiles + 4 Civic Tiles per player.
   static criminalPerPlayer = 4;
   static policePerPlayer = 3;
   static textLogLines = 6;
-  static econsForEvents = 0;
 
   static placeAdjacent = true;
   static alwaysShift = false;

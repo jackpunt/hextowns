@@ -4,8 +4,7 @@ import { EwDir, H, HexAxis, HexDir, InfDir, NsDir } from "./hex-intfs";
 import type { Meeple } from "./meeple";
 import { CapMark, HexShape, LegalMark, MeepCapMark } from "./shapes";
 import { PlayerColor, PlayerColorRecord, TP, playerColorRecord, playerColorRecordF, playerColorsC } from "./table-params";
-import { BonusTile, Tile } from "./tile";
-import { GP } from "./game-play";
+import type { Tile } from "./tile";
 
 export const S_Resign = 'Hex@Resign'
 export const S_Skip = 'Hex@skip '
@@ -182,9 +181,9 @@ export class Hex {
   // that propagates along the axies, decrementing on non-presence cells,
   // boosting on presence/occupied cells.
   /** influence from presence of Tile/Meeple. */
-  getInfP(color: PlayerColor) {
-    const tileInf = this.tile?.infColor === color ? this.tile.infP : 0;
-    const meepInf = this.meep?.infColor === color ? this.meep.infP : 0;
+  getInfP(color: PlayerColor, xTile?: Tile | Meeple) {
+    const tileInf = (this.tile !== xTile && this.tile?.infColor === color) ? this.tile.inf : 0;
+    const meepInf = (this.meep !== xTile && this.meep?.infColor === color) ? this.meep.inf : 0;
     return tileInf + meepInf;
   }
   /** Total external inf on this Hex. */
@@ -212,25 +211,26 @@ export class Hex {
   propagateIncr(color: PlayerColor, dn: InfDir, inf: number, test: ((hex: Hex) => void) = (hex) => hex.assessThreats()) {
     const infP = this.getInfP(color);
     this.setInf(color, dn, inf);
-    const nxt = inf + ((infP > 0) ? infP : ((this.tile?.bonusInf(color) ?? 0) - 1));
+    const nxt = inf + ((infP > 0) ? infP : (this.bonusInf(color) - 1));
     if (nxt > 0) this.links[dn]?.propagateIncr(color, dn, nxt, test)
     if (test) test(this);
   }
 
+  private bonusInf(color: PlayerColor) { return this.tile?.bonusInf(color) ?? 0; }
   /**
    * Afer removing tileInf, set inf of this hex AND set inf of next in line to reduced value.
    * Pass on based on *orig/current* inf, not the new/decremented inf.
    * @param inf for hex, without infP
    * @param test after hex.setInf(infn) and hex.propagateDecr(nxt), apply test(hex)
-   * @param tileInf
+   * @param tile whose infP has been removed.
    */
-  propagateDecr(color: PlayerColor, dn: InfDir, inf: number, tileInf: number, test: ((hex: Hex) => void) = (hex) => hex.assessThreats()) {
+  propagateDecr(color: PlayerColor, dn: InfDir, inf: number, tile: Tile, test: ((hex: Hex) => void) = (hex) => hex.assessThreats()) {
     // if *this* has inf, then next may also have propagated inf.
-    const infP = this.getInfP(color);
-    const inf0 = this.getInf(color, dn) + infP + tileInf; // original, largest inf
+    const infP = this.getInfP(color, tile);
+    const inf0 = this.getInf(color, dn) + infP + (tile?.infP ?? 0); // original, largest inf
     this.setInf(color, dn, inf);
-    const nxt = (infP > 0) ? inf + infP : Math.max(0, inf - 1);
-    if (inf0 > 0) this.links[dn]?.propagateDecr(color, dn, nxt, 0, test) // pass-on a smaller number
+    const nxt = (infP > 0) ? inf + infP : Math.max(0, inf - ((this.tile !== tile) && (this.bonusInf(color) === 1) ? 0 : 1));
+    if (inf0 > 0) this.links[dn]?.propagateDecr(color, dn, nxt, undefined, test) // pass-on a smaller number
     if (test) test(this);
   }
 
