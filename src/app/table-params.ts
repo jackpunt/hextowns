@@ -26,6 +26,7 @@ export class TP {
   static policeCost = 0;
   static criminalCost = 0;
   static econForCrime = 6;
+  static econForEvents = 6;
 
   static eventScale = 1.5;
   static allowMultiEvent = false;
@@ -38,7 +39,8 @@ export class TP {
   static auctionSlots = 5;
   static reserveSlots = 1;
   static nPolicySlots = 3;
-  static preShiftCount = Math.max(1, TP.auctionSlots - 3);  // plus 1 at start of turn; auctionMerge+1 OR auctionSlots-3
+  static preShiftCount = Math.max(1, TP.auctionSlots - 2);
+  static alwaysShiftPolicy = true;
   static resiPerPlayer = 11
   static busiPerPlayer = 9;
   static lakePerPlayer = 3;
@@ -46,7 +48,6 @@ export class TP {
   static pstaPerPlayer = 3;
   static eventsPerPlayer = 3;
   static policyPerPlayer = 3;
-  static econsForEvents = 6;
   static allPolicyInBag = true;
   static inMarket = { Busi: 2, Resi: 2, Monument: 3 } as const;
   // 58 Baggable Tiles + 4 Civic Tiles per player.
@@ -78,7 +79,6 @@ export class TP {
   static schemeNames = ['Red_Blue', 'Blue_Red'];
   static colorScheme = TP.Blue_Red;
   static numPlayers = 2;
-  static load = 5;  // initial Ship load for manual testing
   /** offset planets  */
   static offP = true;
   /** distance between planets */

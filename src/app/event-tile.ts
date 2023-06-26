@@ -66,8 +66,6 @@ export class EvalTile extends Tile implements BagType {
   lineBreak(text: string) {
     return text.split('  ').join('\n');
   }
-  /** never showCostMark */
-  override showCostMark(show?: boolean): void { }
 
   // override dropFunc(targetHex: Hex2, ctx: DragContext): void {
   //   console.log(stime(this, `.dropFunc: this.textString()`), targetHex?.Aname);
@@ -77,6 +75,10 @@ export class EvalTile extends Tile implements BagType {
   override placeTile(toHex: Hex, payCost?: boolean): void {
     console.log(stime(this, `.placeTile: ${this.textString()}`), toHex?.Aname);
     super.placeTile(toHex, payCost); // --> moveTo(toHex) maybe recycle->sendHome()->undefined;
+    // self-drop to auctionTiles:
+    const ndx = GP.gamePlay.auctionHexes.indexOf(this.hex);
+    if (ndx >= 0) GP.gamePlay.auctionTiles[ndx] = this;
+
     // no effect from self drop, or phex to phex:
     if (this.fromHex === this.hex) return;
     if (this.player.isPolicyHex(this.hex) && this.player.isPolicyHex(this.fromHex)) return;
@@ -107,12 +109,13 @@ export class EvalTile extends Tile implements BagType {
     return rv;
   }
 
-  /** load EventTile into Auction TileBag. */
+  // like sendHome() if homeHex was tileBag...
+  /** load EventTile [back] into Auction TileBag. */
   sendToBag() {
     console.log(stime(this, `.moveToBag: ${this.textString()}`));
     const gamePlay = GP.gamePlay;
     gamePlay.removeFromAuction(this); // remove from gamePlay.auctionTiles[]
-    this.resetTile();
+    this.resetTile();                 // pro-forma: no effect
     this.player = undefined;
     super.moveTo(undefined);          // remove from Hex (auctionHexes[0])
     GP.gamePlay.shifter.tileBag.unshift(this);
@@ -135,6 +138,9 @@ export class EventTile extends EvalTile {
   override isLegalTarget(toHex: Hex, ctx?: DragContext): boolean {
     return false; // only drop on recycle
   }
+
+  /** never showCostMark */
+  override showCostMark(show?: boolean): void { }
 
   override sendHome(): void {
     GP.gamePlay.finishEvent(); // when sendHome()
@@ -199,8 +205,13 @@ export class PolicyTile extends EvalTile {
   }
 
   override isLegalTarget(toHex: Hex, ctx?: DragContext): boolean {
+    if (GP.gamePlay.failToPayCost(this, toHex, false)) return false;
     if (GP.gamePlay.curPlayer.isPolicyHex(toHex)) return true;
+    if (GP.gamePlay.isReserveHex(toHex)) return true;
     return false;  // else: only drop on recycle
+  }
+  override sendHome(): void {
+    super.sendToBag()
   }
 }
 class SpecClass implements EvalSpec {
@@ -215,8 +226,9 @@ class SpecClass implements EvalSpec {
   vp?: number;
   tvp = 0;
   tile?: EvalTile;
-  nOnMap(claz: Constructor<Tile>) {
-    return this.tile.player.allOnMap(claz).length;
+  nOnMap(claz: Constructor<Tile>, op = false) {
+    const player = op ? this.tile.player.otherPlayer : this.tile.player;
+    return player.allOnMap(claz).length;
   }
   incVp0(v = 1) {
     this.tile.player.vp0Counter.incValue(v);
@@ -230,7 +242,10 @@ class SpecClass implements EvalSpec {
     this.tile.player.tvp0Counter.incValue(v);
     this.tile.player.updateCounters();
   }
-  recycle() {
+  incTvp(v = 1) {
+    this.tile.player.totalVpCounter.incValue(v);
+    this.tile.player.updateCounters();
+  }  recycle() {
     this.tile.placeTile(GP.gamePlay.recycleHex, false);
   }
 }
@@ -288,10 +303,15 @@ class PolicySpecs extends SpecClass {
   // 'until' Policy loses effect when condition fails; and is removed by eval0 or eval1.
 
   allPolicySpecs: EvalSpec[] = [ // TODO: use claz, otherPlyr: boolean
-    new VpUntilHired(6, '+1 VP  until  Leader  is hired', { Aname: 'No Leader Event' }, Leader,),
-    new VpUntilOtherHires(6, '+1 VP  until  opposing  Criminal', { Aname: 'No Victim Event' }, Criminal),
-    new VpUntilHired(8, '+1 VP  until  Criminal  is hired', { Aname: 'No Corruption Event' }, Criminal),
-    new VpUntilHired(8, '+1 VP  until  Police  is hired', { Aname: 'No Police Event' }, Police),
+    new VpUntilHired(6, '+1 VP  until  Leader  is hired', { Aname: 'No Leader' }, Leader,),
+    new VpUntilHired(8, '+1 VP  until  Criminal  is hired', { Aname: 'No Corruption' }, Criminal),
+    new VpUntilHired(8, '+1 VP  until  Police  is hired', { Aname: 'No Police' }, Police),
+    new SpecClass(10, '+1 TVP  when no  opposing  Criminal', { Aname: 'No Crime', vp: 0,
+      eval1: function () {
+        this.incVp0(- this.vp);
+        this.incVp0(this.vp = this.nOnMap(Criminal, true) === 0) ? 1 : 0 },
+      rhex: function () { this.incVp(- this.vp); this.vp = 0; }
+    }),
     new SpecClass(10, '+1 VP  per  Police', {
       Aname: 'Police happiness Event', vp: 0,
       eval1: function () { this.incVp(- this.vp); this.incVp(this.vp = this.nOnMap(Police)); },
@@ -340,8 +360,8 @@ class PolicySpecs extends SpecClass {
       },
     }),
     new SpecClass(8, '+30 TVP  if no  colinear  Civics', { Aname: 'No colinear Civics', }),
-    new SpecClass(8, 'Extra Reserve Hex', { Aname: 'Reserve Hex 1', }),  // place this as Reserve Hex
-    new SpecClass(8, 'Extra Reserve Hex', { Aname: 'Reserve Hex 2', }),  // place this as Reserve Hex
+    new SpecClass(8, 'Extra  Reserve  Hex', { Aname: 'Reserve Hex 1', }),  // place this as Reserve Hex
+    new SpecClass(8, 'Extra  Reserve  Hex', { Aname: 'Reserve Hex 2', }),  // place this as Reserve Hex
     // { text: ''},
     // { text: ''},
     // { text: ''},

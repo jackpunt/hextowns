@@ -219,7 +219,7 @@ export class GamePlay0 {
       hex.tile = tile;
     });
   }
-  shiftAuction(pNdx?: number, alwaysShift?: boolean, forceDraw = this.forceDrawType) {
+  shiftAuction(pNdx = this.curPlayerNdx, alwaysShift?: boolean, forceDraw = this.forceDrawType) {
     this.shifter.shift(pNdx, alwaysShift, forceDraw);
   }
   private forceDrawNdx = -1;   // tweak in debugger to force draw Tile of specific type:
@@ -252,13 +252,13 @@ export class GamePlay0 {
     }
     this.shiftAuction(undefined, alwaysShift, drawType);
     let tile0 = this.shifter.tile0(this.curPlayerNdx);
-    while (tile0 instanceof EvalTile && !allowEvent) {
+    while (tile0 instanceof EventTile && !allowEvent) {
       console.log(stime(this, `.shiftAndProcess: event to bag: ${tile0.nameString()}`));
       tile0.sendToBag();  // note: DO NOT sendHome()/finishEvent()
       this.shiftAuction(undefined, alwaysShift);
       tile0 = this.shifter.tile0(this.curPlayerNdx);
     }
-    if (tile0 instanceof EvalTile) {
+    if (tile0 instanceof EventTile) {
       await this.processEventTile(tile0);
       this.shiftAndProcess(func, alwaysShift, TP.allowMultiEvent);
     } else {
@@ -275,7 +275,7 @@ export class GamePlay0 {
       console.log(stime(this, `.endTurn: must dismiss Event: ${this.eventHex.tile.nameText}`));
       return; // can't end turn until Event is dismissed.
     }
-    if (!this.eventsInBag && !Player.allPlayers.find(plyr => plyr.econs < TP.econsForEvents)) {
+    if (!this.eventsInBag && !Player.allPlayers.find(plyr => plyr.econs < TP.econForEvents)) {
       const np = Player.allPlayers.length;
       EventTile.addToBag(TP.eventsPerPlayer * np, this.shifter.tileBag, EventTile.allEvents);
       PolicyTile.addToBag(TP.policyPerPlayer * np, this.shifter.tileBag, PolicyTile.goInBag());
@@ -465,16 +465,18 @@ export class GamePlay0 {
   }
 
   failToPayCost(tile: Tile, toHex: Hex, commit = true) {
-    const toReserve = this.reserveHexes[this.curPlayerNdx].includes(toHex);
     if (tile.hex === toHex) return false;  // no payment; recompute influence
     if (this.preGame) return false;
-    // Can't fail if not going onto the Map:
-    if (!(!tile.hex?.isOnMap && (toHex?.isOnMap || toReserve))) return false;
-    // curPlayer && NOT FROM Map && TO [Map or Reserve]
+    const toMap = toHex?.isOnMap;
+    const toPolicy = this.curPlayer.isPolicyHex(toHex);
+    const toReserve = this.reserveHexes[this.curPlayerNdx].includes(toHex);
+    // no charge unless from off-Map to onMap/reserve/policy
+    if (!(!tile.hex?.isOnMap && (toMap || toPolicy || toReserve))) return false;
+    // tile is NOT On Map && IS going to [Map or Policy or Reserve]
     const [infR, coinR] = this.getInfR(tile); // assert coinR >= 0
     let inflR = 0;
-    if (!toReserve && infR > 0) {
-      // infles can be used to reduce the influence required to deploy:
+    if (toMap && infR > 0) {
+      // infls can be used to reduce the influence required to deploy:
       const infT = toHex.getInfT(this.curPlayer.color)
       inflR = infR - infT;        // add'l influence needed, expect <= 0
       if (inflR > this.curPlayer.infls) {
@@ -506,7 +508,7 @@ export class GamePlay0 {
    */
   placeEither(tile: Tile, toHex: Hex, payCost = true) {
     if (!tile) return;
-    const info = { tile, fromHex: tile.hex, toHex, infStr: toHex?.infStr ?? '?' };
+    const info = { tile, fromHex: tile.hex, toHex, infStr: toHex?.infStr ?? '?', payCost };
     if (toHex !== tile.hex) console.log(stime(this, `.placeEither:`), info);
     // commit to pay, and verify payment made:
     if (payCost && this.failToPayCost(tile, toHex)) {
@@ -850,7 +852,7 @@ export class GamePlay extends GamePlay0 {
     this.table.stopDragging() // drop on nextHex (no Move)
   }
 
-  /** for KeyBinding test */
+  /** originally for KeyBinding test */
   override shiftAuction(pNdx?: number, alwaysShift?: boolean, drawType?: Constructor<BagType>) {
     super.shiftAuction(pNdx, alwaysShift, drawType);
     this.paintForPlayer();

@@ -127,14 +127,22 @@ export class GameSetup {
     gui.makeParamSpec("dbp", [3, 4, 5, 6], { fontColor: "green" })
     gui.makeParamSpec("dop", [0, 1, 2, 3], { fontColor: "green" })
     gui.makeParamSpec("offP", [true, false], { fontColor: "green" })
-    gui.makeParamSpec("load", [0, 5, 10, 15, 20], { fontColor: "green" })
+    gui.makeParamSpec("auctionSlots", [5, 4, 3], { fontColor: "green" })
+    gui.makeParamSpec("auctionMerge", [0, 1, 2, 3], { fontColor: "green" })
     gui.makeParamSpec("colorScheme", schemeAry, { chooser: CycleChoice, style: { textAlign: 'center' } })
 
     gui.spec("dbp").onChange = (item: ParamItem) => { setSize(item.value, TP.dop) }
     gui.spec("dop").onChange = (item: ParamItem) => { setSize(TP.dbp, item.value) }
     gui.spec("offP").onChange = (item: ParamItem) => { gui.setValue(item); setSize(TP.dbp, TP.dop) }
-    gui.spec('load').onChange = (item: ParamItem) => {
-      gui.setValue(item)
+    gui.spec('auctionSlots').onChange = (item: ParamItem) => {
+      gui.setValue(item);
+      TP.preShiftCount = Math.max(1, TP.auctionSlots - 2);
+      restart && this.restart();
+    }
+    gui.spec('auctionMerge').onChange = (item: ParamItem) => {
+      if (item.value > TP.auctionSlots) return;
+      gui.setValue(item);
+      restart && this.restart();
     }
     const infName = "inf:cap"
     gui.makeParamSpec(infName, ['1:1', '1:0', '0:1', '0:0'], { name: infName, target: table, fontColor: 'green' })

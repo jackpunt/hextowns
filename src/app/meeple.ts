@@ -139,8 +139,9 @@ export class Meeple extends Tile {
   }
 
   override isLegalRecycle(ctx: DragContext) {
-    if (this.player !== GP.gamePlay.curPlayer && this.hex.getInfT(GP.gamePlay.curPlayer.color) <= this.hex.getInfT(this.player.color)) return false;
-    return true;
+    if (this.player === GP.gamePlay.curPlayer) return true;
+    if (this.hex.getInfT(GP.gamePlay.curPlayer.color) > this.hex.getInfT(this.infColor)) return true;
+    return false;
   }
 
   override showCostMark(show?: boolean): void {
@@ -364,5 +365,12 @@ export class Criminal extends SourcedMeeple {
       ((hex.meep instanceof Criminal) && hex.meep.player === plyr))
       ) return true;
     return false;
+  }
+
+  override cantBeMovedBy(player: Player, ctx: DragContext): string | boolean {
+    if (this.isLegalRecycle(ctx)) return false;
+    if (player !== this.player) return "not your criminal";
+    if (this.backSide.visible && !ctx.lastShift) return "already moved"; // no move if not faceUp
+    return undefined;
   }
 }

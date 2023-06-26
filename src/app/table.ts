@@ -14,6 +14,7 @@ import type { StatsPanel } from "./stats";
 import { PlayerColor, playerColor0, playerColor1, playerColors, TP } from "./table-params";
 import { BagType, NoDragTile, Tile, WhiteTile } from "./tile";
 import { TileSource } from "./tile-source";
+import { PolicyTile } from "./event-tile";
 //import { TablePlanner } from "./planner";
 
 
@@ -361,11 +362,15 @@ export class Table extends EventDispatcher  {
       this.addCostCounter(hex, `Shifter-${hexi}`, ndx, repaint); // auctionHex
     });
 
+    const n2 = Math.min(TP.auctionMerge, TP.preShiftCount);// typically: preShiftCount = min(1, nMerge)
     playerColors.forEach((pc, pNdx) => {
-      for (let i = 0; i < TP.preShiftCount; i++) { // typically: preShiftCount = min(1, nMerge)
-        this.gamePlay.shiftAuction(pNdx); // Also shift in gamePlay.startTurn()
+      for (let i = 0; i < n2; i++) {
+        this.gamePlay.shifter.shift(pNdx);
       }
     });
+    for (let i = 0; i < TP.preShiftCount - n2; i++) {
+      this.gamePlay.shiftAuction();
+    }
     this.hexMap.update();
   }
 
@@ -448,7 +453,7 @@ export class Table extends EventDispatcher  {
       this.reserveHexes[pIndex] = [];
       for (let i = 0; i < TP.reserveSlots; i++) {
         const rhex = this.homeRowHex(`Reserve:${pIndex}-${i}`, colf(col0++, 0));
-        this.addCostCounter(rhex, `rCost-${i}`, 1, false); // reserveHexes[plyr]
+        this.addCostCounter(rhex, `rCost-${i}`, TP.auctionSlots - 3, false); // reserveHexes[plyr]
         this.reserveHexes[pIndex].push(rhex);
       }
 
@@ -910,8 +915,17 @@ export class AuctionShifter implements IAuctionShifter {
     return false;
   }
 
+  isPolicy(pIndex: number) {
+    const nm = this.nm, tiles = this.tiles;
+    for (let n = pIndex * nm; n < tiles.length; n += (nm > 0 && n == nm - 1) ? nm + 1 : 1 ) {
+      if (tiles[n] instanceof PolicyTile) return true;
+    }
+    return false;
+  }
+
   shift(pIndex = 0, alwaysShift = TP.alwaysShift, drawType?: Constructor<BagType>) {
-    if (!alwaysShift && !this.isEmptySlot(pIndex)) return; // nothing to shift
+    const shiftForPolicy = TP.alwaysShiftPolicy && this.isPolicy(pIndex);
+    if (!shiftForPolicy && !alwaysShift && !this.isEmptySlot(pIndex)) return; // nothing to shift
     const nm = this.nm, tiles = this.tiles
     const tile = drawType ? this.tileBag.takeType(drawType) : this.tileBag.selectOne();
     const hexes = this.hexes
