@@ -23,11 +23,16 @@ interface EvalSpec {
 }
 
 export class EvalTile extends Tile implements BagType {
+  static override allTiles: EvalTile[];
+  static makeAllTiles() {
+    EvalTile.allTiles = new EventSpecs().allSpecs.map((spec, ndx) => new EvalTile(EvalTile.aname(spec, EvalTile, ndx), spec));
+  }
+
   /** add all EventTile and selected PolicyTile. */
   static addToBag(max: number, tileBag: TileBag<BagType>, allTiles: BagType[]) {
     const tiles = allTiles.slice() as BagType[]; // draw without replacement from copy of Tile[]
     // tiles.splice(0, 0, ...PolicyTile.goInBag() as BagType[]);
-    if (max >= tiles.length) {
+    if (max >= tiles.length || max < 0) {
       tileBag.push(...tiles);  // push them all, in order
       return;
     }
@@ -36,8 +41,8 @@ export class EvalTile extends Tile implements BagType {
     for (let i = 0; i < n; i++) tileBag.push(tileBag.selectOne(true, tiles));
   }
 
-  static aname(spec: EvalSpec, claz?: Constructor<EvalTile>, count = 0) {
-    return `${spec?.Aname || `${claz.name}-${count}`}`;
+  static aname(spec: EvalSpec, claz?: Constructor<EvalTile>, serial = 0) {
+    return `${spec?.Aname || `${claz.name}-${serial}`}`;
   }
 
   constructor(Aname: string, readonly spec: EvalSpec) {
@@ -67,37 +72,25 @@ export class EvalTile extends Tile implements BagType {
     return text.split('  ').join('\n');
   }
 
-  // override dropFunc(targetHex: Hex2, ctx: DragContext): void {
-  //   console.log(stime(this, `.dropFunc: this.textString()`), targetHex?.Aname);
-  //   super.dropFunc(targetHex, ctx);
-  // }
-  // dropFunc-->placeTile:
-  override placeTile(toHex: Hex, payCost?: boolean): void {
-    console.log(stime(this, `.placeTile: ${this.textString()}`), toHex?.Aname);
-    super.placeTile(toHex, payCost); // --> moveTo(toHex) maybe recycle->sendHome()->undefined;
-    // self-drop to auctionTiles:
-    const ndx = GP.gamePlay.auctionHexes.indexOf(this.hex);
-    if (ndx >= 0) GP.gamePlay.auctionTiles[ndx] = this;
-
+  // shiftAndProcess -> moveTo: [eventHex]
+  // dropFunc OR C-q -> placeTile -> moveTo: [recycleHex, policyHex]
+  dispatchByHex(toHex: Hex) {
     // no effect from self drop, or phex to phex:
-    if (this.fromHex === this.hex) return;
-    if (this.player.isPolicyHex(this.hex) && this.player.isPolicyHex(this.fromHex)) return;
+    if (toHex === this.fromHex) return;
+    if (this.player.isPolicyHex(toHex) && this.player.isPolicyHex(this.fromHex)) return;
 
     const gamePlay = GP.gamePlay;
     if (toHex === gamePlay.recycleHex) {
       console.log(stime(this, `.rhex: ${this.textString()}`));
       this.rhex(gamePlay);
     }
-    if (this.hex === gamePlay.eventHex) {
+    if (toHex === gamePlay.eventHex) {
       console.log(stime(this, `.ehex: ${this.textString()}`));
       this.ehex(gamePlay);
     }
-    if (this.player.isPolicyHex(this.hex)) {
+    if (this.player.isPolicyHex(toHex)) {
       console.log(stime(this, `.phex: ${this.textString()}`));
       this.phex(gamePlay);
-    }
-    if (this.hex !== gamePlay.eventHex) {
-      gamePlay.finishEvent(); // when moved from eventHex
     }
   }
 
@@ -105,8 +98,16 @@ export class EvalTile extends Tile implements BagType {
     GP.gamePlay.removeFromAuction(this);  // for all BagType
     // console.log(stime(this, `.moveTo: ${this.textString()}`), toHex?.Aname);
     const rv = super.moveTo(toHex); // presumably can now be on AuctionHex[0] and appear as AuctionTiles[0]
-    //toHex?.map.update();
+    this.dispatchByHex(toHex);
     return rv;
+  }
+
+  override placeTile(toHex: Hex, payCost?: boolean): void {
+    console.log(stime(this, `.placeTile: ${this.textString()}`), toHex?.Aname);
+    super.placeTile(toHex, payCost); // --> moveTo(toHex) maybe recycle->sendHome()->undefined;
+    // self-drop to auctionTiles:
+    const ndx = GP.gamePlay.auctionHexes.indexOf(this.hex);
+    if (ndx >= 0) GP.gamePlay.auctionTiles[ndx] = this;
   }
 
   // like sendHome() if homeHex was tileBag...
@@ -126,12 +127,12 @@ export class EvalTile extends Tile implements BagType {
 }
 
 export class EventTile extends EvalTile {
-  static allEvents: EventTile[];
-  static makeAllEvent() {
-    EventTile.allEvents = new EventSpecs().allEventSpecs.map((spec, ndx) => new EventTile(spec, ndx));
+  static override allTiles: EventTile[];
+  static override makeAllTiles() {
+    EventTile.allTiles = new EventSpecs().allSpecs.map((spec, ndx) => new EventTile(spec, ndx));
   }
 
-  constructor(spec: EvalSpec, n: number) {
+  constructor(spec: EvalSpec, n = 0) {
     super(EventTile.aname(spec, EventTile, n), spec);
   }
 
@@ -150,50 +151,23 @@ export class EventTile extends EvalTile {
   // TODO: add +VP & +TVP buttons
   // TODO: add player.policySlots Hexes, and forEach policySlot(hex=>hex.tile.eval())
 }
-class EventSpecs extends EventTile {
-  constructor() { super({text: ''}, 0);}
 
-  allEventSpecs: EvalSpec[] = [
-    { text: 'Do a  Crime  action', Aname: 'Crime Action' },
-    { text: 'Do a  Build  action', Aname: 'Build Action' },
-    { text: 'Do a  Police  action', Aname: 'Police Action' },
-    { text: 'Move  your  Meeples', Aname: 'Move Meeples' },
-    { text: 'Gain  Influence  token', Aname: 'Influence Token' },
-    { text: 'Add  Influence  token to  Resi', Aname: 'Influence Resi' },
-    { text: 'Add  Influence  token to  Busi', Aname: 'Influence Busi' },
-    { text: 'Add  Econ token  to  Resi', Aname: 'Econ on Resi' }, // Home Business (adj Bank?)
-    { text: 'Add  Econ token  to  Lake', Aname: 'Econ on Lake' }, // lakeside resort
-    { text: 'Add  Econ token  to  Police', Aname: 'Econ on PS' }, // ~discount police
-    { text: 'Add  VP token  to  Busi', Aname: 'VP on Busi' },     // Happy Business
-    { text: 'Add  VP token  to  Bank', Aname: 'VP on Bank' },     // Happy Business
-    { text: 'Move  one  Criminal', Aname: 'Move Criminal' },
-    { text: 'Capture  one  Criminal', Aname: 'Capture Criminal' },
-    { text: 'Build  Monument  on site adj  3 types', Aname: 'Build Monument' },
-    { text: '+2 Coins  per  un-placed  Leader', Aname: 'Coins per Leader' },
-    { text: '  +3 Coins', Aname: '+3 Coins' },
-    { text: '  +1 VP', Aname: '+1 VP', vp: 1 },
-    { text: '  +10 TVP', Aname: '+10 TVP' },
-    // Urban renewal:
-    { text: 'Demolish  your Resi  +5 TVP', Aname: 'Demo Resi +5 TVP' },
-    { text: 'Demolish  your Lake  +5 TVP', Aname: 'Demo Lake +5 TVP' },
-    { text: 'Demolish  your Busi  +5 Coins', Aname: 'Demo Busi +5 TVP' },
-    { text: 'Demolish  your Bank  +5 Coins', Aname: 'Demo Bank +5 TVP' },
-    { text: 'Demolish  any  Auction  tile', Aname: 'Demo Auction' },
-
-    // { text: ''},
-    // { text: ''},
-    // { text: ''},
-  ];
+/** Events that always go in the tileBag. */
+export class BagEvent extends EventTile {
+  static override allTiles: BagEvent[];
+  static override makeAllTiles() {
+    BagEvent.allTiles = new BagEventSpecs().allSpecs.map((spec, ndx) => new BagEvent(spec, ndx));
+  }
+  constructor(spec: EvalSpec, ndx: number) {
+    super(spec, ndx);
+  }
 }
 
 export class PolicyTile extends EvalTile {
-  static allPolicy: PolicyTile[];
-  static makeAllPolicy() {
-    PolicyTile.allPolicy = new PolicySpecs().allPolicySpecs.map((spec, ndx) => new PolicyTile(spec, ndx));
+  static override allTiles: PolicyTile[];
+  static override makeAllTiles() {
+    PolicyTile.allTiles = new PolicySpecs().allSpecs.map((spec, ndx) => new PolicyTile(spec, ndx));
   }
-  static goInBag() { return PolicyTile.allPolicy.filter(p => p.goesInBag); }
-
-  get goesInBag() { return TP.allPolicyInBag || this.Aname.endsWith('Event'); }
 
   constructor(spec: EvalSpec, n: number) {
     super(EventTile.aname(spec, EventTile, n), spec);
@@ -250,6 +224,64 @@ class SpecClass implements EvalSpec {
   }
 }
 
+class EventSpec extends SpecClass {
+  constructor(text: string, spec: EvalSpec) {
+    super(0, text, spec);
+  }
+}
+
+class EventSpecs extends EventSpec {
+  /** singleton */
+  constructor() { super('EventSpecs', {}); }
+
+  allSpecs: EvalSpec[] = [
+    { text: 'Do a  Crime  action', Aname: 'Crime Action' },
+    { text: 'Do a  Build  action', Aname: 'Build Action' },
+    { text: 'Do a  Police  action', Aname: 'Police Action' },
+    { text: 'Move  your  Meeples', Aname: 'Move Meeples' },
+    { text: 'Gain  Influence  token', Aname: 'Influence Token' },
+    { text: 'Add  Influence  token to  Resi', Aname: 'Influence Resi' },
+    { text: 'Add  Influence  token to  Busi', Aname: 'Influence Busi' },
+    { text: 'Add  Econ token  to  Resi', Aname: 'Econ on Resi' }, // Home Business (adj Bank?)
+    { text: 'Add  Econ token  to  Lake', Aname: 'Econ on Lake' }, // lakeside resort
+    { text: 'Add  Econ token  to  Police', Aname: 'Econ on PS' }, // ~discount police
+    { text: 'Add  VP token  to  Busi', Aname: 'VP on Busi' },     // Happy Business
+    { text: 'Add  VP token  to  Bank', Aname: 'VP on Bank' },     // Happy Business
+    { text: 'Move  one  Criminal', Aname: 'Move Criminal' },
+    { text: 'Capture  one  Criminal', Aname: 'Capture Criminal' },
+    { text: 'Build  Monument  on site adj  3 types', Aname: 'Build Monument' },
+    { text: '+2 Coins  per  un-placed  Leader', Aname: 'Coins per Leader' },
+    { text: '  +3 Coins', Aname: '+3 Coins' },
+    { text: '  +1 VP', Aname: '+1 VP', vp: 1 },
+    { text: '  +10 TVP', Aname: '+10 TVP' },
+    // Urban renewal:
+    { text: 'Demolish  your Resi  +5 TVP', Aname: 'Demo Resi +5 TVP' },
+    { text: 'Demolish  your Lake  +5 TVP', Aname: 'Demo Lake +5 TVP' },
+    { text: 'Demolish  your Busi  +5 Coins', Aname: 'Demo Busi +5 TVP' },
+    { text: 'Demolish  your Bank  +5 Coins', Aname: 'Demo Bank +5 TVP' },
+    { text: 'Demolish  any  Auction  tile', Aname: 'Demo Auction' },
+
+    // { text: ''},
+    // { text: ''},
+    // { text: ''},
+  ];
+}
+
+export class BagEventSpecs extends EventSpec {
+  /** singleton */
+  constructor() { super('BagEventSpecs', {}); }
+
+  allSpecs: EvalSpec[] = [
+    new EventSpec('Auto  Crime', { ehex: function (gp: GamePlay) { gp.autoCrime(true) }, }),
+    new EventSpec('Auto  Crime', { ehex: function (gp: GamePlay) { gp.autoCrime(true) }, }),
+    new EventSpec('Auto  Crime', { ehex: function (gp: GamePlay) { gp.autoCrime(true) }, }),
+    new EventSpec('Auto  Crime', { ehex: function (gp: GamePlay) { gp.autoCrime(true) }, }),
+    new EventSpec('Auto  Crime', { ehex: function (gp: GamePlay) { gp.autoCrime(true) }, }),
+    new EventSpec('Auto  Crime', { ehex: function (gp: GamePlay) { gp.autoCrime(true) }, }),
+  ]
+
+}
+
 class VpUntilHired extends SpecClass {
   curMeeps: Tile[];
   meepf: () => Tile[];
@@ -296,13 +328,13 @@ class VpUntilOtherHires extends VpUntilHired {
 }
 
 class PolicySpecs extends SpecClass {
-
-  constructor() { super(0, '', {}); }
+  /** singleton */
+  constructor() { super(0, 'PolicySpecs', {}); }
   // Policy is 'permanent'; evaluated each turn for effect; and end of game for TVP
   // Policy in effect while on player.isPolicyHex (phex --> rhex)
   // 'until' Policy loses effect when condition fails; and is removed by eval0 or eval1.
 
-  allPolicySpecs: EvalSpec[] = [ // TODO: use claz, otherPlyr: boolean
+  allSpecs: EvalSpec[] = [ // TODO: use claz, otherPlyr: boolean
     new VpUntilHired(6, '+1 VP  until  Leader  is hired', { Aname: 'No Leader' }, Leader,),
     new VpUntilHired(8, '+1 VP  until  Criminal  is hired', { Aname: 'No Corruption' }, Criminal),
     new VpUntilHired(8, '+1 VP  until  Police  is hired', { Aname: 'No Police' }, Police),

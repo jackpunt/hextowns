@@ -352,7 +352,7 @@ export class Criminal extends SourcedMeeple {
 
   override isLegalTarget(hex: Hex, ctx?: DragContext): boolean { // Criminal
     if (!super.isLegalTarget(hex, ctx)) return false;
-    let plyr = this.player ?? GP.gamePlay.curPlayer; // owner or soon-to-be owner
+    const plyr = this.player ?? GP.gamePlay.curPlayer; // owner or soon-to-be owner
     // must NOT be on or adj to plyr's Tile:
     if (hex.tile?.player === plyr) return false;
     if (hex.findLinkHex(hex => hex.tile?.player === plyr)) return false;
@@ -369,7 +369,7 @@ export class Criminal extends SourcedMeeple {
 
   override cantBeMovedBy(player: Player, ctx: DragContext): string | boolean {
     if (this.isLegalRecycle(ctx)) return false;
-    if (player !== this.player) return "not your criminal";
+    if (player !== this.player && !ctx.lastShift) return "not your criminal";
     if (this.backSide.visible && !ctx.lastShift) return "already moved"; // no move if not faceUp
     return undefined;
   }

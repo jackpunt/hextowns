@@ -4,7 +4,7 @@ import { Container } from "@thegraid/easeljs-module";
 import { EzPromise } from "@thegraid/ezpromise";
 import { AuctionTile, Bank, Busi, Lake, PS, Resi, TileBag, } from "./auction-tile";
 import { CostIncCounter } from "./counters";
-import { EvalTile, EventTile, PolicyTile } from "./event-tile";
+import { BagEvent, EvalTile, EventTile, PolicyTile } from "./event-tile";
 import { GameSetup } from "./game-setup";
 import { Hex, Hex2, HexMap, IHex } from "./hex";
 import { H } from "./hex-intfs";
@@ -164,9 +164,7 @@ export class GamePlay0 {
     if (dice[0] == 2 && dice[1] == 2) { this.addBonus('star'); }
     if (dice[0] == 3 && dice[1] == 3) { this.addBonus('infl'); }
     if (dice[0] == 4 && dice[1] == 4) { this.addBonus('econ'); }
-    if (dice[0] != dice[1] && !dice.find(v => v < 4)) {
-      this.autoCrime(); // 4-[5,6], 5-[4,6], 6-[4,5] 6/36 => 16.7%
-    }
+    // if (dice[0] != dice[1] && !dice.find(v => v < 4)) { this.autoCrime(); }// 4-[5,6], 5-[4,6], 6-[4,5] 6/36 => 16.7%
     this.hexMap.update()
   }
 
@@ -277,8 +275,9 @@ export class GamePlay0 {
     }
     if (!this.eventsInBag && !Player.allPlayers.find(plyr => plyr.econs < TP.econForEvents)) {
       const np = Player.allPlayers.length;
-      EventTile.addToBag(TP.eventsPerPlayer * np, this.shifter.tileBag, EventTile.allEvents);
-      PolicyTile.addToBag(TP.policyPerPlayer * np, this.shifter.tileBag, PolicyTile.goInBag());
+      EventTile.addToBag(TP.eventsPerPlayer * np, this.shifter.tileBag, EventTile.allTiles);
+      BagEvent.addToBag(-6, this.shifter.tileBag, BagEvent.allTiles);
+      PolicyTile.addToBag(TP.policyPerPlayer * np, this.shifter.tileBag, PolicyTile.allTiles);
       this.eventsInBag = true;
       console.log(stime(this, `.endTurn: eventsInBag`), this.shifter.tileBag);
     }
@@ -707,7 +706,7 @@ export class GamePlay extends GamePlay0 {
     KeyBinder.keyBinder.setKey('C-a', { thisArg: this, func: () => { this.shiftAndProcess(undefined, true)} })  // C-a new Tile
     KeyBinder.keyBinder.setKey('C-A', { thisArg: this, func: () => { this.shiftAndProcess(undefined, true, true, EventTile)} })  // C-A shift(Event)
     KeyBinder.keyBinder.setKey('C-M-a', { thisArg: this, func: () => { this.shiftAndProcess(undefined, true, true, PolicyTile)} })  // C-M-a shift(Policy)
-    KeyBinder.keyBinder.setKey('C-q', { thisArg: this, func: () => { this.placeEither(this.eventHex.tile, this.recycleHex)} })  // C-q recycle from eventHex
+    KeyBinder.keyBinder.setKey('C-q', { thisArg: this, func: () => { this.table.dragStartAndDrop(this.eventHex.tile, this.recycleHex) } })  // C-q recycle from eventHex
     KeyBinder.keyBinder.setKey('C-s', { thisArg: this.gameSetup, func: () => { this.gameSetup.restart() } })// C-s START
     KeyBinder.keyBinder.setKey('C-c', { thisArg: this, func: this.stopPlayer })// C-c Stop Planner
     KeyBinder.keyBinder.setKey('m', { thisArg: this, func: this.makeMove, argVal: true })

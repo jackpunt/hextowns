@@ -9,7 +9,7 @@ import { StatsPanel, TableStats } from "./stats";
 import { Table } from "./table";
 import { TP } from "./table-params";
 import { Monument, Tile } from "./tile";
-import { EventTile, PolicyTile } from "./event-tile";
+import { BagEvent, EventTile, PolicyTile } from "./event-tile";
 
 /** show " R" for " N" */
 stime.anno = (obj: string | { constructor: { name: string; }; }) => {
@@ -73,8 +73,9 @@ export class GameSetup {
     Meeple.allMeeples = [];
     Player.allPlayers = [];
     Monument.inst = [0, 0];
-    EventTile.makeAllEvent();
-    PolicyTile.makeAllPolicy();
+    EventTile.makeAllTiles();
+    PolicyTile.makeAllTiles();
+    BagEvent.makeAllTiles();
 
     const table = new Table(this.stage)        // EventDispatcher, ScaleCont, GUI-Player
     const gamePlay = new GamePlay(table, this) // hexMap, players, fillBag, gStats, mouse/keyboard->GamePlay

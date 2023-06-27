@@ -1,5 +1,5 @@
 import { AT, C, Constructor, Dragger, DragInfo, F, KeyBinder, S, ScaleableContainer, stime, XY } from "@thegraid/easeljs-lib";
-import { Container, DisplayObject, EventDispatcher, Graphics, Shape, Stage, Text } from "@thegraid/easeljs-module";
+import { Container, DisplayObject, EventDispatcher, Graphics, MouseEvent, Shape, Stage, Text } from "@thegraid/easeljs-module";
 import { TileBag } from "./auction-tile";
 import { ButtonBox, CostIncCounter, DecimalCounter, NumCounter, NumCounterBox } from "./counters";
 import { Debt } from "./debt";
@@ -26,13 +26,15 @@ interface StageTable extends Stage {
   table: Table;
 }
 
+type MinDragInfo = { first?: boolean, event?: MouseEvent };
+
 export interface DragContext {
   targetHex: Hex2;      // last isLegalTarget() or fromHex
   lastShift: boolean;   // true if Shift key is down
   lastCtrl: boolean;    // true if control key is down
-  info: DragInfo;
+  info: MinDragInfo;    // we only use { first, event }
   tile: Tile;           // the DisplayObject being dragged
-  nLegal?: number;       // number of legal drop tiles (excluding recycle)
+  nLegal?: number;      // number of legal drop tiles (excluding recycle)
 }
 
 class TextLog extends Container {
@@ -631,10 +633,14 @@ export class Table extends EventDispatcher  {
   }
 
   dragContext: DragContext;
-  dragFunc(tile: Tile, info: DragInfo) {
+  dragFunc(tile: Tile, info: MinDragInfo) {
     const hex = this.hexUnderObj(tile); // clickToDrag 'snaps' to non-original hex!
-    let ctx = this.dragContext;
+    this.dragFunc0(tile, info, hex);
+  }
 
+  /** interpose inject drag/start actions programatically */
+  dragFunc0(tile: Tile, info: MinDragInfo, hex = this.hexUnderObj(tile)) {
+    let ctx = this.dragContext;
     if (info?.first) {
       if (ctx?.tile) {
         // clickToDrag intercepting a drag in progress!
@@ -703,12 +709,20 @@ export class Table extends EventDispatcher  {
     tile?.dragShift(shiftKey, ctx);
   }
 
-  dropFunc(tile: Tile, info: DragInfo) {
-    tile.dropFunc0(this.hexUnderObj(tile), this.dragContext);
+  dropFunc(tile: Tile, info: MinDragInfo, hex = this.hexUnderObj(tile)) {
+    tile.dropFunc0(hex, this.dragContext);
     tile.markLegal(this); // hex => hex.isLegal = false;
     this.gamePlay.recycleHex.isLegal = false;
     this.dragContext.lastShift = undefined;
     this.dragContext.tile = undefined; // mark not dragging
+  }
+
+  /** synthesize dragStart(tile), tile.dragFunc0(hex), dropFunc(tile);  */
+  dragStartAndDrop(tile: Tile, toHex: Hex) {
+    const info = { first: true }, hex = toHex as Hex2;
+    this.dragFunc0(tile, info, tile.hex as Hex2);
+    tile.dragFunc0(hex, this.dragContext);
+    this.dropFunc(tile, info, hex);
   }
 
   private isDragging() { return this.dragContext?.tile !== undefined; }
