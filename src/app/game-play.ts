@@ -628,7 +628,7 @@ export class GamePlay extends GamePlay0 {
   override autoCrime(force = false) {
     // no autoCrime until all Players have 3 VPs.
     if (!force && this.allPlayers.find(plyr => plyr.econs < TP.econForCrime)) return; // poverty
-    const meep = this.curPlayer.criminalSource.hexMeep;
+    const meep = this.curPlayer.criminalSource.hexMeep; //     meep.startHex = meep.source.hex;
     if (!meep) return;               // no Criminals available
     meep.autoCrime = true;           // no econ charge to curPlayer
     const targetHex = this.autoCrimeTarget(meep);
@@ -654,26 +654,8 @@ export class GamePlay extends GamePlay0 {
     }));
   }
 
-  // do we may need to unMove meeples in the proper order? lest we get 2 meeps on a hex?
-  // meepA -> hexC, meepB -> hexA; undo: meepA -> hexA (collides with meepB), meepB -> hexB
-  // Assert: if meepA.startHex is occupied by meepB, then meepB is NOT on meepB.startHex;
-  // So: recurse to move meepB to its startHex;
-  // Note: with multiple/illegal moves, meepA -> hexB, meepB -> hexA; infinite recurse
-  // So: remove meepA from hexB before moving meepB -> hexB
   unMove() {
-    const unmove2 = (meepA: Meeple) => {
-      meepA.placeTile(undefined, false);      // take meepA off the map; meepA.startHex = undefined!!
-      const meepB = meepA.startHex.meep;
-      if (meepB) unmove2(meepB);              // recurse to move meepB to meepB.startHex
-      meepA.placeTile(meepA.startHex, false); // Move & update influence; Note: no unMove for Hire! (sendHome)
-      meepA.faceUp();
-    }
-
-    this.curPlayer.meeples.forEach(meep => {
-      if (meep.hex?.isOnMap && meep.startHex !== meep.hex ) {
-        unmove2(meep);
-      }
-    })
+    this.curPlayer.meeples.forEach(meep => meep.hex?.isOnMap && meep.unMove());
     this.assessThreats();
   }
 

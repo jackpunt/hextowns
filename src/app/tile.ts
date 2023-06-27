@@ -239,8 +239,6 @@ export class Tile extends Tile0 {
 
   /** location at start-of-game & after-Recycle */
   homeHex: Hex = undefined;
-  /** location at start-of-turn; Meeples */
-  startHex: Hex;
   /** location at start-of-drag */
   fromHex: Hex2;
 
@@ -517,7 +515,7 @@ export class Tile extends Tile0 {
   /** state of shiftKey has changed during drag */
   dragShift(shiftKey: boolean, ctx: DragContext) { }
 
-  markLegal(table: Table, setLegal = (hex: Hex2) => { hex.isLegal = false; }) {
+  markLegal(table: Table, setLegal = (hex: Hex2) => { hex.isLegal = false; }, ctx?: DragContext) {
     table.homeRowHexes.forEach(setLegal);
     table.hexMap.forEachHex(setLegal);
   }

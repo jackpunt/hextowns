@@ -690,7 +690,7 @@ export class Table extends EventDispatcher  {
     } else {
       // mark legal targets for tile; SHIFT for all hexes, if payCost
       const hexIsLegal = (hex: Hex2) => ctx.nLegal += ((hex !== tile.hex) && (hex.isLegal = tile.isLegalTarget(hex, ctx)) ? 1 : 0);
-      tile.markLegal(this, hexIsLegal);           // delegate to check each potential target
+      tile.markLegal(this, hexIsLegal, ctx);           // delegate to check each potential target
       this.gamePlay.recycleHex.isLegal = tile.isLegalRecycle(ctx); // do not increment ctx.nLegal!
       tile.dragStart(ctx);  // which *could* reset nLegal ?
       this.gamePlay.eventHex.cont.updateCache();  // <--- QQQ: is this the right place? conditional?

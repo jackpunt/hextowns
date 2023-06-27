@@ -6,7 +6,7 @@ import type { Hex, Hex2 } from "./hex";
 import { H } from "./hex-intfs";
 import type { Player } from "./player";
 import { C1, InfRays, Paintable } from "./shapes";
-import type { DragContext } from "./table";
+import type { DragContext, Table } from "./table";
 import { PlayerColor, TP, criminalColor } from "./table-params";
 import { Church, Civic, Courthouse, Tile, TownStart, University } from "./tile";
 import { UnitSource } from "./tile-source";
@@ -88,7 +88,24 @@ export class Meeple extends Tile {
   override textVis(v: boolean) { super.textVis(true); }
   override makeShape(): Paintable { return new MeepleShape(this.player); }
 
-  /** start of turn: unmoved */
+  /** location at start-of-turn; for Meeples.unMove() */
+  startHex: Hex;
+
+  // we need to unMove meeples in the proper order; lest we get 2 meeps on a hex.
+  // meepA -> hexC, meepB -> hexA; undo: meepA -> hexA (collides with meepB), meepB -> hexB
+  // Assert: if meepA.startHex is occupied by meepB, then meepB is NOT on meepB.startHex;
+  // So: recurse to move meepB to its startHex;
+  // Note: with multiple/illegal moves, meepA -> hexB, meepB -> hexA; infinite recurse
+  // So: remove meepA from hexB before moving meepB -> hexB
+  unMove() {
+    if (this.hex === this.startHex) return;
+    this.placeTile(undefined, false);       // take meepA off the map; meepA.startHex = undefined!!
+    this.startHex.meep?.unMove();           // recurse to move meepB to meepB.startHex
+    this.placeTile(this.startHex, false);   // Move & update influence; Note: no unMove for Hire! (sendHome)
+    this.faceUp();
+  }
+
+  /** start of turn, faceUp(undefined) --> faceUp; moveTo(true|false) --> faceUp|faceDn */
   faceUp(up = true) {
     this.backSide.visible = !up;
     if (up) this.startHex = this.hex; // set at start of turn.
@@ -107,7 +124,7 @@ export class Meeple extends Tile {
   override cantBeMovedBy(player: Player, ctx: DragContext) {
     const reason1 = super.cantBeMovedBy(player, ctx);
     if (reason1 || reason1 === false) return reason1;
-    if (this.backSide.visible && !ctx.lastShift) return "already moved"; // no move if not faceUp
+    if (!ctx.lastShift && !this.canAutoUnmove && this.backSide.visible) return "already moved"; // no move if not faceUp
     return undefined;
   }
 
@@ -124,18 +141,31 @@ export class Meeple extends Tile {
     this.cache(radxy, radxy, radwh, radwh)
   }
 
-  isOnLine(hex: Hex) {
-    return H.infDirs.find(dir => this.hex.hexesInDir(dir).includes(hex)) ? true : false;
+  isOnLine(hex: Hex, fromHex = this.hex) {
+    return H.infDirs.find(dir => fromHex.hexesInDir(dir).includes(hex)) ? true : false;
+  }
+
+  get canAutoUnmove() { return this.player.meeples.filter(meep => meep.hex !== meep.startHex).length == 1 }
+
+  // we *could* override markLegal(), if *this* is the only meeple to have moved,
+  // unMove it to reset influence
+  override markLegal(table: Table, setLegal?: (hex: Hex2) => void, ctx?: DragContext): void {
+    if (!ctx?.lastShift && setLegal && this.canAutoUnmove) {
+      this.unMove();
+    }
+    super.markLegal(table, setLegal);
   }
 
   override isLegalTarget(hex: Hex, ctx?: DragContext) {  // Meeple
     if (!hex) return false;
     if (hex.meep) return false;    // no move onto meeple
+    if (!hex.isOnMap) return false;
+    if (!ctx.lastShift && this.backSide.visible) return false;
     if (GP.gamePlay.failToPayCost(this, hex, false)) return false;
     // only move in line, to hex with influence:
-    let onLine = this.isOnLine(hex), noInf = hex.getInfT(this.infColor) === 0;
-    if (this.hex.isOnMap && (!onLine || noInf)) return false;
-    return hex.isOnMap;
+    const onLine = this.isOnLine(hex), noInf = hex.getInfT(this.infColor) === 0;
+    if (this.startHex.isOnMap && (!onLine || noInf)) return false;
+    return true;
   }
 
   override isLegalRecycle(ctx: DragContext) {
@@ -168,7 +198,7 @@ export class Meeple extends Tile {
 
   override sendHome(): void { // Meeple
     this.faceUp();
-    super.sendHome()
+    super.sendHome();
   }
 }
 
@@ -350,6 +380,18 @@ export class Criminal extends SourcedMeeple {
     return toHex;
   }
 
+  private get startAutoCrime() { return this.autoCrime && (this.startHex === this.source.hex); }
+
+  override faceUp(up?: boolean): void {
+    const sac = this.startAutoCrime; // before faceUp changes startHex
+    super.faceUp(up === false ? sac : up);
+    if (up !== undefined && sac) this.startHex = this.source.hex; // until next turn (up == undefined)
+  }
+
+  override isOnLine(hex: Hex): boolean {
+    return this.startAutoCrime ? true : super.isOnLine(hex);
+  }
+
   override isLegalTarget(hex: Hex, ctx?: DragContext): boolean { // Criminal
     if (!super.isLegalTarget(hex, ctx)) return false;
     const plyr = this.player ?? GP.gamePlay.curPlayer; // owner or soon-to-be owner
@@ -357,20 +399,25 @@ export class Criminal extends SourcedMeeple {
     if (hex.tile?.player === plyr) return false;
     if (hex.findLinkHex(hex => hex.tile?.player === plyr)) return false;
     // if fromSource, must be to empty cell:
-    if (this.hex === this.source.hex && hex.tile) return false;
+    if (this.startHex === this.source.hex && hex.tile) return false;
     // must be on or adj to otherPlayer Tile OR aligned Criminal:
     if (hex.tile?.player && hex.tile.player !== plyr) return true;
-    if (hex.findLinkHex(hex =>
-      (hex.tile?.player && hex.tile.player !== plyr) ||
-      ((hex.meep instanceof Criminal) && hex.meep.player === plyr))
+    const sac = this.startAutoCrime;
+    if (hex.findLinkHex(adj =>
+      (adj.tile?.player && adj.tile.player !== plyr) ||
+      ((adj.meep instanceof Criminal) && adj.meep.player === plyr) && (sac ? adj.meep !== this : true))
       ) return true;
     return false;
   }
 
   override cantBeMovedBy(player: Player, ctx: DragContext): string | boolean {
     if (this.isLegalRecycle(ctx)) return false;
-    if (player !== this.player && !ctx.lastShift) return "not your criminal";
-    if (this.backSide.visible && !ctx.lastShift) return "already moved"; // no move if not faceUp
+    if (!ctx.lastShift && player !== this.player) return "not your criminal";
+    if (!ctx.lastShift && this.backSide.visible) return "already moved"; // no move if not faceUp
     return undefined;
+  }
+  // don't 'auto-unmove' Criminals (without lastShift)
+  override get canAutoUnmove(): boolean {
+    return false;
   }
 }
