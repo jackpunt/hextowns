@@ -46,8 +46,8 @@ export class Player {
   readonly civicTiles: Civic[] = [];            // Player's S, H, C, U Tiles
   /** Civic.hex.isOnMap */
   get nCivics() { return this.civicTiles.filter(tile => tile.hex?.isOnMap).length; }
-  allOf(claz: Constructor<Tile>) { return Tile.allTiles.filter(t => t instanceof claz && t.player === this); }
-  allOnMap(claz: Constructor<Tile>) { return this.allOf(claz).filter(t => t.hex?.isOnMap); }
+  allOf<T extends Tile>(claz: Constructor<T>) { return (Tile.allTiles as T[]).filter(t => t instanceof claz && t.player === this); }
+  allOnMap<T extends Tile>(claz: Constructor<T>) { return this.allOf(claz).filter(t => t.hex?.isOnMap); }
   /** Resi/Busi/PS/Lake/Civics in play on Map */
   get mapTiles() { return this.allOf(MapTile) as MapTile[] }
   get debts() { return Tile.allTiles.filter(t => (t instanceof Debt) && t.tile?.player === this) as Debt[] }

@@ -507,7 +507,8 @@ export class GamePlay0 {
    */
   placeEither(tile: Tile, toHex: Hex, payCost = true) {
     if (!tile) return;
-    const info = { tile, fromHex: tile.hex, toHex, infStr: toHex?.infStr ?? '?', payCost };
+    const fromHex = tile.hex;
+    const info = { tile, fromHex, toHex, infStr: toHex?.infStr ?? '?', payCost };
     if (toHex !== tile.hex) console.log(stime(this, `.placeEither:`), info);
     // commit to pay, and verify payment made:
     if (payCost && this.failToPayCost(tile, toHex)) {
@@ -517,15 +518,14 @@ export class GamePlay0 {
       return;
     }
     // update influence on map:
-    const fromHex = tile.hex;
     const infColor = tile.infColor || this.curPlayer.color;
     const tileInfP = tile.infP + tile.bonusInf(infColor);
     if (fromHex?.isOnMap && tileInfP !== 0) {
       this.decrInfluence(fromHex, tile, infColor);        // as if tile has no influence
     }
-    if (toHex !== fromHex) this.logText(`Place ${tile}`, `gamePlay.placeEither`)
+    if (toHex !== fromHex) this.logText(`Place ${tile} -> ${toHex}`, `gamePlay.placeEither`)
     tile.moveTo(toHex);  // placeEither(tile, hex) --> moveTo(hex)
-    if (fromHex) {
+    if (fromHex?.meep || fromHex?.tile) {
       const infP = fromHex.getInfP(infColor);
       fromHex.meep?.setInfRays(infP); // meep inf w/o tile moved
       fromHex.tile?.setInfRays(infP); // tile inf w/o meep moved
@@ -543,7 +543,7 @@ export class GamePlay0 {
   }
 
   recycleTile(tile: Tile) {
-    if (!tile) return;
+    if (!tile) return;    // no prior reserveTile...
     let verb = tile.recycleVerb ?? 'recycled';
     if (tile.fromHex?.isOnMap) {
       if (tile.player !== this.curPlayer) {
@@ -863,7 +863,7 @@ export class GamePlay extends GamePlay0 {
   }
 
   override setNextPlayer(plyr?: Player) {
-    super.setNextPlayer(plyr);
+    super.setNextPlayer(plyr); // update player.coins
     this.paintForPlayer();
     this.updateCostCounters();
     Player.updateCounters(); // beginning of round...

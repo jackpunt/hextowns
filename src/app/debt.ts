@@ -115,7 +115,7 @@ export class Debt extends Token {
   override showCostMark(show?: boolean): void { }
 
   override isLegalRecycle(ctx: DragContext) {
-    if (this.tile?.player) return (this.tile.player.coins >= this.balance) || ctx.lastShift;
+    if (this.tile?.player) return (this.tile.player.coins >= this.balance) || ctx?.lastShift;
     return this.hex.isOnMap;
   }
 
@@ -136,9 +136,10 @@ export class Debt extends Token {
 
   // nextUnit() --> unit.moveTo(source.hex)
   override moveTo(toHex: Hex | undefined) {
-    const source = Debt.source; //[this.player.index]
+    const source = Debt.source; // [this.player.index]
     const fromHex = this.hex, fromTile = this.tile;
-    const tile = this.tile = toHex?.tile, player = tile?.player; // undefined when recycle/sendHome;
+    this.tile = toHex?.tile;    // moveTo new Tile
+    const tile = this.tile, player = tile?.player; // undefined when recycle/sendHome;
     if (tile !== fromTile) {
       if (!!player) {
         this.balance = tile.loanLimit ?? 0;
@@ -154,10 +155,10 @@ export class Debt extends Token {
   }
 
   override sendHome(): void {
-    let source = Debt.source; //[this.player.index]
-    if (this.tile?.player) {
-      this.tile.player.coins -= this.balance;
-      console.log(stime(this, `.sendHome: ${this.tile.player.Aname} paid-off: $${this.balance}`));
+    const source = Debt.source, player = this.player;
+    if (player) {
+      player.coins -= this.balance;
+      console.log(stime(this, `.sendHome: ${player.Aname} paid-off: $${this.balance} -> ${player.coins}`));
     }
     this.balance = 0;
     this.player = undefined;

@@ -429,10 +429,10 @@ export class Tile extends Tile0 {
   }
 
   flipOwner(targetHex: Hex2, ctx: DragContext) {
-    const gamePlay = GP.gamePlay, player = ctx.lastCtrl ? this.player.otherPlayer : gamePlay.curPlayer;
+    const gamePlay = GP.gamePlay, player = ctx?.lastCtrl ? this.player.otherPlayer : gamePlay.curPlayer;
     if (targetHex.isOnMap && (targetHex === this.fromHex)) {
       const infT = this.hex.getInfT(this.player?.color);
-      if (targetHex.getInfT(player.color) > infT || ctx.lastCtrl) {
+      if (targetHex.getInfT(player.color) > infT || ctx?.lastCtrl) {
         this.flipPlayer(player, gamePlay); // flip if Infl or ctrlKey:
       }
       return true;
@@ -503,7 +503,7 @@ export class Tile extends Tile0 {
       // captured - allow to flip, no recycle
       if (this.hex.getInfT(player.color) > infT) return false;
     }
-    return (ctx.lastShift || this.player === undefined || this.player === player) ? undefined : "Not your Tile";
+    return (ctx?.lastShift || this.player === undefined || this.player === player) ? undefined : "Not your Tile";
   }
 
   /** override as necessary. */
@@ -561,7 +561,7 @@ export class Tile extends Tile0 {
   logRecycle(verb: string) {
     const cp = GP.gamePlay.curPlayer;
     const loc = this.hex?.isOnMap ? 'onMap' : 'offMap';
-    const info = { Aname: this.Aname, fromHex: this.hex?.Aname, cp: cp.colorn, caps: cp.captures, tile: {...this} }
+    const info = { Aname: this.Aname, fromHex: this.fromHex?.Aname, cp: cp.colorn, caps: cp.captures, tile: {...this} }
     console.log(stime(this, `.recycleTile[${loc}]: ${verb}`), info);
     GP.gamePlay.logText(`${cp.Aname} ${verb} ${this}`, `GamePlay.recycle`);
   }

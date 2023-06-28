@@ -50,7 +50,7 @@ export class AuctionTile extends MapTile implements BagType {
     if (reason1 || reason1 === false)
       return reason1;
     // allow shift-demolish/fire/capture(Tile,Meeple) from map [Debt & EventTile override]
-    if (player.actions <= 0 && !this.hex.isOnMap && !ctx.lastShift)
+    if (player.actions <= 0 && !this.hex.isOnMap && !ctx?.lastShift)
       return "no Actions";
     // exclude opponent's [unowned] private auction Tiles:
     const gamePlay = GP.gamePlay;
@@ -79,7 +79,7 @@ export class AuctionTile extends MapTile implements BagType {
       return false;
     }
     // Now consider toHex.isOnMap:
-    if (ctx.lastShift) return true; // Shift key allows map-to-map & failToBalance
+    if (ctx?.lastShift) return true; // Shift key allows map-to-map & failToBalance
 
     // Cannot move a tile that is already on the map:
     if (this.hex.isOnMap)

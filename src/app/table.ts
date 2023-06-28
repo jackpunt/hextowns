@@ -651,7 +651,7 @@ export class Table extends EventDispatcher  {
         return;
       }
       const event = info.event?.nativeEvent;
-      tile.fromHex = tile.hex as Hex2;
+      tile.fromHex = tile.hex as Hex2;  // dragStart: set tile.fromHex
       ctx = this.dragContext = {
         tile: tile,                  // ASSERT: hex === tile.hex
         targetHex: tile.fromHex,     // last isLegalTarget() or fromHex
@@ -719,6 +719,7 @@ export class Table extends EventDispatcher  {
 
   /** synthesize dragStart(tile), tile.dragFunc0(hex), dropFunc(tile);  */
   dragStartAndDrop(tile: Tile, toHex: Hex) {
+    if (!tile) return; // C-q when no EventTile on eventHex
     const info = { first: true }, hex = toHex as Hex2;
     this.dragFunc0(tile, info, tile.hex as Hex2);
     tile.dragFunc0(hex, this.dragContext);

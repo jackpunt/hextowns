@@ -124,7 +124,7 @@ export class Meeple extends Tile {
   override cantBeMovedBy(player: Player, ctx: DragContext) {
     const reason1 = super.cantBeMovedBy(player, ctx);
     if (reason1 || reason1 === false) return reason1;
-    if (!ctx.lastShift && !this.canAutoUnmove && this.backSide.visible) return "already moved"; // no move if not faceUp
+    if (!ctx?.lastShift && !this.canAutoUnmove && this.backSide.visible) return "already moved"; // no move if not faceUp
     return undefined;
   }
 
@@ -145,7 +145,7 @@ export class Meeple extends Tile {
     return H.infDirs.find(dir => fromHex.hexesInDir(dir).includes(hex)) ? true : false;
   }
 
-  get canAutoUnmove() { return this.player.meeples.filter(meep => meep.hex !== meep.startHex).length == 1 }
+  get canAutoUnmove() { return this.player.allOnMap(Meeple).filter(meep => meep.hex !== meep.startHex).length == 1 }
 
   // we *could* override markLegal(), if *this* is the only meeple to have moved,
   // unMove it to reset influence
@@ -160,7 +160,7 @@ export class Meeple extends Tile {
     if (!hex) return false;
     if (hex.meep) return false;    // no move onto meeple
     if (!hex.isOnMap) return false;
-    if (!ctx.lastShift && this.backSide.visible) return false;
+    if (!ctx?.lastShift && this.backSide.visible) return false;
     if (GP.gamePlay.failToPayCost(this, hex, false)) return false;
     // only move in line, to hex with influence:
     const onLine = this.isOnLine(hex), noInf = hex.getInfT(this.infColor) === 0;
@@ -412,8 +412,8 @@ export class Criminal extends SourcedMeeple {
 
   override cantBeMovedBy(player: Player, ctx: DragContext): string | boolean {
     if (this.isLegalRecycle(ctx)) return false;
-    if (!ctx.lastShift && player !== this.player) return "not your criminal";
-    if (!ctx.lastShift && this.backSide.visible) return "already moved"; // no move if not faceUp
+    if (!ctx?.lastShift && player !== this.player) return "not your criminal";
+    if (!ctx?.lastShift && this.backSide.visible) return "already moved"; // no move if not faceUp
     return undefined;
   }
   // don't 'auto-unmove' Criminals (without lastShift)
