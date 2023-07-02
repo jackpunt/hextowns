@@ -76,32 +76,19 @@ export class Player {
   get econs() {
     let econ = 0;
     this.gamePlay.hexMap.forEachHex(hex => {
-      if ((hex.tile?.player == this) && !(hex.meep instanceof Criminal)) {
+      if ((hex.tile?.player === this) && !(hex.meep instanceof Criminal)) {
         econ += hex.tile.econ;
         // console.log(stime(this, `.econs`), hex.tile.Aname, hex.Aname, hex.tile.econ, econ);
       }
     })
+    this.policyHexes.forEach(hex => econ += (hex.tile?.econ ?? 0));
     return econ;
   }
 
   actionCounter: NumCounter;
   get actions() { return this.actionCounter?.getValue(); }
   set actions(v: number) { this.actionCounter?.updateValue(v); }
-  useAction() {
-    this.actions -= 1;
-  }
-
-  /** deposit Infls & Actns with Player */
-  takeBonus(tile: Tile) {
-    if (tile?.bonus['actn']) {
-      this.actions += 1;              // triggers actionCounter.updateValue
-      tile.removeBonus('actn');
-    }
-    if (tile?.bonus['infl']) {
-      this.infls += 1;              // triggers inflCounter.updateValue
-      tile.removeBonus('infl');
-    }
-  }
+  useAction() { this.actions -= 1; }
 
   expenseCounter: NumCounter;
   get expenses() {
@@ -135,14 +122,14 @@ export class Player {
   get vps() {
     let vp = this.vp0 + this.captures;
     this.gamePlay.hexMap.forEachHex(hex => {
-      if ((hex.tile?.player == this) && hex.tile?.debt) vp -= 1;   // Debt reduces happiness...
-      const dv = (hex.meep instanceof Criminal) ? 0 :
-        (((hex.tile?.player == this && hex.tile.vp) +
-          (hex.meep?.player == this && hex.meep.vp)));
+      const myTile = hex.tile?.player === this;
+      const dv = (!myTile || hex.meep instanceof Criminal || hex.tile?.debt) ? 0 :
+        (hex.tile.vp + (hex.meep?.player === this && hex.meep.vp));
       vp += dv;
       //hex.tile && console.log(stime(this, `.vps`), hex.tile.Aname, hex.Aname, vp, dv, (hex.tile?.player == this && hex.tile.vp), (hex.meep?.player == this && hex.meep.vp));
-    })
-    return vp
+    });
+    this.policyHexes.forEach(hex => vp += (hex.tile?.vp ?? 0));
+    return vp;
   }
 
   tvp0Counter: NumCounter;    // adjustment to TVP from Event/Policy
@@ -154,11 +141,11 @@ export class Player {
   get vpsPerRound() { return this.totalVpCounter.perRound; }
 
   get otherPlayer() { return Player.allPlayers[1 - this.index] }
-
-  planner: IPlanner
-  /** if true then invoke plannerMove */
-  useRobo: boolean = false
   get colorn() { return TP.colorScheme[this.color] }
+
+  planner: IPlanner;
+  /** if true then invoke plannerMove */
+  useRobo: boolean = false;
 
   readonly startDir: HexDir;
 
@@ -176,6 +163,17 @@ export class Player {
     Leader.makeLeaders(this); // push new Civic onto this.civics, push new Leader onto this.meeples
   }
 
+  /** deposit Infls & Actns with Player */
+  takeBonus(tile: Tile) {
+    if (tile?.bonus['actn']) {
+      this.actions += 1;              // triggers actionCounter.updateValue
+      tile.removeBonus('actn');
+    }
+    if (tile?.bonus['infl']) {
+      this.infls += 1;              // triggers inflCounter.updateValue
+      tile.removeBonus('infl');
+    }
+  }
 
   /** choose TownRules & placement of TownStart */
   placeTown(town = this.civicTiles[0] as TownStart) {
@@ -206,6 +204,7 @@ export class Player {
   newTurn() {
     // faceUp and record start location:
     this.meeples.forEach(meep => meep.faceUp());
+    this.policyHexes.forEach(hex => (hex.tile instanceof PolicyTile) && hex.tile.eval0());
     this.coins += (this.econs + this.expenses); // expenses include P & I
     this.debts.forEach(debt => {
       debt.balance -= 1;   // pay down principle
@@ -216,7 +215,6 @@ export class Player {
       }
     });
     this.actions = 1;
-    this.policyHexes.forEach(hex => (hex.tile instanceof PolicyTile) && hex.tile.eval0());
   }
 
   stopMove() {

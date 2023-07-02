@@ -99,7 +99,7 @@ export class Meeple extends Tile {
   // So: remove meepA from hexB before moving meepB -> hexB
   unMove() {
     if (this.hex === this.startHex) return;
-    this.placeTile(undefined, false);       // take meepA off the map; meepA.startHex = undefined!!
+    this.placeTile(undefined, false);       // take meepA off the map;
     this.startHex.meep?.unMove();           // recurse to move meepB to meepB.startHex
     this.placeTile(this.startHex, false);   // Move & update influence; Note: no unMove for Hire! (sendHome)
     this.faceUp();
@@ -133,27 +133,30 @@ export class Meeple extends Tile {
    * @param inf 0 ... n (see also: this.infColor)
    */
   override setInfRays(inf = this.hex?.getInfP(this.infColor) ?? this.infP): void {
-    this.removeChildType(InfRays)
+    this.removeChildType(InfRays);
     if (inf !== 0) {
-      this.addChildAt(new InfRays(inf, this.infColor), this.children.length - 1)
+      this.addChildAt(new InfRays(inf, this.infColor), this.children.length - 1);
     }
-    let radxy = -TP.hexRad, radwh = 2 * TP.hexRad
-    this.cache(radxy, radxy, radwh, radwh)
+    const radxy = -TP.hexRad, radwh = 2 * TP.hexRad;
+    this.cache(radxy, radxy, radwh, radwh);
   }
 
-  isOnLine(hex: Hex, fromHex = this.hex) {
-    return H.infDirs.find(dir => fromHex.hexesInDir(dir).includes(hex)) ? true : false;
+  isOnLine(hex0: Hex, fromHex = this.hex) {
+    return !!fromHex.linkDirs.find(dir => fromHex.hexesInDir(dir).includes(hex0));
+    // return !!fromHex.linkDirs.find(dir => fromHex.findInDir(dir, hex => hex === hex0));
+    // return !!fromHex.findLinkHex((hex, dir) => !!hex.findInDir(dir, hex => hex === hex0));
   }
 
   get canAutoUnmove() { return this.player.allOnMap(Meeple).filter(meep => meep.hex !== meep.startHex).length == 1 }
 
-  // we *could* override markLegal(), if *this* is the only meeple to have moved,
-  // unMove it to reset influence
+  /** override markLegal(), if *this* is the only meeple to have moved,
+   * unMove it to reset influence; can always move back to startHex; */
   override markLegal(table: Table, setLegal?: (hex: Hex2) => void, ctx?: DragContext): void {
-    if (!ctx?.lastShift && setLegal && this.canAutoUnmove) {
+    if (!ctx?.lastShift && !!setLegal && this.canAutoUnmove) {
       this.unMove();
     }
     super.markLegal(table, setLegal);
+    this.startHex.isLegal = !!setLegal && (this.hex !== this.startHex);
   }
 
   override isLegalTarget(hex: Hex, ctx?: DragContext) {  // Meeple

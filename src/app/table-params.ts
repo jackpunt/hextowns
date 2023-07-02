@@ -38,7 +38,7 @@ export class TP {
   static auctionMerge = 0;
   static auctionSlots = 5;
   static reserveSlots = 1;
-  static nPolicySlots = 3;
+  static nPolicySlots = 4;
   static preShiftCount = Math.max(1, TP.auctionSlots - 2);
   static alwaysShiftPolicy = true;
   static resiPerPlayer = 11
@@ -48,7 +48,9 @@ export class TP {
   static pstaPerPlayer = 3;
   static eventsPerPlayer = 3;
   static policyPerPlayer = 3;
-  static allPolicyInBag = true;
+  static autoCrimePerBag = 1 / 6;   // 1 in 6 --> 1 in 7;
+  static bonusPerType = 3; // 4 types
+  static bonusOnBoard = 4;
   static inMarket = { Busi: 2, Resi: 2, Monument: 3 } as const;
   // 58 Baggable Tiles + 4 Civic Tiles per player.
   static criminalPerPlayer = 4;

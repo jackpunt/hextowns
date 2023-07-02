@@ -238,6 +238,7 @@ export class Hex {
     this.tile?.assessThreats();    // playerColorsC.forEach(pc => this.assessThreat(pc));
     this.meep?.assessThreats();
   }
+  get linkDirs() { return Object.keys(this.links) as InfDir[];}
 
   /** convert LINKS object to Array */
   get linkHexes() {
@@ -245,10 +246,18 @@ export class Hex {
   }
   forEachLinkHex(func: (hex: Hex, dir: InfDir, hex0: Hex) => unknown, inclCenter = false) {
     if (inclCenter) func(this, undefined, this);
-    Object.keys(this.links).forEach((dir: InfDir) => func(this.links[dir], dir, this));
+    this.linkDirs.forEach((dir: InfDir) => func(this.links[dir], dir, this));
   }
   findLinkHex(pred: (hex: Hex, dir: InfDir, hex0: Hex) => boolean) {
-    return Object.keys(this.links).find((dir: InfDir) => pred(this.links[dir], dir, this));
+    return this.linkDirs.find((dir: InfDir) => pred(this.links[dir], dir, this));
+  }
+
+  findInDir(dir: InfDir, pred: (hex: Hex, dir: InfDir, hex0: Hex) => boolean) {
+    let hex: Hex = this;
+    do {
+       if (pred(hex, dir, this)) return hex;
+    } while(!!(hex = hex.nextHex(dir)));
+    return undefined;
   }
 
   hexesInDir(dir: InfDir, rv: Hex[] = []) {
@@ -257,10 +266,15 @@ export class Hex {
     return rv;
   }
 
+  /** for each Hex in each Dir: func(hex, dir, this) */
+  forEachHexDir(func: (hex: Hex, dir: InfDir, hex0: Hex) => unknown) {
+    this.linkDirs.forEach((dir: InfDir) => this.hexesInDir(dir).filter(hex => !!hex).map(hex => func(hex, dir, this)));
+  }
+
   nextHex(ds: HexDir, ns: number = 1) {
-    let hex: Hex = this, nhex: Hex
-    while (!!(nhex = hex.links[ds]) && ns-- > 0) { hex = nhex }
-    return hex
+    let hex: Hex = this;
+    while (!!(hex = hex.links[ds]) && --ns > 0) {  }
+    return hex;
   }
   /** return last Hex on axis in given direction */
   lastHex(ds: HexDir): Hex {

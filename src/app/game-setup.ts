@@ -9,7 +9,6 @@ import { StatsPanel, TableStats } from "./stats";
 import { Table } from "./table";
 import { TP } from "./table-params";
 import { Monument, Tile } from "./tile";
-import { BagEvent, EventTile, PolicyTile } from "./event-tile";
 
 /** show " R" for " N" */
 stime.anno = (obj: string | { constructor: { name: string; }; }) => {
@@ -73,9 +72,6 @@ export class GameSetup {
     Meeple.allMeeples = [];
     Player.allPlayers = [];
     Monument.inst = [0, 0];
-    EventTile.makeAllTiles();
-    PolicyTile.makeAllTiles();
-    BagEvent.makeAllTiles();
 
     const table = new Table(this.stage)        // EventDispatcher, ScaleCont, GUI-Player
     const gamePlay = new GamePlay(table, this) // hexMap, players, fillBag, gStats, mouse/keyboard->GamePlay
@@ -93,7 +89,7 @@ export class GameSetup {
       // table.miniMap.mapCont.y = Math.max(gui.ymax, gui2.ymax) + gui.y + table.miniMap.wh.height / 2
       console.groupEnd()
     }
-    table.startGame() // setNextPlayer()
+    table.startGame(); // allTiles.makeDragable(); placeStartTowns(); setNextPlayer();
     return gamePlay
   }
   /** reporting stats. values also used by AI Player. */
