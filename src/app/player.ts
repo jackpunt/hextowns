@@ -16,19 +16,13 @@ export class Player {
   static allPlayers: Player[] = [];
   static playerStartDir: HexDir[] = ['NW', 'E', 'SW'];
 
-
-  /** update Counters (econ, expense, vp) for ALL players. */
-  static updateCounters() {
-    Player.allPlayers.forEach(player => player.updateCounters());
-  }
-
-  updateCounters() {
+  setCounters(update = true) {
     this.econCounter.setValue(this.econs)
     this.expenseCounter.setValue(this.expenses)
     this.vpCounter.setValue(this.vps)
     //if (player && player !== curPlayer) player.totalVpCounter.setValue(player.totalVps)
     this.balanceText.text = GP.gamePlay.playerBalanceString(this);
-    GP.gamePlay.hexMap.update();
+    update && GP.gamePlay.hexMap.update();
   }
 
   readonly Aname: string;

@@ -50,19 +50,19 @@ class SpecClass implements EvalSpec {
 
   incVp0(v = 1) {
     this.tile.player.vp0Counter.incValue(v);
-    this.tile.player.updateCounters();
+    this.tile.player.setCounters();
   }
   incCoins(v = 1) {
     this.tile.player.coinCounter.incValue(v);
-    this.tile.player.updateCounters();
+    this.tile.player.setCounters();
   }
   incTvp0(v = 1) {
     this.tile.player.tvp0Counter.incValue(v);
-    this.tile.player.updateCounters();
+    this.tile.player.setCounters();
   }
   incTvp(v = 1) {
     this.tile.player.totalVpCounter.incValue(v);
-    this.tile.player.updateCounters();
+    this.tile.player.setCounters();
   }  recycle() {
     this.tile.placeTile(GP.gamePlay.recycleHex, false);
   }

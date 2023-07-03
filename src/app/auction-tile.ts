@@ -5,7 +5,7 @@ import { H } from "./hex-intfs";
 import type { Player } from "./player";
 import { DragContext } from "./table";
 import { TP } from "./table-params";
-import { AuctionBonus, BagTile, BonusId, BonusMark, BonusTile, MapTile, Tile } from "./tile";
+import { AdjBonusId, AuctionBonus, BagTile, BonusId, BonusMark, BonusTile, MapTile, Tile } from "./tile";
 import { TileBag } from "./tile-bag";
 
 export class AuctionTile extends MapTile implements BagTile {
@@ -107,10 +107,10 @@ export class AuctionTile extends MapTile implements BagTile {
     gamePlay.removeFromAuction(this);
     gamePlay.removeFromReserve(this);
 
-    const priorTile = hex.tile; // generally undefined; except BonusTile (or ReserveHexes.tile)
-    const bonus = (priorTile instanceof BonusTile) && priorTile.bonus;
+    const destTile = hex.tile;  // generally undefined; BonusTile, ReserveHexes.tile [& PolicyHexes.tile])
+    const bonus = (destTile instanceof BonusTile) && destTile.bonus;
     if (hex?.isOnMap) {                 // not to Reserve!
-      this.player.takeBonus(priorTile); // deposit infl & actn with Player;
+      this.player.takeBonus(destTile); // deposit infl & actn with Player;
       if (!this.fromHex.isOnMap) {      // ctx.lastCtrl allows map-to-map
         this.player.takeBonus(this);    // build: takeBonus (infl & actn)
         player.useAction(); // Build
@@ -121,7 +121,7 @@ export class AuctionTile extends MapTile implements BagTile {
 
     // now ok to increase 'cost' of this Tile.
     if (bonus) {
-      priorTile.moveBonusTo(this);      // Econ & Star; priorTile.sendHome();
+      destTile.moveBonusTo(this);      // Econ & Star; priorTile.sendHome();
     }
 
     // if from market source:
@@ -179,7 +179,7 @@ class AdjBonusTile extends AuctionTile {
 
   /** dodgy? merging Bonus.type with asset/image name */
   constructor(
-    public type: BonusId,
+    public type: AdjBonusId,
     public isAdjFn = (tile: Tile) => false,
     public anyPlayer = TP.anyPlayerAdj, // true -> bonus for adj tile, even if owner is different
     Aname?: string, player?: Player, inf = 0, vp = 0, cost = 1, econ = 0,

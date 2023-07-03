@@ -71,7 +71,6 @@ export class GameSetup {
     Tile.allTiles = [];
     Meeple.allMeeples = [];
     Player.allPlayers = [];
-    Monument.inst = [0, 0];
 
     const table = new Table(this.stage)        // EventDispatcher, ScaleCont, GUI-Player
     const gamePlay = new GamePlay(table, this) // hexMap, players, fillBag, gStats, mouse/keyboard->GamePlay

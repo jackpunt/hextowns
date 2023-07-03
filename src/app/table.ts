@@ -12,7 +12,7 @@ import { Player } from "./player";
 import { HexShape } from "./shapes";
 import type { StatsPanel } from "./stats";
 import { PlayerColor, playerColor0, playerColor1, playerColors, TP } from "./table-params";
-import { BagTile, NoDragTile, Tile, WhiteTile } from "./tile";
+import { BagTile, BonusTile, NoDragTile, Tile, WhiteTile } from "./tile";
 import { TileSource } from "./tile-source";
 import { PolicyTile } from "./event-tile";
 //import { TablePlanner } from "./planner";
@@ -450,6 +450,8 @@ export class Table extends EventDispatcher  {
         }
         source.nextUnit();
         this.addCostCounter(hex, type.name, TP.auctionSlots - 3, p);  // Busi/Resi/Monument market
+        const gamePlay = this.gamePlay, cic = this.gamePlay.costIncHexCounters.get(hex);
+        source.counter.on(TileSource.update, () => gamePlay.updateCostCounter(cic), gamePlay);
       })
 
       this.reserveHexes[pIndex] = [];
@@ -613,6 +615,7 @@ export class Table extends EventDispatcher  {
     Tile.allTiles.filter(tile => !(tile instanceof NoDragTile)).forEach(tile => {
       this.makeDragable(tile);
     })
+    BonusTile.addToMap(this);
 
     this.gamePlay.forEachPlayer(p => {
       p.initialHex.forEachLinkHex(hex => hex.isLegal = true, true )
@@ -955,7 +958,7 @@ export class AuctionShifter implements IAuctionShifter {
       tiles[n] = tile;
     }
     shift1(tile, pIndex * nm);  // [0, this.nm][pIndex]
-    console.log(stime(this, `.shift(${drawType?.name ?? ''})`), tiles)
+    console.log(stime(this, `.shift(${drawType?.name ?? ''})`), tiles.slice())
   }
 
   getNdx(hexi: number) {

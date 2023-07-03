@@ -2,7 +2,7 @@ import { C, Constructor, stime } from "@thegraid/common-lib";
 import { UID } from "@thegraid/easeljs-module";
 import { AuctionTile } from "./auction-tile";
 import { NumCounter, NumCounterBox } from "./counters";
-import { GP, GamePlay } from "./game-play";
+import { GP } from "./game-play";
 import { Hex, Hex2 } from "./hex";
 import { Player } from "./player";
 import { CenterText, HexShape, InfShape, Paintable } from "./shapes";
@@ -167,7 +167,7 @@ class BonusToken extends SourcedToken {
   override dropFunc(hex: Hex2, ctx: DragContext): void {
     if (hex?.isLegal) {
       this.addToken(this.bonusType, hex.tile);
-      Player.updateCounters();
+      GP.gamePlay.updateCounters();
       return;
     }
     super.dropFunc(hex, ctx);

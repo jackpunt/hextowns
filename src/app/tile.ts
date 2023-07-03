@@ -9,8 +9,9 @@ import type { DragContext, Table } from "./table";
 import { PlayerColor, PlayerColorRecord, TP, criminalColor, playerColorRecord, playerColorsC } from "./table-params";
 import { TileBag } from "./tile-bag";
 
-export type BonusId = 'star' | 'infl' | 'actn' | 'econ' | 'Bank' | 'Lake' | 'Star' | 'Econ';
-export type AuctionBonus = Exclude<BonusId, 'Bank' | 'Lake' | 'Star' | 'Econ'>;
+export type AuctionBonus = 'star' | 'econ' | 'infl' | 'actn';
+export type AdjBonusId = 'Bank' | 'Lake';
+export type BonusId = 'Star' | 'Econ' | AdjBonusId | AuctionBonus;
 type BonusObj = { [key in AuctionBonus]: boolean}
 
 type BonusInfo<T extends DisplayObject> = {
@@ -107,21 +108,27 @@ export class BonusMark extends Container {
 }
 
 class TileLoader {
-  static imageNames: string[] = [];
   Uname = ['Univ0', 'Univ1'];
-  Monu = [0,1].map(k => `Monument${k}`)
-  imageMap = new Map<string, HTMLImageElement>()
+  Monu = new Array(TP.inMarket['Monument']).fill(1).map((v, k) => `Monument${k}`);
+  imageMap = new Map<string, HTMLImageElement>();
+  aliases = { Monument1: 'arc_de_triomphe3', Monument2: 'Statue-of-liberty' };
+  fromAlias(names: string[]) {
+    return names.map(name => this.aliases[name] ?? name);
+  }
   imageArgs = {
     root: 'assets/images/',
-    fnames: ['Resi', 'Busi', 'Pstation', 'Bank', 'Lake', 'Recycle',
+    fnames: this.fromAlias(['Resi', 'Busi', 'Pstation', 'Bank', 'Lake', 'Recycle',
       'TownStart', 'Courthouse', 'TownHall', 'Temple',
-      ...this.Monu, ...this.Uname],
+      ...this.Monu, ...this.Uname]),
     ext: 'png',
   };
 
   /** use ImageLoader to load images, THEN invoke callback. */
   loadImages(cb: () => void) {
     new ImageLoader(this.imageArgs, this.imageMap, (imap) => cb())
+  }
+  getImage(name: string) {
+    return this.imageMap.get(this.aliases[name] ?? name);
   }
 }
 
@@ -136,7 +143,7 @@ class Tile0 extends Container {
 
   /** name in set of filenames loaded in GameSetup */
   addImageBitmap(name: string, at = this.numChildren - 1) {
-    const img = Tile0.loader.imageMap.get(name), bm = new Bitmap(img);
+    const img = Tile0.loader.getImage(name), bm = new Bitmap(img);
     const width = TP.hexRad, scale = width / Math.max(img.height, img.width);
     bm.scaleX = bm.scaleY = scale;
     const sw = img.width * scale, sh = img.height * scale;
@@ -206,8 +213,8 @@ class Tile0 extends Container {
   removeBonus(bonusId?: BonusId, crit = (c: BonusMark) => (c.bonusId === bonusId)) {
     // console.log(stime(this, `.removeBonus: ${bonusId}`), this.bonus);
     if (!bonusId) {
-      BonusMark.bonusInfo.forEach(info => this.removeBonus(info.bonusId))
-      return
+      BonusMark.bonusInfo.forEach(info => this.removeBonus(info.bonusId));
+      return;
     }
     this.bonus[bonusId] = false;
     this.removeChildType(BonusMark, crit);
@@ -215,10 +222,8 @@ class Tile0 extends Container {
   }
 
   removeChildType(type: Constructor<DisplayObject>, pred = (dobj: DisplayObject) => true ) {
-    let mark: DisplayObject;
-    while (mark = this.children.find(c => (c instanceof type) && pred(c))) {
-      this.removeChild(mark)
-    }
+    const rems = this.children.filter(c => (c instanceof type) && pred(c));
+    this.removeChild(...rems);
     this.updateCache()
   }
 
@@ -458,8 +463,7 @@ export class Tile extends Tile0 {
       this.moveTo(hex);
       gamePlay.incrInfluence(hex, player.color);
     }
-    player.updateCounters();
-    gamePlay.hexMap.update();
+    gamePlay.updateCounters();
   }
 
   resetTile() {
@@ -619,24 +623,28 @@ export class MapTile extends Tile {
 export class BonusTile extends MapTile implements BagTile {
   static override allTiles: TileBag<BonusTile> = new TileBag<BonusTile>();
   static makeAllTiles(n = TP.bonusPerType) {
-    for (let i = 0; i <= n; i++) {
+    for (let i = 0; i < n; i++) {
       const tiles = ((['infl', 'star', 'econ', 'actn']) as AuctionBonus[]).map(type => new BonusTile(type));
       BonusTile.allTiles.push(...tiles);
     }
   }
   static addToBag(tileBag: TileBag<BagTile>, n = 0, allTiles?: BagTile[]) {
+    tileBag.push(...BonusTile.allTiles); // the ones not on hexMap.
     // TODO: put most BonusTiles in bag.
     // TODO: make BonusTile not draggable.
   }
 
   /** put BonusTiles on map */
-  static addToMap(hexMap: HexMap) {
+  static addToMap(table: Table, hexMap: HexMap = table.hexMap) {
+    BonusTile.allTiles.forEach(bt => table.dragger.stopDragable(bt));  // BonusTile not dragable.
     const tileBag: TileBag<BonusTile> = BonusTile.allTiles;
     let hex = hexMap.centerHex as Hex;
     for (let i = 0; i < TP.bonusOnBoard; i++) {
       const tile = tileBag.selectOne();
+      // TODO: specify location if > 4 BonusTile, and place non-BonusTile camo
+      // TODO: initial placement as faceUp or faceDn?
       hex = hex.nextHex('SW');
-      hex.tile = tile;
+      tile.placeTile(hex, false);
     }
   }
 
@@ -645,12 +653,18 @@ export class BonusTile extends MapTile implements BagTile {
     if (bonusId) this.addBonus(bonusId);
   }
 
+  override placeTile(toHex: Hex, payCost?: boolean): void {
+    GP.gamePlay.removeFromAuction(this);
+    super.placeTile(toHex, payCost);
+  }
+
   // Maybe augment sendHome to transfer Bonus to hex.tile??
   moveBonusTo(targetTile: Tile) {
     this.forEachBonus((bonusId, v) => {
-      if (v && !targetTile.bonus[bonusId])
-      targetTile.addBonus(bonusId);
-      console.log(stime(this, `.moveBonusTo: ${bonusId} -> ${targetTile}`))
+      if (v && !targetTile.bonus[bonusId]) {
+        targetTile.addBonus(bonusId);
+        console.log(stime(this, `.moveBonusTo: ${bonusId} -> ${targetTile}`))
+      }
     });
     this.sendHome();
   }
@@ -745,22 +759,23 @@ export class Church extends Civic {
 }
 
 export class Monument extends MapTile {
-  static inst = [0,0];
+  static getId(p: Player) { return GP.gamePlay.marketSource[p.index]['Monument'].numAvailable; }
   static fibcost = [1, 1, 2, 3, 5, 8, 13, 21];
   static tricost = [1, 3, 6, 10, 15, 21, 28, 36];
   static lincost = [2, 4, 7, 11, 16, 22, 29];
   static ln2cost = [2, 2, 4, 4, 7, 7, 11, 11];
   static cost = Monument.lincost; // + 1 for this.inf
   static costs = Monument.cost.slice(0, TP.inMarket['Monument']).reverse();
-  constructor(Aname?: string, player?: Player, inf = 1, vp = 1, cost = 0, econ = -1) {
-    super(Aname ?? `Mnt:${player?.index ?? '?'}-${Monument.inst[player?.index ?? 0]}`, player, inf, vp, cost, econ);
-    //this.addImageBitmap(`Monument${Monument.inst % Tile0.loader.Monu.length}`);
-    this.addImageBitmap(`Monument1`);
-    Monument.inst[player?.index ?? 0]++;
+  // Invoked from TileSource<Monument>.newInst()
+  constructor(Aname?: string, player?: Player, inf = 1, vp = 1, cost = 0, econ = -1, public inst = Monument.getId(player)) {
+    super(Aname ?? `Mnt:${player?.index ?? '?'}-${inst}`, player, inf, vp, cost, econ);
+    this.addImageBitmap(`Monument${inst}`);
   }
   override get cost(): number {
     return Monument.costs[this.source.counter.getValue() - 1];
+    // TODO: update cost/infl in CostIncCounter
   }
+
   get source() { return GP.gamePlay.marketSource[this.player.index]['Monument']}
 
   override isLegalTarget(toHex: Hex, ctx?: DragContext): boolean {

@@ -69,7 +69,8 @@ export class GamePlay0 {
   get playerReserveHexes() { return this.reserveHexes[this.curPlayerNdx]; }
   isReserveHex(hex: Hex) { return this.playerReserveHexes.includes(hex) };
 
-  readonly marketTypes = [Busi, Resi, Monument];
+  readonly marketTypes: Constructor<MapTile>[] = [Busi, Resi, Monument];
+  // an Object per-Player:: type: <Constructor<Tile>,  { type.name: TileSource<type> }
   readonly marketSource: { Busi?: TileSource<Busi>, Resi?: TileSource<Resi>, Monument?: TileSource<Monument> }[] = [{},{}];
   /** return the market with given Source.hex; or undefined if not from market. */
   fromMarket(fromHex: Hex) {
@@ -137,7 +138,6 @@ export class GamePlay0 {
     EventTile.makeAllTiles();
     PolicyTile.makeAllTiles();
     BonusTile.makeAllTiles();
-    BonusTile.addToMap(this.hexMap);
     TownRules.inst.fillRulesBag();
   }
 
@@ -150,6 +150,14 @@ export class GamePlay0 {
   curPlayerNdx: number = 0  // curPlayer defined in GamePlay extends GamePlay0
   curPlayer: Player;
   preGame = true;
+  curPlayerMapTiles: Tile[] = [];
+  get didPlayerBuild() {
+    const plyr = this.curPlayer;
+    const nowTiles = plyr.allOnMap(MapTile);
+    const isNew = !!nowTiles.find(tile => !this.curPlayerMapTiles.includes(tile))
+    plyr.vpCounter.setLabel(isNew ? 'vps' : 'vps*');
+    return isNew;
+  }
 
   dice: Dice;
 
@@ -247,7 +255,8 @@ export class GamePlay0 {
       console.log(stime(this, `.shiftAndProcess: must dismiss event: ${this.eventHex.tile.nameString()}`))
       return;
     }
-    this.shiftAuction(undefined, alwaysShift, drawType);
+    const ndx = this.curPlayerNdx;
+    this.shiftAuction(ndx, alwaysShift, drawType);
     let tile0 = this.shifter.tile0(this.curPlayerNdx);
 
     if (!allowEvent) {
@@ -261,12 +270,14 @@ export class GamePlay0 {
       }
       xEvents.forEach(ev => ev.sendToBag());  // note: DO NOT sendHome()/finishEvent()
     }
-    // replace BonusTile with AuctionTile + BonusType
+    // replace BonusTile with AuctionTile + AuctionBonus
     if (tile0 instanceof BonusTile) {
-      const hex0 = tile0.hex;   // depends on (player, nm)
-      const tile = this.shifter.tileBag.takeType(AuctionTile, true);
-      tile0.moveBonusTo(tile);  // and: tile0.sendHome() --> moveTo(undefined), parent.removeChild()
-      tile.moveTo(hex0);
+      const bt = tile0;
+      bt.placeTile(undefined, false);
+      this.shiftAuction(ndx, true, AuctionTile);
+      tile0 = this.shifter.tile0(ndx);
+      bt.moveBonusTo(tile0);  // and: tile0.sendHome() --> moveTo(undefined), parent.removeChild()
+      this.hexMap.update();
     }
     if (tile0 instanceof EventTile) {
       await this.processEventTile(tile0);
@@ -297,9 +308,9 @@ export class GamePlay0 {
     this.shiftAndProcess(() => this.endTurn2());
   }
   endTurn2() {
-    this.rollDiceForBonus();
+    // this.rollDiceForBonus();
     this.curPlayer.policyHexes.forEach(hex => hex.tile instanceof PolicyTile && hex.tile.eval1());
-    this.curPlayer.totalVps += this.curPlayer.vps;
+    this.curPlayer.totalVps += this.didPlayerBuild ? this.curPlayer.vps : Math.floor(this.curPlayer.vps/2);
     if (this.isEndOfGame()) {
       this.endGame();
     } else {
@@ -332,6 +343,8 @@ export class GamePlay0 {
     this.curPlayer = plyr
     this.curPlayerNdx = plyr.index
     this.curPlayer.actions = 0;
+    this.curPlayerMapTiles = this.curPlayer.allOnMap(MapTile);
+    this.didPlayerBuild; // false: set 'vps*'
     this.curPlayer.newTurn();
     this.assessThreats();
   }
@@ -462,6 +475,13 @@ export class GamePlay0 {
     this.costIncHexCounters.forEach(cic => this.updateCostCounter(cic));
   }
 
+  /** update Counters (econ, expense, vp) for ALL players. */
+  updateCounters() {
+    this.didPlayerBuild;
+    Player.allPlayers.forEach(player => player.setCounters(false));
+    this.hexMap.update();
+  }
+
   /** Influence & Coins Required to place tile; from offMap to onMap */
   getInfR(tile: Tile | undefined, ndx = this.costNdxFromHex(tile.hex), plyr = this.curPlayer) {
     const infR = (tile?.cost ?? 0) + (tile?.bonusCount ?? 0) + (this.costInc[plyr.nCivics][ndx] ?? 0);
@@ -552,7 +572,7 @@ export class GamePlay0 {
       this.logText(`Recycle ${tile} from ${fromHex?.Aname || '?'}`, `gamePlay.placeEither`)
       this.recycleTile(tile);    // Score capture; log; return to homeHex
     }
-    Player.updateCounters();
+    this.updateCounters();
   }
 
   recycleTile(tile: Tile) {
@@ -702,6 +722,7 @@ export class GamePlay extends GamePlay0 {
     KeyBinder.keyBinder.setKey('C-A', { thisArg: this, func: () => { this.shiftAndProcess(undefined, true, true, EventTile)} })  // C-A shift(Event)
     KeyBinder.keyBinder.setKey('C-M-a', { thisArg: this, func: () => { this.shiftAndProcess(undefined, true, false, PolicyTile)} })  // C-M-a shift(Policy)
     KeyBinder.keyBinder.setKey('M-C', { thisArg: this, func: this.autoCrime, argVal: true })// S-M-C (force)
+    KeyBinder.keyBinder.setKey('M-B', { thisArg: this, func: () => { this.shiftAndProcess(undefined, true, false, BonusTile) } })
     KeyBinder.keyBinder.setKey('S-C', { thisArg: this, func: () => { this.shiftAndProcess(undefined, true, true, AutoCrime) } })
     KeyBinder.keyBinder.setKey('S-B', { thisArg: this, func: () => { this.shiftAndProcess(undefined, true, false, Busi) } })
     KeyBinder.keyBinder.setKey('S-R', { thisArg: this, func: () => { this.shiftAndProcess(undefined, true, false, Resi) } })
@@ -880,7 +901,7 @@ export class GamePlay extends GamePlay0 {
     super.setNextPlayer(plyr); // update player.coins
     this.paintForPlayer();
     this.updateCostCounters();
-    Player.updateCounters(); // beginning of round...
+    this.updateCounters(); // beginning of round...
     this.logText(this.shifter.tileNames(this.curPlayerNdx), `GamePlay.setNextPlayer`);
     this.table.buttonsForPlayer[this.curPlayerNdx].visible = true;
     this.table.showNextPlayer(); // get to nextPlayer, waitPaused when Player tries to make a move.?

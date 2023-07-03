@@ -68,6 +68,8 @@ export class NumCounter extends ValueCounter {
 export class NumCounterBox extends NumCounter {
   labelH = 0;
   override setLabel(label: string | Text, offset?: XY, fontSize?: number): void {
+    fontSize = fontSize ?? this.labelFontSize;
+    offset = offset ?? { x: this.label?.x ?? 0, y: this.label?.y || (fontSize / 2) };
     super.setLabel(label, offset, fontSize);
     this.labelH = this.label?.text ? this.labelFontSize ?? 0 : 0;
     this.wide = -1; // force new box

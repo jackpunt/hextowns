@@ -7,9 +7,11 @@ import type { Meeple } from "./meeple";
 import type { Player } from "./player";
 import { TP } from "./table-params";
 import type { Tile } from "./tile";
+import { ValueEvent } from "@thegraid/easeljs-lib";
 
 /** a Dispenser of a set of Tiles. */
 export class TileSource<T extends Tile> {
+  static update = 'update';
   readonly Aname: string
   private readonly allUnits: T[] = new Array<T>();
   private readonly available: T[] = new Array<T>();
@@ -82,6 +84,7 @@ export class TileSource<T extends Tile> {
   updateCounter() {
     this.counter.parent?.setChildIndex(this.counter, this.counter.parent.numChildren - 1);
     this.counter.setValue(this.numAvailable);
+    ValueEvent.dispatchValueEvent(this.counter, TileSource.update, this.numAvailable);
     this.hex?.cont?.updateCache(); // updateCache of counter on hex
     this.hex?.map?.update();       // updateCache of hexMap with hex & counter
   }
