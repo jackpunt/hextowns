@@ -158,7 +158,6 @@ export class Meeple extends Tile {
   override markLegal(table: Table, setLegal?: (hex: Hex2) => void, ctx?: DragContext): void {
     if (!ctx?.lastShift && !!setLegal && this.canAutoUnmove) {
       this.unMove();          // this.hex = this.startHex;
-      return;
     }
     super.markLegal(table, setLegal);
     this.startHex.isLegal = !!setLegal;
