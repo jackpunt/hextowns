@@ -114,9 +114,13 @@ export class Meeple extends Tile {
   }
 
   override moveTo(hex: Hex): Hex {
-    if (hex?.meep) hex.meep.x += 10; // make double occupancy apparent [gamePlay.unMove()]
+    const destMeep = hex?.meep;
+    if (destMeep && destMeep !== this) {
+      destMeep.x += 10; // make double occupancy apparent [until this.unMove()]
+      destMeep.unMove();
+    }
     const fromHex = this.hex;
-    super.moveTo(hex); // this.x/y = hex.x/y;
+    super.moveTo(hex); // hex.set(meep) = this; this.x/y = hex.x/y
     this.faceUp(!!hex && (!hex.isOnMap || !fromHex?.isOnMap || hex === this.startHex));
     return hex;
   }
@@ -124,7 +128,7 @@ export class Meeple extends Tile {
   override cantBeMovedBy(player: Player, ctx: DragContext) {
     const reason1 = super.cantBeMovedBy(player, ctx);
     if (reason1 || reason1 === false) return reason1;
-    if (!ctx?.lastShift && !this.canAutoUnmove && this.backSide.visible) return "already moved"; // no move if not faceUp
+    // if (!ctx?.lastShift && !this.canAutoUnmove && this.backSide.visible) return "already moved"; // no move if not faceUp
     return undefined;
   }
 
@@ -153,10 +157,12 @@ export class Meeple extends Tile {
    * unMove it to reset influence; can always move back to startHex; */
   override markLegal(table: Table, setLegal?: (hex: Hex2) => void, ctx?: DragContext): void {
     if (!ctx?.lastShift && !!setLegal && this.canAutoUnmove) {
-      this.unMove();
+      this.unMove();          // this.hex = this.startHex;
+      return;
     }
     super.markLegal(table, setLegal);
-    this.startHex.isLegal = !!setLegal && (this.hex !== this.startHex);
+    this.startHex.isLegal = !!setLegal;
+    return;
   }
 
   override isLegalTarget(hex: Hex, ctx?: DragContext) {  // Meeple

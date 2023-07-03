@@ -376,6 +376,9 @@ export class EventTile extends EvalTile {
   constructor(spec: EvalSpec, n = 0) {
     super(EventTile.aname(spec, EventTile, n), spec);
   }
+  override paint(pColor?: 'b' | 'w' | 'c', colorn = C.WHITE): void {
+    super.paint(pColor, colorn);
+  }
 
   override isLegalTarget(toHex: Hex, ctx?: DragContext): boolean {
     return false; // only drop on recycle

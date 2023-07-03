@@ -333,6 +333,7 @@ export class Table extends EventDispatcher  {
     this.gamePlay.recycleHex = this.makeRecycleHex(5, -.5);
     this.gamePlay.debtHex = this.makeDebtHex(5, 13.5);
     this.gamePlay.eventHex = this.makeEventHex(-1, 5);
+    this.gamePlay.eventHex.x = (this.gamePlay.auctionHexes[0] as Hex2).cont.x;
     this.hexMap.update();
     {
       // position turnLog & turnText

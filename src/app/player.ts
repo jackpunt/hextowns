@@ -61,56 +61,55 @@ export class Player {
 
   readonly balanceText = new CenterText('[...]')
 
+  actionCounter: NumCounter;
+  get actions() { return this.actionCounter?.getValue(); }
+  set actions(v: number) { this.actionCounter?.updateValue(v); }
+  useAction() { this.actions -= 1; }
+
   // Created in masse by Table.layoutCounter
   coinCounter: NumCounter; // set by layoutCounters: `${'Coin'}Counter`
   get coins() { return this.coinCounter?.getValue(); }
   set coins(v: number) { this.coinCounter?.updateValue(v); }
+
+  captureCounter: NumCounter;
+  get captures() { return this.captureCounter?.getValue(); }
+  set captures(v: number) { this.captureCounter?.updateValue(v); }
+
+  vp0Counter: NumCounter; // allow User to adjust VP for Event
+  get vp0() { return this.vp0Counter.getValue(); }
+
+  InflCounter: NumCounter; // TokenSource<InflToken>.counter C.grey counter
+  get infls() { return this.InflCounter?.getValue(); }       // for gamePlay.failToPayCost()
+  set infls(v: number) { this.InflCounter?.updateValue(v); }
+
+  // incremented via: player[`${BuyToken.counterNames['infl','econ']}`].incValue();
+  EconCounter: NumCounter; // TokenSource<EconToken>.counter C.white counter
 
   econCounter: NumCounter;
   get econs() {
     let econ = 0;
     this.gamePlay.hexMap.forEachHex(hex => {
       if ((hex.tile?.player === this) && !(hex.meep instanceof Criminal)) {
-        econ += hex.tile.econ;
-        // console.log(stime(this, `.econs`), hex.tile.Aname, hex.Aname, hex.tile.econ, econ);
+        econ += hex.tile.econ;      // Note: Monument has negative econ
       }
     })
     this.policyHexes.forEach(hex => econ += (hex.tile?.econ ?? 0));
     return econ;
   }
 
-  actionCounter: NumCounter;
-  get actions() { return this.actionCounter?.getValue(); }
-  set actions(v: number) { this.actionCounter?.updateValue(v); }
-  useAction() { this.actions -= 1; }
-
   expenseCounter: NumCounter;
   get expenses() {
-    let expense = 0
+    let expense = 0;
     this.gamePlay.hexMap.forEachHex(hex => {
       if (hex.meep?.player == this) {
         expense += hex.meep.econ     // meeples have negative econ
-        // console.log(stime(this, `.expense`), hex.tile.Aname, hex.Aname, hex.tile.econ, expense);
       }
-      if (hex.tile?.debt && hex.tile.player === this) {
+      if (hex.tile?.player === this && hex.tile.debt) {
         expense -= 2;                // interest & principle on debt
       }
     })
     return expense
   }
-
-  // incremented via: player[`${BuyToken.counterNames['infl','econ']}`].incValue();
-  EconCounter: NumCounter; // TokenSource<EconToken>.counter C.white counter
-  InflCounter: NumCounter; // TokenSource<InflToken>.counter C.grey counter
-  get infls() { return this.InflCounter?.getValue(); }       // for gamePlay.failToPayCost()
-  set infls(v: number) { this.InflCounter?.updateValue(v); }
-
-  captureCounter: NumCounter;
-  get captures() { return this.captureCounter?.getValue(); }
-  set captures(v: number) { this.captureCounter?.updateValue(v); }
-
-  vp0Counter: NumCounter; // adjustment to VP from Event/Policy
-  get vp0() { return this.vp0Counter.getValue(); }
 
   vpCounter: NumCounter;
   get vps() {
