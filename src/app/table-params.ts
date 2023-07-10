@@ -1,3 +1,5 @@
+import type { Constructor } from "@thegraid/common-lib"
+
 export const playerColors = ['b', 'w'] as const // Player Colors!
 export const playerColorsC = ['b', 'w', 'c'] as const // Player Colors + Criminal!
 export const playerColor0 = playerColors[0]
@@ -56,6 +58,8 @@ export class TP {
   static criminalPerPlayer = 4;
   static policePerPlayer = 3;
   static textLogLines = 6;
+  static tileCosts = { Lake: 2, Bank: 2, PS: 2 }
+  static tileCost(type: Constructor<Object>) { return TP.tileCosts[type.name] ?? 1 }
 
   static placeAdjacent = true;
   static alwaysShift = false;

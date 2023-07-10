@@ -152,7 +152,7 @@ export class AuctionTile extends MapTile implements BagTile {
 
 export class Resi extends AuctionTile {
   override get nR() { return 1; } // Resi
-  constructor(Aname?: string, player?: Player, inf = 0, vp = 1, cost = 1, econ = 1) {
+  constructor(Aname?: string, player?: Player, inf = 0, vp = 1, cost = TP.tileCost(Resi), econ = 1) {
     super(Aname, player, inf, vp, cost, econ);
     this.addImageBitmap('Resi');
     this.loanLimit = 6;
@@ -161,7 +161,7 @@ export class Resi extends AuctionTile {
 
 export class Busi extends AuctionTile {
   override get nB() { return 1; } // Busi
-  constructor(Aname?: string, player?: Player, inf = 0, vp = 1, cost = 1, econ = 1) {
+  constructor(Aname?: string, player?: Player, inf = 0, vp = 1, cost = TP.tileCost(Busi), econ = 1) {
     super(Aname, player, inf, vp, cost, econ);
     this.addImageBitmap('Busi');
     this.loanLimit = 7;
@@ -169,7 +169,7 @@ export class Busi extends AuctionTile {
 }
 
 export class PS extends AuctionTile {
-  constructor(Aname?: string, player?: Player, inf = 0, vp = 0, cost = 1, econ = 0) {
+  constructor(Aname?: string, player?: Player, inf = 0, vp = 0, cost = TP.tileCost(PS), econ = 0) {
     super(Aname, player, inf, vp, cost, econ);
     this.addImageBitmap('Pstation')
   }
@@ -218,7 +218,7 @@ export class Bank extends AdjBonusTile {
     return (TP.bankAdjBank || !(t instanceof Bank)) && (t.nB + t.fB) > 0;
   }
   override get nB() { return 1; }
-  constructor(player?: Player, Aname?: string, inf = 0, vp = 0, cost = 1, econ = 0) {
+  constructor(player?: Player, Aname?: string, inf = 0, vp = 0, cost = TP.tileCost(Bank), econ = 0) {
     super('Bank', Bank.isAdj, true, Aname, player, inf, vp, cost, econ);
     this.loanLimit = 8;
   }
@@ -229,7 +229,7 @@ export class Lake extends AdjBonusTile {
   static isAdj(t: Tile) {
     return (t.nR + t.fR) > 0;
   }
-  constructor(player?: Player, Aname?: string, inf = 0, vp = 0, cost = 1, econ = 0) {
+  constructor(player?: Player, Aname?: string, inf = 0, vp = 0, cost = TP.tileCost(Lake), econ = 0) {
     super('Lake', Lake.isAdj, false, Aname, player, inf, vp, cost, econ);
   }
   override get vp() { return super.vp + this.adjBonus; }

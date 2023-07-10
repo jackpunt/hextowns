@@ -250,8 +250,8 @@ export class Tile extends Tile0 {
   get hex() { return this._hex; }
   /** only one Tile on a Hex, Tile on only one Hex */
   set hex(hex: Hex) {
-    if (this.hex !== undefined) this.hex.tile = undefined
-    this._hex = hex
+    if (this.hex?.tile === this) this.hex.tile = undefined;
+    this._hex = hex;
     if (hex !== undefined) hex.tile = this;
   }
 
