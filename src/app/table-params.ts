@@ -40,6 +40,7 @@ export class TP {
   static auctionMerge = 0;
   static auctionSlots = 5;
   static reserveSlots = 1;
+  static nResaDraw = 3;
   static nPolicySlots = 4;
   static preShiftCount = Math.max(1, TP.auctionSlots - 2);
   static alwaysShiftPolicy = true;

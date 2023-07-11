@@ -290,6 +290,7 @@ export class Hex {
     return Math.sqrt(dx * dx + dy * dy);
   }
 }
+
 /** One Hex cell in the game, shown as a polyStar Shape */
 export class Hex2 extends Hex {
   // cont holds hexShape(color), rcText, distText, capMark
@@ -460,18 +461,34 @@ export class Hex2 extends Hex {
 
 export class RecycleHex extends Hex2 { }
 export class DebtHex extends Hex2 { }
-export class EventHex extends Hex2 {
+export class ResaHex extends Hex2 {
   constructor(map: HexMap, row: number, col: number, name?: string) {
     super(map, row, col, name);
     this.showText(false);
     this.setHexColor('transparent');
-    // show Mark and Tile enlarged: [note: we only make 1 EventHex]
-    this.mapCont.eventCont.scaleX = this.mapCont.eventCont.scaleY = TP.eventScale;
+  }
+  override get tile() { return super.tile; }
+  override set tile(tile: Tile) {
+    super.tile = tile  // this._tile = tile; tile.x/y = this.x/y;
+    // move from hexCont --> resaCont to stay above tileCont
+    tile?.parent.localToLocal(this.x, this.y, this.mapCont.resaCont, tile);
+    this.mapCont.resaCont.addChild(tile); // to top
+  }
+}
+export class EventHex extends Hex2 {
+  // EventHex.cont is on hexMap.mapCont.hexCont
+  // EventTile is *logically* on EventHex, but we display it on eventCont to scale:
+  // TODO: make showMark(eventHex) also scale
+  constructor(map: HexMap, row: number, col: number, name?: string) {
+    super(map, row, col, name);
+    this.showText(false);
+    this.setHexColor('transparent');
   }
   override get markCont() { return this.mapCont.eventCont; }
   override get tile() { return super.tile; }
   override set tile(tile: Tile) {
     super.tile = tile  // this._tile = tile; tile.x/y = this.x/y;
+    // move from hexCont --> eventCont to scale Tile:
     tile?.parent.localToLocal(this.x, this.y, this.mapCont.eventCont, tile);
     this.mapCont.eventCont.addChild(tile); // to top
   }
@@ -488,14 +505,50 @@ export class BonusHex extends Hex2 {
   }
 }
 
+/** for contrast paint it black AND white, leave a hole in the middle unpainted. */
+class HexMark extends Shape {
+  hex: Hex2;
+  constructor(public hexMap: HexMap, radius: number, radius0: number = 0) {
+    super();
+    const mark = this, cb = "rgba(0,0,0,.3)", cw="rgba(255,255,255,.3)"
+    mark.mouseEnabled = false
+    mark.graphics.f(cb).dp(0, 0, radius, 6, 0, 30)
+    mark.graphics.f(cw).dp(0, 0, radius, 6, 0, 30)
+    mark.cache(-radius, -radius, 2*radius, 2*radius)
+    mark.graphics.c().f(C.BLACK).dc(0, 0, radius0)
+    mark.updateCache("destination-out")
+  }
+
+  // Fail: markCont to be 'above' tileCont...
+  showOn(hex: Hex2) {
+    // when mark is NOT showing, this.visible === false && this.hex === undefined.
+    // when mark IS showing, this.visible === true && (this.hex instanceof Hex2)
+    if (this.hex === hex) return;
+    if (this.hex) {
+      this.visible = false;
+      if (!this.hex.cont.cacheID) debugger;
+      this.hex.cont.updateCache();
+    }
+    this.hex = hex;
+    if (this.hex) {
+      this.visible = true;
+      hex.cont.addChild(this);
+      if (!hex.cont.cacheID) debugger;
+      hex.cont.updateCache();
+    }
+    this.hexMap.update();
+  }
+}
+
 export class MapCont extends Container {
   constructor(public hexMap: HexMap) {
     super()
   }
-  static cNames = ['hexCont', 'infCont', 'tileCont', 'markCont', 'capCont', 'counterCont', 'eventCont'];
+  static cNames = ['hexCont', 'infCont', 'tileCont', 'resaCont', 'markCont', 'capCont', 'counterCont', 'eventCont'];
   hexCont: Container     // hex shapes on bottom stats: addChild(dsText), parent.rotation
   infCont: Container     // infMark below tileCont; Hex2.showInf
   tileCont: Container    // Tiles & Meeples on Hex2/HexMap.
+  resaCont: Container    // reserveAuction hexes, above tileCont.
   markCont: Container    // showMark over Hex2; LegalMark
   capCont: Container     // for tile.capMark
   counterCont: Container // counters for AuctionCont
@@ -574,19 +627,7 @@ export class HexMap extends Array<Array<Hex>> implements HexM {
 
   readonly metaMap = Array<Array<Hex>>()           // hex0 (center Hex) of each MetaHex, has metaLinks to others.
 
-  mark: DisplayObject | undefined                              // a cached DisplayObject, used by showMark
-
-  /** for contrast paint it black AND white, leave a hole in the middle unpainted. */
-  makeMark(radius: number, radius0: number = 0) {
-    let mark = new Shape(), cb = "rgba(0,0,0,.3)", cw="rgba(255,255,255,.3)"
-    mark.mouseEnabled = false
-    mark.graphics.f(cb).dp(0, 0, radius, 6, 0, 30)
-    mark.graphics.f(cw).dp(0, 0, radius, 6, 0, 30)
-    mark.cache(-radius, -radius, 2*radius, 2*radius)
-    mark.graphics.c().f(C.BLACK).dc(0, 0, radius0)
-    mark.updateCache("destination-out")
-    return mark
-  }
+  mark: HexMark | undefined                        // a cached DisplayObject, used by showMark
 
   /**
    * HexMap: TP.nRows X TP.nCols hexes.
@@ -606,7 +647,7 @@ export class HexMap extends Array<Array<Hex>> implements HexM {
 
   /** create/attach Graphical components for HexMap */
   addToMapCont(): this {
-    this.mark = this.makeMark(this.radius, this.radius/2.5)
+    this.mark = new HexMark(this, this.radius, this.radius/2.5)
     let mapCont = this.mapCont
     MapCont.cNames.forEach(cname => {
       let cont = new Container()
@@ -678,6 +719,7 @@ export class HexMap extends Array<Array<Hex>> implements HexM {
     } else if (hex instanceof Hex2) {
       mark.scaleX = hex.scaleX; mark.scaleY = hex.scaleY;
       mark.visible = true;
+      // put the mark, at location of hex, on hex.markCont:
       hex.cont.localToLocal(0, 0, hex.markCont, mark);
       hex.markCont.addChild(mark);
       this.update();

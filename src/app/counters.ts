@@ -28,7 +28,10 @@ export class ValueCounterBox extends ValueCounter {
 }
 
 export class ButtonBox extends ValueCounterBox {
-
+  constructor(name: string, initValue?: string, color?: string, fontSize?: number, fontName?: string, textColor?: string) {
+    super(name, initValue, color, fontSize, fontName, textColor);
+    this.mouseEnabled = true;
+  }
 }
 
 /** ValueCounter specifically for number values (not string), includes incValueEvent() and clickToInc() */

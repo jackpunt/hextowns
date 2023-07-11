@@ -17,7 +17,7 @@ import { GameStats, TableStats } from "./stats";
 import { LogWriter } from "./stream-writer";
 import { AuctionShifter, Table } from "./table";
 import { PlayerColor, PlayerColorRecord, TP, criminalColor, otherColor, playerColorRecord, playerColors, } from "./table-params";
-import { AuctionBonus, BagTile, BonusTile, MapTile, Monument, Tile, TownRules } from "./tile";
+import { AuctionBonus, BagTile, BonusTile, Civic, MapTile, Monument, Tile, TownRules } from "./tile";
 import { TileSource } from "./tile-source";
 //import { NC } from "./choosers";
 
@@ -63,11 +63,16 @@ export class GamePlay0 {
   readonly auctionTiles: BagTile[] = []     // per game
   shifter: AuctionShifter;
   get auctionHexes() { return this.shifter.hexes; }
+  isAuctionHex(hex: Hex) { return this.auctionHexes.includes(hex); }
 
   readonly reserveTiles: AuctionTile[][] = [[],[]];   // per player; 2-players, TP.reserveTiles
   readonly reserveHexes: Hex[][] = [[], []];          // target Hexes for reserving a Tile.
   get playerReserveHexes() { return this.reserveHexes[this.curPlayerNdx]; }
   isReserveHex(hex: Hex) { return this.playerReserveHexes.includes(hex) };
+
+  readonly resaHexes: Hex[] = new Array(TP.nResaDraw);
+  isResaHex(hex: Hex) { return this.resaHexes.includes(hex); }
+  isFromResa(tile: Tile) { return this.isResaHex(tile.fromHex); }
 
   readonly marketTypes: Constructor<MapTile>[] = [Busi, Resi, Monument];
   // an Object per-Player:: type: <Constructor<Tile>,  { type.name: TileSource<type> }
@@ -288,6 +293,15 @@ export class GamePlay0 {
   }
 
   eventsInBag = false;
+  putEventsInBag() {
+    const np = Player.allPlayers.length, tileBag = this.shifter.tileBag;
+    EventTile.addToBag(tileBag, TP.eventsPerPlayer * np, EventTile.allTiles);
+    PolicyTile.addToBag(tileBag, TP.policyPerPlayer * np, PolicyTile.allTiles);
+    BonusTile.addToBag(tileBag);
+    AutoCrime.addToBag(tileBag);
+    this.eventsInBag = true;
+    console.log(stime(this, `.endTurn: eventsInBag`), tileBag);
+  }
   /** when Player has completed their Action & maybe a hire.
    * { shiftAuction, processEvent }* -> endTurn2() { roll dice, set Bonus, NextPlayer }
    */
@@ -296,14 +310,12 @@ export class GamePlay0 {
       console.log(stime(this, `.endTurn: must dismiss Event: ${this.eventHex.tile.nameText}`));
       return; // can't end turn until Event is dismissed.
     }
+    if (this.resaHexes.find(hex => hex.tile)) {
+      this.logText(`must build/reserve RFQ tile`, 'GamePlay0.endTurn')
+      return; // can't end turn until RFQ finished.
+    }
     if (!this.eventsInBag && !Player.allPlayers.find(plyr => plyr.econs < TP.econForEvents)) {
-      const np = Player.allPlayers.length, tileBag = this.shifter.tileBag;
-      EventTile.addToBag(tileBag, TP.eventsPerPlayer * np, EventTile.allTiles);
-      PolicyTile.addToBag(tileBag, TP.policyPerPlayer * np, PolicyTile.allTiles);
-      BonusTile.addToBag(tileBag);
-      AutoCrime.addToBag(tileBag);
-      this.eventsInBag = true;
-      console.log(stime(this, `.endTurn: eventsInBag`), tileBag);
+      this.putEventsInBag();
     }
     this.shiftAndProcess(() => this.endTurn2());
   }
@@ -425,7 +437,7 @@ export class GamePlay0 {
   failToBalance(tile: Tile) {
     const player = this.curPlayer;
     // tile on map during Test/Dev, OR: when demolishing...
-    const ivec = tile.hex.isOnMap ? [0, 0, 0, 0] : [tile.nB, tile.fB, tile.nR, tile.fR];
+    const ivec = tile.hex?.isOnMap ? [0, 0, 0, 0] : [tile.nB, tile.fB, tile.nR, tile.fR];
     const [nBusi, fBusi, nResi, fResi] = this.playerBalance(player, ivec);
     const noBusi = nBusi > 1 * (nResi + fResi);
     const noResi = nResi > 2 * (nBusi + fBusi);
@@ -719,6 +731,7 @@ export class GamePlay extends GamePlay0 {
     KeyBinder.keyBinder.setKey('M-K', { thisArg: this, func: this.resignMove })// S-M-k
     KeyBinder.keyBinder.setKey('Escape', {thisArg: table, func: table.stopDragging}) // Escape
     KeyBinder.keyBinder.setKey('C-a', { thisArg: this, func: () => { this.shiftAndProcess(undefined, true)} })  // C-a new Tile
+    KeyBinder.keyBinder.setKey('S-E', { thisArg: this, func: () => { this.putEventsInBag() } })  // force Events in Bag
     KeyBinder.keyBinder.setKey('C-A', { thisArg: this, func: () => { this.shiftAndProcess(undefined, true, true, EventTile)} })  // C-A shift(Event)
     KeyBinder.keyBinder.setKey('C-M-a', { thisArg: this, func: () => { this.shiftAndProcess(undefined, true, false, PolicyTile)} })  // C-M-a shift(Policy)
     KeyBinder.keyBinder.setKey('M-C', { thisArg: this, func: this.autoCrime, argVal: true })// S-M-C (force)
@@ -755,11 +768,31 @@ export class GamePlay extends GamePlay0 {
     table.skipShape.on(S.click, () => this.skipMove(), this)
   }
 
-  drawTile(type: new (...args: any[]) => AuctionTile, permute = false) {
+  /**
+   * Draw [3] AuctionTiles, display on ResaHexes.
+   * When one is dropped onMap or on ReserveHexes (the only legal choices)
+   * then return the remaining tiles to the tileBag.
+   */
+  resaAction() {
+    const cost = this.curPlayer.allOnMap(Civic).length;
+    this.curPlayer.coins -= cost;
+    // advise: AuctionTile.dropFunc() & AuctionTile.isLegalReserve().
+    for (let ndx = 0; ndx < TP.nResaDraw; ndx++) {
+      const hex = this.resaHexes[ndx] as Hex2;
+      const tile = this.drawTile(AuctionTile, true, hex); // tile on hex; isFromResa(tile)
+      console.log(stime(this, `.resa[${ndx}]:`), tile);
+      // TODO: show prices in counters?
+    }
+    this.table?.setAuctionVis(false);
+    this.hexMap.update();
+  }
+
+  drawTile(type: Constructor<AuctionTile>, permute = false, hex = this.eventHex) {
     const tile = this.shifter.tileBag.takeType(type, permute);
     tile.setPlayerAndPaint(this.curPlayer);
-    tile.moveTo(this.eventHex);
+    tile.moveTo(hex);
     this.hexMap.update();
+    return tile;
   }
   useReferee = true
 

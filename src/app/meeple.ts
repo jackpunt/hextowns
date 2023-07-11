@@ -79,7 +79,7 @@ export class Meeple extends Tile {
   override get hex() { return this._hex; }
   /** only one Meep on a Hex, Meep on only one Hex */
   override set hex(hex: Hex) {
-    if (this.hex !== undefined) this.hex.meep = undefined
+    if (this.hex?.meep === this) this.hex.meep = undefined
     this._hex = hex
     if (hex !== undefined) hex.meep = this;
   }

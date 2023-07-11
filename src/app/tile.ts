@@ -439,8 +439,8 @@ export class Tile extends Tile0 {
 
   flipOwner(targetHex: Hex2, ctx: DragContext) {
     const gamePlay = GP.gamePlay, player = ctx?.lastCtrl ? this.player.otherPlayer : gamePlay.curPlayer;
-    if (targetHex.isOnMap && (targetHex === this.fromHex)) {
-      const infT = this.hex.getInfT(this.player?.color);
+    if (targetHex?.isOnMap && (targetHex === this.fromHex)) {
+      const infT = this.hex?.getInfT(this.player?.color);
       if (targetHex.getInfT(player.color) > infT || ctx?.lastCtrl) {
         this.flipPlayer(player, gamePlay); // flip if Infl or ctrlKey:
       }

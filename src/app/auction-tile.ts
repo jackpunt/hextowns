@@ -73,7 +73,7 @@ export class AuctionTile extends MapTile implements BagTile {
     if (!toHex.isOnMap) {
       if (gamePlay.isReserveHex(toHex)) return true;   // AuctionTile can go toReserve:
       // TODO: during dev/testing: allow return to auctionHexes, if fromReserve
-      if (ctx?.lastShift && gamePlay.isReserveHex(this.hex) && gamePlay.auctionHexes.includes(toHex))
+      if (ctx?.lastShift && gamePlay.isReserveHex(this.hex) && gamePlay.isAuctionHex(toHex))
         return true;
       return false;
     }
@@ -81,7 +81,7 @@ export class AuctionTile extends MapTile implements BagTile {
     if (ctx?.lastShift) return true; // Shift key allows map-to-map & failToBalance
 
     // Cannot move a tile that is already on the map:
-    if (this.hex.isOnMap)
+    if (this.hex?.isOnMap)
       return false;
     if (gamePlay.failToBalance(this))
       return false;
@@ -91,14 +91,24 @@ export class AuctionTile extends MapTile implements BagTile {
     return true;
   }
 
+  override isLegalRecycle(ctx: DragContext): boolean {
+    if (GP.gamePlay.isFromResa(this)) return false;
+    return super.isLegalRecycle(ctx);
+  }
+
   // AuctionTile
   override dropFunc(targetHex: Hex2, ctx: DragContext) {
     this.flipOwner(targetHex, ctx);
     super.dropFunc(targetHex, ctx); // set this.hex = targetHex, this.fromHex.tile = undefined;
+    if (GP.gamePlay.isFromResa(this) && targetHex !== this.fromHex ) {
+      const gamePlay = GP.gamePlay, table = GP.gamePlay.table;
+      table?.setAuctionVis(true);
+      gamePlay.resaHexes.forEach(hex => hex.tile?.sendHome());
+    }
   }
 
   override placeTile(hex: Hex, payCost?: boolean): void {
-    if (this.fromHex == hex) {
+    if (this.fromHex === hex) {
       super.placeTile(hex, payCost);
       return;  // self-drop: nothing to do
     }
@@ -110,9 +120,9 @@ export class AuctionTile extends MapTile implements BagTile {
     const destTile = hex.tile;  // generally undefined; BonusTile, ReserveHexes.tile [& PolicyHexes.tile])
     const bonus = (destTile instanceof BonusTile) && destTile.bonus;
     if (hex?.isOnMap) {                 // not to Reserve!
-      this.player.takeBonus(destTile); // deposit infl & actn with Player;
-      if (!this.fromHex.isOnMap) {      // ctx.lastCtrl allows map-to-map
-        this.player.takeBonus(this);    // build: takeBonus (infl & actn)
+      player.takeBonus(destTile);       // deposit infl & actn with Player;
+      if (!this.fromHex?.isOnMap) {     // ctx.lastCtrl allows map-to-map
+        player.takeBonus(this);         // build: takeBonus (infl & actn)
         player.useAction(); // Build
       }
     }
