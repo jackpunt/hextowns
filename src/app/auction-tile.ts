@@ -162,19 +162,39 @@ export class AuctionTile extends MapTile implements BagTile {
 
 export class Resi extends AuctionTile {
   override get nR() { return 1; } // Resi
-  constructor(Aname?: string, player?: Player, inf = 0, vp = 1, cost = TP.tileCost(Resi), econ = 1) {
+  constructor(Aname?: string, player?: Player, inf = 0, vp = 1, cost = TP.tileCost(Resi), econ = 0) {
     super(Aname, player, inf, vp, cost, econ);
     this.addImageBitmap('Resi');
     this.loanLimit = 6;
+  }
+  override get econ() {
+    const econ = super.econ;
+    const bonus = (this.hex.linkHexes.find(hex => hex.tile instanceof Busi) ? 1 : 0);
+    if (bonus && (!this.econEcon || !this.econEcon.visible )) {
+      this.drawEcon(econ, true);
+    } else if (!bonus && (this.econEcon?.visible)) {
+      this.drawEcon(econ, false);
+    }
+    return econ + bonus;
   }
 }
 
 export class Busi extends AuctionTile {
   override get nB() { return 1; } // Busi
-  constructor(Aname?: string, player?: Player, inf = 0, vp = 1, cost = TP.tileCost(Busi), econ = 1) {
+  constructor(Aname?: string, player?: Player, inf = 0, vp = 0, cost = TP.tileCost(Busi), econ = 1) {
     super(Aname, player, inf, vp, cost, econ);
     this.addImageBitmap('Busi');
     this.loanLimit = 7;
+  }
+  override get vp() {
+    const vp = super.vp;
+    const bonus = this.hex.linkHexes.find(hex => hex.tile instanceof Resi) ? 1 : 0;
+    if (bonus && (!this.vpStar || !this.vpStar.visible)) {
+      this.drawStar(undefined, true);
+    } else if (!bonus && (this.vpStar?.visible)) {
+      this.drawStar(undefined, false);
+    }
+    return super.vp + bonus;
   }
 }
 

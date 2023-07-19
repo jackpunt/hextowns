@@ -15,7 +15,7 @@ export type BonusId = 'Star' | 'Econ' | AdjBonusId | AuctionBonus;
 type BonusObj = { [key in AuctionBonus]: boolean}
 
 type BonusInfo<T extends DisplayObject> = {
-  bonusId: BonusId, dtype: new () => T,
+  bonusId: BonusId, dtype: Constructor<T>,
   x: number, y: number, size: number,
   paint?: (s: T, info: BonusInfo<T>) => void
 }
@@ -174,20 +174,33 @@ class Tile0 extends Container {
     this.updateCache();
   }
 
+  vpStar: DisplayObject;
   // Looks just like the Bonus star! ('Star' y0 = 1.3 * hexRad; 'star' y0 = 0 [center])
-  drawStar(star: BonusId = 'Star') {
+  drawStar(star: BonusId = 'Star', show = true) {
     const info = BonusMark.bonusMap.get(star);
-    const mark = this.addChild(new info.dtype());
-    info.paint(mark, info);
+    let mark = this.vpStar;
+    if (!mark && show) {
+      const index = this.econEcon ? this.getChildIndex(this.econEcon) : this.numChildren - 1;
+      mark = this.vpStar = this.addChildAt(new info.dtype(), index);
+      info.paint(mark, info);
+    } else if (mark) {
+      mark.visible = show;
+    }
     this.updateCache();
     return mark;
   }
 
-  drawEcon(econ = 1) {
+  econEcon: DisplayObject;
+  drawEcon(econ = 1, show = true) {
     const info = BonusMark.bonusMap.get('Econ');
-    const mark = this.addChild(new info.dtype()) as Text;
-    info.paint(mark, info);
-    if (econ < 0) mark.text = `${econ}`; // show '-n' instead of '$'
+    let mark = this.econEcon;
+    if (!mark && show) {
+      mark = this.econEcon = this.addChild(new info.dtype());
+      info.paint(mark, info);
+      if (econ < 0) (mark as Text).text  = `${econ}`; // show '-n' instead of '$'
+    } else if (mark) {
+      mark.visible = show;
+    }
     this.updateCache();
     return mark;
   }
