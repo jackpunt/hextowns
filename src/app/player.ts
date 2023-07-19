@@ -5,11 +5,11 @@ import { PolicyTile } from "./event-tile";
 import { GP, GamePlay, GamePlay0 } from "./game-play";
 import type { Hex } from "./hex";
 import { HexDir } from "./hex-intfs";
-import { Criminal, CriminalSource, Leader, Meeple, Police } from "./meeple";
+import { Chancellor, Criminal, CriminalSource, Judge, Leader, Mayor, Meeple, Police, Priest } from "./meeple";
 import { IPlanner, newPlanner } from "./plan-proxy";
 import { CenterText } from "./shapes";
 import { PlayerColor, TP } from "./table-params";
-import { Civic, MapTile, Tile, TownRules, TownStart } from "./tile";
+import { Church, Civic, Courthouse, MapTile, Tile, TownRules, TownStart, University } from "./tile";
 import { UnitSource } from "./tile-source";
 
 export class Player {
@@ -37,9 +37,6 @@ export class Player {
     this.startDir = Player.playerStartDir[index];
   }
 
-  readonly civicTiles: Civic[] = [];            // Player's S, H, C, U Tiles
-  /** Civic.hex.isOnMap */
-  get nCivics() { return this.civicTiles.filter(tile => tile.hex?.isOnMap).length; }
   allOf<T extends Tile>(claz: Constructor<T>) { return (Tile.allTiles as T[]).filter(t => t instanceof claz && t.player === this); }
   allOnMap<T extends Tile>(claz: Constructor<T>) { return this.allOf(claz).filter(t => t.hex?.isOnMap); }
   /** Resi/Busi/PS/Lake/Civics in play on Map */
@@ -150,10 +147,31 @@ export class Player {
     return hex;
   }
 
+  static civics: Constructor<Civic>[] = [TownStart, University, Church, Courthouse];
+  static leaders: Constructor<Civic>[] = [Mayor, Chancellor, Priest, Judge];
+  makeCivicLeaders() {
+    this.civicTiles.length = 0;
+    for (let i = 0; i < TP.nCivics; i++) {
+      const civic = new Player.civics[i](this);
+      const leader = new Player.leaders[i](civic);
+      this.civicTiles.push(civic);
+    }
+  }
+  readonly civicTiles: Civic[] = [];            // Player's S, H, C, U Tiles
+  /** Civic.hex.isOnMap */
+  get nCivicsOnMap() { return this.civicTiles.filter(tile => tile.hex?.isOnMap).length; }
+
   /** make Civics, Leaders & Police; also makeLeaderHex() */
   makePlayerBits() {
-    this.civicTiles.length = 0;
-    Leader.makeLeaders(this); // push new Civic onto this.civics, push new Leader onto this.meeples
+    this.makeCivicLeaders(); // push new Civic onto this.civics, push new Leader onto this.meeples
+  }
+
+  get isDestroyed() {
+    return this.allOnMap(MapTile).length == 0;
+  }
+  get isComplete() {
+    const n = TP.nCivics;
+    return (this.nCivicsOnMap >= n) && (this.allOnMap(Leader).length >= n) && (this.econs + this.expenses >= 0);
   }
 
   /** deposit Infls & Actns with Player */

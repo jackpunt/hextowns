@@ -504,13 +504,6 @@ export class Tile extends Tile0 {
   }
 
   cantBeMovedBy(player: Player, ctx: DragContext): string | boolean {
-    if (this.hex?.isOnMap) {
-      const infT = this.hex.getInfT(this.player?.color);
-      // captured - allow to recycle
-      if (this.hex.getInfT(criminalColor) > infT) return false;
-      // captured - allow to flip, no recycle
-      if (this.hex.getInfT(player.color) > infT) return false;
-    }
     return (ctx?.lastShift || this.player === undefined || this.player === player) ? undefined : "Not your Tile";
   }
 
@@ -609,6 +602,18 @@ export class MapTile extends Tile {
     if (this.infP > 0) this.setInfRays(this.infP);  // tile influence w/o meeple
     this.hex?.meep?.setInfRays(this.hex.meep.infP); // meeple influence w/o tile
   }
+
+  override cantBeMovedBy(player: Player, ctx: DragContext): string | boolean {
+    if (this.hex?.isOnMap) {
+      const infT = this.hex.getInfT(this.player?.color);
+      // captured - allow to recycle
+      if (this.hex.getInfT(criminalColor) > infT) return false;
+      // captured - allow to flip, no recycle
+      if (this.hex.getInfT(player.color) > infT) return false;
+    }
+    return super.cantBeMovedBy(player, ctx);
+  }
+
 }
 
 
@@ -676,12 +681,11 @@ export class BonusTile extends MapTile implements BagTile {
 
 // Leader.civicTile -> Civic; Civic does not point to its leader...
 export class Civic extends MapTile {
-  constructor(player: Player, type: string, image: string, inf = 1, vp = 1, cost = 2, econ = 1) {
-    super(`${type}:${player.index}`, player, inf, vp, cost, econ); // CivicTile
+  constructor(player: Player, id: string, image: string, inf = 1, vp = 1, cost = TP.tileCost(Civic, 2), econ = 1) {
+    super(`${id}:${player.index}`, player, inf, vp, cost, econ); // CivicTile
     this.player = player;
     this.loanLimit = 10;
     this.addImageBitmap(image);
-    player.civicTiles.push(this);
   }
 
   override isLegalTarget(hex: Hex, ctx?: DragContext) { // Civic

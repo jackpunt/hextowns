@@ -218,7 +218,7 @@ class AdjBonusTile extends AuctionTile {
   }
 
   override removeBonus(bonusId?: BonusId, crit?: (bm: BonusMark) => boolean): void {
-    if (bonusId && !crit) crit = (bm) => bm.rotation !== 0;
+    if (bonusId && !crit) crit = (bm) => bm.rotation === 0; // <-- or !myMarks.includes(bm) ?
     super.removeBonus(bonusId, crit); // uses removeChildType(bonusId, crit);
   }
 }

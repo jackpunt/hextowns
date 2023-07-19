@@ -3,12 +3,11 @@ import { Shape, Text } from "@thegraid/easeljs-module";
 import { PS } from "./auction-tile";
 import { GP } from "./game-play";
 import type { Hex, Hex2 } from "./hex";
-import { H } from "./hex-intfs";
 import type { Player } from "./player";
 import { C1, InfRays, Paintable } from "./shapes";
 import type { DragContext, Table } from "./table";
 import { PlayerColor, TP, criminalColor } from "./table-params";
-import { Church, Civic, Courthouse, Tile, TownStart, University } from "./tile";
+import { Civic, Tile } from "./tile";
 import { UnitSource } from "./tile-source";
 
 class MeepleShape extends Shape implements Paintable {
@@ -211,16 +210,6 @@ export class Meeple extends Tile {
 }
 
 export class Leader extends Meeple {
-  /** new Civic Tile with a Leader 'on' it. */
-  static makeLeaders(p: Player) {
-    new Mayor(new TownStart(p))   // King
-    new Chancellor(new University(p))   // Rook: Chariot, Rector, Count
-    new Priest(new Church(p))     // Bishop
-    new Judge(new Courthouse(p))  // Queen
-    Leader.nLeader = p.civicTiles.length;
-  }
-  static nLeader = 4;
-
   civicTile: Civic;               // Leader deploys to civicTile & extra VP when on civicTile
 
   // VP bonus when Leader is on CivicTile

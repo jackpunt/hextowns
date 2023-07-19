@@ -322,7 +322,9 @@ export class GamePlay0 {
   endTurn2() {
     // this.rollDiceForBonus();
     this.curPlayer.policyHexes.forEach(hex => hex.tile instanceof PolicyTile && hex.tile.eval1());
-    this.curPlayer.totalVps += this.didPlayerBuild ? this.curPlayer.vps : Math.floor(this.curPlayer.vps/2);
+    // Jubilee if win condition:
+    const playerVps = this.curPlayer.isComplete ? 2 * this.curPlayer.vps : this.curPlayer.vps;
+    this.curPlayer.totalVps += this.didPlayerBuild ? playerVps : Math.floor(playerVps / 2);
     if (this.isEndOfGame()) {
       this.endGame();
     } else {
@@ -361,28 +363,30 @@ export class GamePlay0 {
     this.assessThreats();
   }
 
-  vca: {vc1: boolean, vc2: boolean}[] = [{vc1: false, vc2: false}, {vc1: false, vc2: false}];
+  vca: { vc1: number, vc2: number }[] = [{ vc1: -3, vc2: -3 }, { vc1: -3, vc2: -3 }];
+  vTurn1(player: Player, n = 0) {
+    return this.vca[player.index]['vc1'] == (this.turnNumber - n) || this.vca[player.index]['vc2'] == (this.turnNumber - n);
+  }
   /** true if curVal true, twice in a row... */
-  vc2(player: Player, vc: 'vc1'|'vc2', curVal: boolean) {
-    const rv = this.vca[player.index][vc] && curVal;
+  vTurn2(player: Player, vc: 'vc1' | 'vc2', curVal: boolean) {
+    const rv = curVal && this.vca[player.index][vc] == this.turnNumber - 2;
     // console.log(stime(this, `.vc2: [${player.index}][${vc}] = ${rv}; curVal=`), curVal);
-    this.vca[player.index][vc] = curVal;
+    // last turn when curVal was true:
+    if (curVal) this.vca[player.index][vc] = this.turnNumber;
     return rv;
   }
+
   isPlayerWin(player: Player) {
-    const n = Leader.nLeader;
-    const end1 = this.vc2(player, 'vc1', player.otherPlayer.allOnMap(MapTile).length == 0);
-    const end2 = this.vc2(player, 'vc2', (player.nCivics == n) && (player.allOnMap(Leader).length == n) && player.econs + player.expenses >= 0);
+    const end1 = this.vTurn2(player, 'vc1', player.otherPlayer.isDestroyed);
+    const end2 = this.vTurn2(player, 'vc2', player.isComplete);
     return end1 || end2;
   }
 
   isEndOfGame() {
-    let end = false;
-    this.allPlayers.forEach(player => {
-      const endp = this.isPlayerWin(player);
-      end = end || endp;
-    })
-    return end;
+    // can only win at the end of curPlayer's turn:
+    const endp = this.isPlayerWin(this.curPlayer)
+    if (endp) console.log(stime(this, `.isEndOfGame:`), this.vca.flatMap(v => v));
+    return endp;
   }
 
   assessThreats() {
@@ -496,7 +500,7 @@ export class GamePlay0 {
 
   /** Influence & Coins Required to place tile; from offMap to onMap */
   getInfR(tile: Tile | undefined, ndx = this.costNdxFromHex(tile.hex), plyr = this.curPlayer) {
-    const infR = (tile?.cost ?? 0) + (tile?.bonusCount ?? 0) + (this.costInc[plyr.nCivics][ndx] ?? 0);
+    const infR = (tile?.cost ?? 0) + (tile?.bonusCount ?? 0) + (this.costInc[plyr.nCivicsOnMap][ndx] ?? 0);
     const coinR = infR + ((tile?.econ ?? 0) < 0 ? -tile.econ : 0);  // Salary is required when recruited.
     if (Number.isNaN(coinR)) debugger;
     return [infR, coinR];
@@ -915,19 +919,18 @@ export class GamePlay extends GamePlay0 {
   }
 
   override isPlayerWin(player: Player): boolean {
-    const rv = super.isPlayerWin(player), cont = this.table.winIndForPlayer[player.index];
-    const warn = this.vca[player.index]['vc1'] || this.vca[player.index]['vc2'];
-    if (warn) {
+    const cont = this.table.winIndForPlayer[player.index];
+    const win = super.isPlayerWin(player)
+    const warn = this.vTurn1(player) || win;
+    cont.removeAllChildren();
+    if (warn || win) {
       // console.log(stime(this, `.isPlayerWin: ${AT.ansiText(['$red'], 'warn!')} ${player.Aname}`))
-      const ddd = new CenterText('!!', 80, 'rgba(0,180,0,.8)'); // F.fontSpec()
+      const color = win ? 'rgba(0,180,0,.8)' : 'rgba(180,0,0,.8)';
+      const ddd = new CenterText('!!', 80, color); // F.fontSpec()
       cont.addChild(ddd);
-      this.hexMap.update();
-    } else if(cont.numChildren > 0) {
-      // console.log(stime(this, `.isPlayerWin: cancel!`))
-      cont.removeAllChildren();
-      this.hexMap.update();
     }
-    return rv;
+    this.hexMap.update();
+    return win;
   }
 
   override setNextPlayer(plyr?: Player) {

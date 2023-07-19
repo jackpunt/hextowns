@@ -34,6 +34,7 @@ export class TP {
   static allowMultiEvent = false;
   static anyPlayerAdj = true;
   static bankAdjBank = false;
+  static nCivics = 4;
   static vpOnCivic = 1;
   static infOnCivic = 0;
   static maxCivics = 4;
@@ -60,7 +61,7 @@ export class TP {
   static policePerPlayer = 3;
   static textLogLines = 6;
   static tileCosts = { Lake: 2, Bank: 2, PS: 2 }
-  static tileCost(type: Constructor<Object>) { return TP.tileCosts[type.name] ?? 1 }
+  static tileCost(type: Constructor<Object>, def = 1) { return TP.tileCosts[type.name] ?? def }
 
   static placeAdjacent = true;
   static alwaysShift = false;
@@ -86,8 +87,6 @@ export class TP {
   static schemeNames = ['Red_Blue', 'Blue_Red'];
   static colorScheme = TP.Blue_Red;
   static numPlayers = 2;
-  /** offset planets  */
-  static offP = true;
   /** distance between planets */
   static dbp = 4; // nCows = nCols = 3*dbp+3
   /** distance outside planets */
