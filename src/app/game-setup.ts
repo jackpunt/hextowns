@@ -121,7 +121,7 @@ export class GameSetup {
     const gui = new ParamGUI(TP, { textAlign: 'right'})
     const schemeAry = TP.schemeNames.map(n => { return { text: n, value: TP[n] } })
     const setSize = (nh = TP.nHexes) => { restart && this.restart.call(this, nh) };
-    gui.makeParamSpec("nh", [3, 4, 5, 6], { fontColor: "red" });
+    gui.makeParamSpec("nh", [7, 8, 9], { fontColor: "red" });
     gui.makeParamSpec("nCivics", [4, 3, 2, 1], { fontColor: "green" }); TP.nCivics;
     gui.makeParamSpec("auctionSlots", [5, 4, 3], { fontColor: "green" }); TP.auctionSlots;
     gui.makeParamSpec("auctionMerge", [0, 1, 2, 3], { fontColor: "green" }); TP.auctionMerge;

@@ -338,9 +338,10 @@ export class Table extends EventDispatcher  {
     this.hexMap.update();
     {
       // position turnLog & turnText
-      let parent = this.scaleCont
-      let rhex = this.hexMap[7][0] as Hex2; //getCornerHex('W') as Hex2;
-      let rhpt = rhex.cont.parent.localToLocal(rhex.x - 9 * this.hexMap.colWidth, rhex.y, parent)
+      const parent = this.scaleCont, n = TP.nHexes;
+      const lhex = this.hexMap.getCornerHex('W');
+      let rhex = lhex.links['NE'] as Hex2;
+      let rhpt = rhex.cont.parent.localToLocal(rhex.x - (n + 1) * this.hexMap.colWidth, rhex.y, parent)
       this.bagLog.x = rhpt.x; this.bagLog.y = rhpt.y - this.turnLog.height(1);;
       this.turnLog.x = rhpt.x; this.turnLog.y = rhpt.y;
       this.textLog.x = rhpt.x; this.textLog.y = rhpt.y + this.turnLog.height(Player.allPlayers.length + 1);
@@ -511,8 +512,9 @@ export class Table extends EventDispatcher  {
       }
       {
         // Show Player's balance text:
-        const bText = p.balanceText, parent = this.scaleCont;
-        const hexC2 = this.hexMap[8][colf(2, 8).col] as Hex2, hexR1 = this.hexMap[1][3] as Hex2;
+        const bText = p.balanceText, parent = this.scaleCont, n = TP.nHexes;
+        const hexC2 = this.hexMap[n][colf(2, n).col] as Hex2;
+        const hexR1 = this.hexMap.getCornerHex('NW') as Hex2;
         const x = hexC2.x, y = hexR1.y - .3 * TP.hexRad * H.sqrt3;
         hexC2.cont.parent.localToLocal(x, y, parent, bText);
         parent.addChild(bText);
