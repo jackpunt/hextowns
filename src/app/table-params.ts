@@ -87,14 +87,10 @@ export class TP {
   static schemeNames = ['Red_Blue', 'Blue_Red'];
   static colorScheme = TP.Blue_Red;
   static numPlayers = 2;
-  /** distance between planets */
-  static dbp = 4; // nCows = nCols = 3*dbp+3
-  /** distance outside planets */
-  static dop = 2; // nh = dbp + 2 * dop (length of outer edge)
   /** Order [number of rings] of metaHexes */
-  static mHexes = 10   // number hexes on side of Meta-Hex
+  static mHexes = 1   // number hexes on side of Meta-Hex
   /** Order [number of Hexs on side] of District [# rings of Hexes in each metaHex] */
-  static nHexes = 1    // number of Hexes on side of District
+  static nHexes = 8    // number of Hexes on side of District
   static nDistricts = 7
   static nVictory = 3  // number of Colony to win
   static tHexes = TP.ftHexes(this.mHexes) * TP.ftHexes(this.nHexes)
@@ -105,18 +101,16 @@ export class TP {
   static meepleY0 = TP.hexRad * .25;
   static log = 0
   /** map size for (dpb, dop) */
-  static fnHexes(dbp = 4, dop = 2) {
-    TP.dbp = dbp
-    TP.dop = dop
-    TP.nHexes = 1;
-    TP.mHexes = dbp + 2 + dop; // between planets + planets + outside planets
+  static fnHexes(nh = TP.nHexes, nm = TP.mHexes) {
+    TP.nHexes = nh;
+    TP.mHexes = nm;
     TP.tHexes = TP.ftHexes(TP.mHexes)
   }
   /** number of hexes in a metaHex of order n; number of districts(n=TP.mHexes)
    * @return an odd number: 1, 7, 19, 37, 61, 97, ... */
   static ftHexes(n: number): number { return (n <= 1) ? n : 6 * (n-1) + TP.ftHexes(n - 1) }
-  /** initialize fnHexes using initial dpb, dop */
-  static xxx = TP.fnHexes(TP.dbp, TP.dop)
+  /** initialize fnHexes using initial nHexes, mHexes */
+  static xxx = TP.fnHexes();
 
   /** exclude whole Extension sets */
   static excludeExt: string[] = ["Policy", "Event", "Roads", "Transit"]; // url?ext=Transit,Roads

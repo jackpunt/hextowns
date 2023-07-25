@@ -775,8 +775,8 @@ export class HexMap extends Array<Array<Hex>> implements HexM {
    * @param dbp Distance Between Planets; determines size of main map meta-hex (~4)
    * @param dop Distance Outside Planets; extra hexes beyond planets (~2)
    */
-  makeAllDistricts(dbp = TP.dbp, dop = TP.dop) {
-    this.makeDistrict(dbp + 2 + dop, 0, 1, 0);    // dop hexes on outer ring; single meta-hex
+  makeAllDistricts(nh = TP.nHexes, mh = TP.mHexes) {
+    this.makeDistrict(nh, 0, 1, 0);    // dop hexes on outer ring; single meta-hex
     this.mapCont.hexCont && this.centerOnContainer()
   }
   centerOnContainer() {

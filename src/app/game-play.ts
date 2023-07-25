@@ -107,7 +107,7 @@ export class GamePlay0 {
     let time = stime('').substring(6,15)
     let line = {
       time: stime.fs(), maxBreadth: TP.maxBreadth, maxPlys: TP.maxPlys,
-      dpb: TP.dbp, mHexes: TP.mHexes, tHexes: TP.tHexes
+      mHexes: TP.mHexes, tHexes: TP.tHexes
     }
     let line0 = json(line, false)
     let logFile = `log_${time}`
@@ -632,7 +632,7 @@ export class GamePlay0 {
 /** GamePlayD has compatible hexMap(mh, nh) but does not share components. used by Planner */
 export class GamePlayD extends GamePlay0 {
   //override hexMap: HexMaps = new HexMap();
-  constructor(dbp: number = TP.dbp, dop: number = TP.dop) {
+  constructor(nh = TP.nHexes, mh = TP.mHexes) {
     super();
     this.hexMap[S.Aname] = `GamePlayD#${this.id}`;
     // this.hexMap.makeAllDistricts(dbp, dop); // included in GamePlay0

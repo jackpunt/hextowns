@@ -42,7 +42,7 @@ export class GameSetup {
   set playerId(val: string) { this.netGUI?.selectValue("PlayerId", val || "     ") }
 
   /** C-s ==> kill game, start a new one, possibly with new dbp */
-  restart(dbp = TP.dbp, dop = TP.dop) {
+  restart(nh = TP.nHexes) {
     let netState = this.netState
     // this.gamePlay.closeNetwork('restart')
     // this.gamePlay.logWriter?.closeFile()
@@ -55,8 +55,9 @@ export class GameSetup {
       })
       cont.removeAllChildren()
     }
-    deContainer(this.stage)
-    TP.fnHexes(dbp, dop)
+    deContainer(this.stage);
+    TP.nHexes = nh;
+    TP.fnHexes();
     let rv = this.startup()
     this.netState = " "      // onChange->noop; change to new/join/ref will trigger onChange(val)
     // next tick, new thread...
@@ -119,16 +120,14 @@ export class GameSetup {
     let restart = false
     const gui = new ParamGUI(TP, { textAlign: 'right'})
     const schemeAry = TP.schemeNames.map(n => { return { text: n, value: TP[n] } })
-    const setSize = (dpb: number, dop: number) => { restart && this.restart.call(this, dpb, dop) };
-    gui.makeParamSpec("dbp", [3, 4, 5, 6], { fontColor: "red" }); TP.dbp;
-    gui.makeParamSpec("dop", [0, 1, 2, 3], { fontColor: "red" }); TP.dop;
+    const setSize = (nh = TP.nHexes) => { restart && this.restart.call(this, nh) };
+    gui.makeParamSpec("nh", [3, 4, 5, 6], { fontColor: "red" });
     gui.makeParamSpec("nCivics", [4, 3, 2, 1], { fontColor: "green" }); TP.nCivics;
     gui.makeParamSpec("auctionSlots", [5, 4, 3], { fontColor: "green" }); TP.auctionSlots;
     gui.makeParamSpec("auctionMerge", [0, 1, 2, 3], { fontColor: "green" }); TP.auctionMerge;
     gui.makeParamSpec("colorScheme", schemeAry, { chooser: CycleChoice, style: { textAlign: 'center' } });
 
-    gui.spec("dbp").onChange = (item: ParamItem) => { setSize(item.value, TP.dop) }
-    gui.spec("dop").onChange = (item: ParamItem) => { setSize(TP.dbp, item.value) }
+    gui.spec("nh").onChange = (item: ParamItem) => { setSize(item.value) }; TP.nHexes;
     gui.spec('auctionSlots').onChange = (item: ParamItem) => {
       gui.setValue(item);
       TP.preShiftCount = Math.max(1, TP.auctionSlots - 2);
