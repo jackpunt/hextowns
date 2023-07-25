@@ -4,7 +4,7 @@ import { EwDir, H, HexAxis, HexDir, InfDir, NsDir } from "./hex-intfs";
 import type { Meeple } from "./meeple";
 import { CapMark, HexShape, LegalMark, MeepCapMark } from "./shapes";
 import { PlayerColor, PlayerColorRecord, TP, playerColorRecord, playerColorRecordF, playerColorsC } from "./table-params";
-import type { Tile } from "./tile";
+import type { MapTile, Tile } from "./tile";
 
 export const S_Resign = 'Hex@Resign'
 export const S_Skip = 'Hex@skip '
@@ -75,9 +75,7 @@ export class Hex {
   /** return indicated Hex from otherMap */
   static ofMap(ihex: IHex, otherMap: HexMap) {
     try {
-      return (ihex.Aname === S_Skip) ? otherMap.skipHex
-        : (ihex.Aname === S_Resign) ? otherMap.resignHex
-          : otherMap[ihex.row][ihex.col]
+      return otherMap[ihex.row][ihex.col]
     } catch (err) {
       console.warn(`ofMap failed:`, err, { ihex, otherMap }) // eg: otherMap is different (mh,nh)
       throw err
@@ -114,7 +112,7 @@ export class Hex {
     }
   }
 
-  _tile: Tile;
+  _tile: MapTile;
   get tile() { return this._tile; }
   set tile(tile: Tile) { this._tile = tile; } // override in Hex2!
   // Note: set hex.tile mostly invoked from: tile.hex = hex;
@@ -561,9 +559,6 @@ export interface HexM {
   readonly mapCont: MapCont
   rcLinear(row: number, col: number): number
   forEachHex<K extends Hex>(fn: (hex: K) => void): void // stats forEachHex(incCounters(hex))
-  //used by GamePlay:
-  readonly skipHex: Hex
-  readonly resignHex: Hex
   update(): void
   showMark(hex: Hex): void
 
@@ -638,10 +633,6 @@ export class HexMap extends Array<Array<Hex>> implements HexM {
   constructor(radius: number = TP.hexRad, addToMapCont = false) {
     super(); // Array<Array<Hex>>()
     this.radius = radius
-    //this.height = radius * H.sqrt3
-    //this.width = radius * 1.5
-    this.skipHex = new Hex(this, -1, -1, S_Skip)
-    this.resignHex = new Hex(this, -1, -2, S_Resign)
     if (addToMapCont) this.addToMapCont()
   }
 

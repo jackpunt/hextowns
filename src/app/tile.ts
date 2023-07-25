@@ -242,7 +242,10 @@ class Tile0 extends Container {
 
 }
 
-/** all the [Hexagonal] game pieces that appear; can be dragged/dropped. */
+/** all the [Hexagonal] game pieces that appear; can be dragged/dropped/bagged.
+ *
+ * Two subspecies: MapTile are 'stationary' on the HexMap, Meeple are 'mobile'.
+ */
 export class Tile extends Tile0 {
   static allTiles: Tile[] = [];
 
