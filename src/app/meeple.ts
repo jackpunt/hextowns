@@ -83,9 +83,9 @@ export class Meeple extends Tile {
     if (hex !== undefined) hex.meep = this;
   }
 
-  override get radius() { return TP.hexRad / 1.9 }
+  override get radius() { return TP.meepleRad } // TP.hexRad /1.9 = 31.578 vs * .4 = 24
   override textVis(v: boolean) { super.textVis(true); }
-  override makeShape(): Paintable { return new MeepleShape(this.player); }
+  override makeShape(): Paintable { return new MeepleShape(this.player, this.radius); }
 
   /** location at start-of-turn; for Meeples.unMove() */
   startHex: Hex;
