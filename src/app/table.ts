@@ -264,7 +264,7 @@ export class Table extends EventDispatcher  {
     const hex = new claz(this.hexMap, row, col, name);
     hex.distText.text = name;
     if (row <= 0) {
-      hex.y += (sy + row * .5 - .75) * (this.hexMap.rowHeight / 1.5);
+      hex.y += (sy + row * .5 - .75) * (this.hexMap.radius);
     }
     return hex
   }

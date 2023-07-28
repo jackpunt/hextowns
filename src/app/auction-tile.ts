@@ -220,7 +220,7 @@ class AdjBonusTile extends AuctionTile {
   }
 
   myMarks = H.ewDirs.map(dir => {
-    const mark = new BonusMark(this.type, H.dirRot[dir]);
+    const mark = new BonusMark(this.type, H.ewDirRot[dir]);
     return mark;
   });
 

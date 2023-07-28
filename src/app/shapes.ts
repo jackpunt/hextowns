@@ -39,7 +39,7 @@ export class HexShape extends Shape implements Paintable {
 
   /** draw a Hexagon 1/60th inside the given radius */
   paint(color: string) {
-    const g = this.graphics.c(), tilt = H.dirRot[this.tiltDir];
+    const g = this.graphics.c(), tilt = H.ewDirRot[this.tiltDir];
     return g.f(color).dp(0, 0, Math.floor(this.radius * 59 / 60), 6, 0, tilt);
   }
 }
@@ -64,7 +64,7 @@ export class InfRays extends Shape {
     }
     g.ss(xw).s(color);
     H.ewDirs.forEach(dir => {
-      const rot = H.dirRot[dir] * H.degToRadians;
+      const rot = H.ewDirRot[dir] * H.degToRadians;
       pts.forEach(mtlt => {
         const mt = rotpt(rot, mtlt.mt.x, mtlt.mt.y), lt = rotpt(rot, mtlt.lt.x, mtlt.lt.y);
         g.mt(mt.x, mt.y).lt(lt.x, lt.y);
@@ -105,7 +105,7 @@ export class TileShape extends HexShape {
   override paint(colorn: string) {
     super.paint(colorn);                 // solid hexagon
     // calculate bounds of hexagon for cache:
-    let r = this.radius, g = this.graphics, tilt = H.dirRot[this.tiltDir];
+    let r = this.radius, g = this.graphics, tilt = H.ewDirRot[this.tiltDir];
     // dp(...6), so tilt: 30 | 0; being nsAxis or ewAxis;
     let w = r * Math.cos(H.degToRadians * tilt)
     let h = r * Math.cos(H.degToRadians * (tilt - 30))

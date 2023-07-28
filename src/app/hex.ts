@@ -51,7 +51,7 @@ export class InfMark extends Shape {
   constructor(sc: PlayerColor, ds: HexAxis, x: number, y: number) {
     super(InfMark.infG[sc])
     this.mouseEnabled = false
-    this.rotation = H.dirRot[ds]
+    this.rotation = H.ewDirRot[ds]
     this.x = x; this.y = y
     this[S.Aname] = `Inf[${TP.colorScheme[sc]},${ds},${this.id}]`  // for debug, not production
   }
@@ -444,7 +444,7 @@ export class Hex2 extends Hex {
   }
   /** location of corner between dir0 and dir1; in parent coordinates. */
   cornerPoint(dir0: HexDir, dir1: HexDir) {
-    let d0 = H.dirRot[dir0], d1 = H.dirRot[dir1]
+    let d0 = H.ewDirRot[dir0], d1 = H.ewDirRot[dir1]
     let a2 = (d0 + d1) / 2, h = this.radius
     if (Math.abs(d0 - d1) > 180) a2 += 180
     let a = a2 * H.degToRadians
@@ -452,7 +452,7 @@ export class Hex2 extends Hex {
   }
   /** location of edge point in dir; in parent coordinates. */
   edgePoint(dir: HexDir) {
-    let a = H.dirRot[dir] * H.degToRadians, h = this.radius * H.sqrt3_2
+    let a = H.ewDirRot[dir] * H.degToRadians, h = this.radius * H.sqrt3_2
     return new Point(this.x + Math.sin(a) * h, this.y - Math.cos(a) * h)
   }
 }
