@@ -12,7 +12,7 @@ import { Player } from "./player";
 import { HexShape } from "./shapes";
 import type { StatsPanel } from "./stats";
 import { PlayerColor, playerColor0, playerColor1, playerColors, TP } from "./table-params";
-import { BagTile, BonusTile, NoDragTile, Tile, WhiteTile } from "./tile";
+import { BagTile, BonusTile, Tile, WhiteTile } from "./tile";
 import { TileSource } from "./tile-source";
 import { PolicyTile } from "./event-tile";
 //import { TablePlanner } from "./planner";
@@ -649,7 +649,7 @@ export class Table extends EventDispatcher  {
   startGame() {
     // initialize Players & TownStart & draw pile
     // All Tiles (Civics, Resi, Busi, PStation, Lake, & Meeple) are Draggable:
-    Tile.allTiles.filter(tile => !(tile instanceof NoDragTile)).forEach(tile => {
+    Tile.allTiles.filter(tile => tile.isDragable).forEach(tile => {
       this.makeDragable(tile);
     })
     BonusTile.addToMap(this);

@@ -508,10 +508,9 @@ class HexMark extends Shape {
   hex: Hex2;
   constructor(public hexMap: HexMap, radius: number, radius0: number = 0) {
     super();
-    const mark = this, cb = "rgba(0,0,0,.3)", cw="rgba(255,255,255,.3)"
+    const mark = this, cm = "rgba(127,127,127,.3)";
     mark.mouseEnabled = false
-    mark.graphics.f(cb).dp(0, 0, radius, 6, 0, 30)
-    mark.graphics.f(cw).dp(0, 0, radius, 6, 0, 30)
+    mark.graphics.f(cm).dp(0, 0, radius, 6, 0, 30)
     mark.cache(-radius, -radius, 2*radius, 2*radius)
     mark.graphics.c().f(C.BLACK).dc(0, 0, radius0)
     mark.updateCache("destination-out")

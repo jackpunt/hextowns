@@ -260,6 +260,7 @@ export class Tile extends Tile0 {
   homeHex: Hex = undefined;
   /** location at start-of-drag */
   fromHex: Hex2;
+  get isDragable() { return true; }
 
   _hex: Hex = undefined;
   /** the map Hex on which this Tile sits. */
@@ -584,12 +585,10 @@ export class Tile extends Tile0 {
   }
 }
 
-/** Marker class: a Tile that is not draggable */
-export class NoDragTile extends Tile {}
-
 /** A plain WHITE tile; for Debt */
-export class WhiteTile extends NoDragTile {
+export class WhiteTile extends Tile {
   override makeShape(): Paintable { return new HexShape(this.radius); }
+  override get isDragable() { return false; }
 
   override paint(pColor?: PlayerColor, colorn?: string): void {
     this.setInfRays();
