@@ -55,7 +55,7 @@ export class NumCounter extends ValueCounter {
    */
   clickToInc(incr: NumCounter | boolean = true) {
     const incv = (evt: NativeMouseEvent) => (evt?.ctrlKey ? -1 : 1) * (evt?.shiftKey ? 10 : 1);
-    if (incv) {
+    if (incr) {
       this.mouseEnabled = true;
       this.on(S.click, (evt: MouseEvent) => this.incValue(incv(evt.nativeEvent)));
       if (incr instanceof NumCounter) {

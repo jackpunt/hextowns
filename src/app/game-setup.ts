@@ -1,14 +1,16 @@
+import { Params } from "@angular/router";
 import { C, CycleChoice, DropdownStyle, makeStage, ParamGUI, ParamItem, stime } from "@thegraid/easeljs-lib";
 import { Container, Stage } from "@thegraid/easeljs-module";
 import { EBC, PidChoice } from "./choosers";
 import { GamePlay } from "./game-play";
 import { InfMark } from "./hex";
+import { ImageSetup } from "./image-setup";
 import { Meeple } from "./meeple";
 import { Player } from "./player";
 import { StatsPanel, TableStats } from "./stats";
 import { Table } from "./table";
 import { TP } from "./table-params";
-import { Monument, Tile } from "./tile";
+import { Tile } from "./tile";
 
 /** show " R" for " N" */
 stime.anno = (obj: string | { constructor: { name: string; }; }) => {
@@ -27,10 +29,10 @@ export class GameSetup {
    * ngAfterViewInit --> start here!
    * @param canvasId supply undefined for 'headless' Stage
    */
-  constructor(canvasId: string, ext?: string[]) {
+  constructor(public canvasId: string, qParams: Params) {
     stime.fmt = "MM-DD kk:mm:ss.SSS"
     this.stage = makeStage(canvasId, false)
-    Tile.loader.loadImages(() => this.startup(ext));
+    Tile.loader.loadImages((imap) => this.startup(qParams, imap));
   }
   _netState = " " // or "yes" or "ref"
   set netState(val: string) {
@@ -68,10 +70,19 @@ export class GameSetup {
    * Make new Table/layout & gamePlay/hexMap & Players.
    * @param ext Extensions from URL
    */
-  startup(ext: string[] = []) {
+  startup(qParams?: Params, imap?: Map<string, HTMLImageElement>) {
     Tile.allTiles = [];
     Meeple.allMeeples = [];
     Player.allPlayers = [];
+    if (qParams['image']) {
+      const stageComp = document.getElementById('stageComp');
+      const canvasElt = document.getElementById(this.canvasId) as HTMLCanvasElement;
+      canvasElt.width = 3300; canvasElt.height = 2550; // single-sided: landscape
+      const imageSetup = new ImageSetup(this.canvasId, qParams);
+      imageSetup.startup(qParams, imap); // paint canvas with some HexShapes
+      // imageSetup.clickButton();
+      return undefined;
+    }
 
     const table = new Table(this.stage)        // EventDispatcher, ScaleCont, GUI-Player
     const gamePlay = new GamePlay(table, this) // hexMap, players, fillBag, gStats, mouse/keyboard->GamePlay

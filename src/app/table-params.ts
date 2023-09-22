@@ -65,6 +65,7 @@ export class TP {
 
   static placeAdjacent = true;
   static alwaysShift = false;
+  static useEwTopo = false;
   static parallelAttack = true;  // true --> N intersects S
   static allowSacrifice = true;
   static yield = true

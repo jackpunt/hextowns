@@ -1,16 +1,17 @@
 <div class="content" role="main" style=background-color:rgb(251,245,255)>
-  <!-- <demo-map >Demo-Map1 here</demo-map> -->
-  <stage-comp [width]=1600 [height]=980> StageComponent here</stage-comp>
+  <stage-comp id="stageComp" [width]=1600 [height]=980> StageComponent here</stage-comp>
   <div style="position: absolute; top: 5px; left: 50; z-index: 9999">
     <a href="https://docs.google.com/document/d/1IKwKtXxFkKQIL9FXchZ0zqhZvCisjLi7qsD-JdlEqAg/view#" target="_blank" rel="noopener">{{ title }}</a>
     <br/>
     <span>{{ timestamp }}</span>
     <br/>
     <button type="submit" id="fsOpenFileButton" onclick="showOpenFilePicker()">OpenFile</button>
+    <!-- <demo-map >Demo-Map1 here</demo-map> -->
+    <!-- P&P templte: single-sided = 2550 x 3300 [landscape, 7x5 EWtopo] or double-sided = 5100 x 3300 [portrait] -->
+    <!-- 1 inch circle Premium Label Supply: [height]=3290 [width]=2530 -->
+    <a id="download" download="image.png"><button type="button">Download</button></a>
     <br/>
     Game: <span id="group_name">----</span>
-  </div>
-  <div>
-   
+    <br/>
   </div>
  </div>

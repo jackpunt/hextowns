@@ -892,8 +892,8 @@ export class Table extends EventDispatcher  {
   // bindKeysToScale(scaleC, 800, 0, scale=.324)
   bindKeysToScale(char: string, scaleC: ScaleableContainer, xos: number, yos: number) {
     let ns0 = scaleC.getScale(), sXY = { x: -scaleC.x, y: -scaleC.y } // generally == 0,0
-    let nsA = scaleC.findIndex(.5), apt = { x: -xos, y: -yos }
-    let nsZ = scaleC.findIndex(ns0), zpt = { x: -xos, y: -yos }
+    let nsA = scaleC.findIndex(.45), apt = { x: -xos, y: -yos }
+    let nsZ = scaleC.findIndex(.3), zpt = { x: -xos, y: -yos }
 
     // set Keybindings to reset Scale:
     /** xy in [unscaled] model coords; sxy in screen coords */
