@@ -33,7 +33,7 @@ class MeepleShape extends Shape implements Paintable {
 
   /** stroke a ring of colorn, stroke-width = 2, r = radius-2; fill disk with (~WHITE,.7) */
   paint(colorn = this.player?.colorn ?? C1.grey) {
-    const x0 = 0, y0 = 0, r = this.radius, ss = 2, rs = 1;
+    const x0 = 0, y0 = 0, r = this.radius, ss = TP.hexRad / 30, rs = 1;
     const g = this.graphics.c().ss(ss).s(colorn).dc(x0, y0, r - rs);
     g.f(MeepleShape.fillColor).dc(x0, y0, r - 1)  // disk
     this.setBounds(x0 - r, y0 - r, 2 * r, 2 * r)

@@ -399,7 +399,7 @@ export class AutoCrime extends EventTile {
   static override makeAllTiles(nac = TP.autoCrimePerBag * GP.gamePlay.shifter.tileBag.length) { //
     // make in advance, so they are dragable.
     const autoCrimeSpec = AutoCrime.autoCrimeSpec;
-    AutoCrime.allTiles = new Array(nac).fill(undefined).map((v, ndx) => new AutoCrime(autoCrimeSpec, ndx));
+    AutoCrime.allTiles = new Array(Math.round(nac)).fill(undefined).map((v, ndx) => new AutoCrime(autoCrimeSpec, ndx));
   }
   static autoCrimeSpec =  new EventSpec('Auto  Crime', { Aname: 'AutoCrime', ehex: function (gp: GamePlay) { gp.autoCrime(true) }, });
 

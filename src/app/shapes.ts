@@ -1,4 +1,4 @@
-import { C, F, XY } from "@thegraid/common-lib";
+import { C, F, XY, className } from "@thegraid/common-lib";
 import { Container, DisplayObject, Graphics, Shape, Text } from "@thegraid/easeljs-module";
 import type { Hex2 } from "./hex";
 import { H, HexDir } from "./hex-intfs";
@@ -35,6 +35,7 @@ export class HexShape extends Shape implements Paintable {
     readonly tiltDir: HexDir = 'NE',
   ) {
     super();
+    this.name = className(this);
   }
 
   /** draw a Hexagon 1/60th inside the given radius */
@@ -126,6 +127,7 @@ export class BalMark extends Shape {
 
   constructor(tile: Tile) {
     super();
+    this.name = className(this);
     const { nB, fB, nR, fR } = tile, x0 = TP.hexRad * H.sqrt3_2 * .75;
     this.bMark(nB, fB, x0-5, BalMark.bColor);
     this.bMark(nR, fR, x0-0, BalMark.rColor);

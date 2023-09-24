@@ -45,17 +45,17 @@ export class TP {
   static nPolicySlots = 4;
   static preShiftCount = Math.max(1, TP.auctionSlots - 2);
   static alwaysShiftPolicy = true;
-  static resiPerPlayer = 11
-  static busiPerPlayer = 9;
-  static lakePerPlayer = 3;
-  static bankPerPlayer = 3;
-  static pstaPerPlayer = 3;
-  static eventsPerPlayer = 3;
-  static policyPerPlayer = 3;
+  static resiPerPlayer = 11;  // 2-side 29 double-sided Tile2! (167 - 29 = 138) < 140!!
+  static busiPerPlayer = 9;   // 2-side
+  static lakePerPlayer = 3;   // 2-side
+  static bankPerPlayer = 3;   // 2-side
+  static pstaPerPlayer = 3;   // 2-side
+  static eventsPerPlayer = 3; // how may to put in bag, from total supply of event tiles
+  static policyPerPlayer = 3; // how may to put in bag, from total supply of policy tiles
+  static bonusPerType = 2;    // 4 types: star, econ, infl, actn (star == VP, econ=$$)
+  static bonusOnBoard = 4;    //
   static autoCrimePerBag = 1 / 6;   // 1 in 6 --> 1 in 7;
-  static bonusPerType = 3; // 4 types
-  static bonusOnBoard = 4;
-  static inMarket = { Busi: 2, Resi: 2, Monument: 3 } as const;
+  static inMarketPerPlayer = { Busi: 2, Resi: 2, Monument: 3 } as const;
   // 58 Baggable Tiles + 4 Civic Tiles per player.
   static criminalPerPlayer = 4;
   static policePerPlayer = 3;
@@ -97,7 +97,8 @@ export class TP {
   static tHexes = TP.ftHexes(this.mHexes) * TP.ftHexes(this.nHexes)
   static nMinControl  = (TP.nHexes <= 1) ? 1 : TP.nHexes + 1 // [1, 1, 3, 4, 5, ...]
   static nDiffControl = (TP.nHexes <= 1) ? 0 : TP.nHexes - 1 // [0, 0, 1, 2, 3, ...]
-  static hexRad = 60;
+  static hexRad = 180;
+  static fontSize = TP.hexRad / 2;
   static meepleRad = TP.hexRad / 1.9;
   static meepleY0 = TP.hexRad * .25;
   static log = 0

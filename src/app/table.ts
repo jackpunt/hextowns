@@ -38,7 +38,7 @@ export interface DragContext {
 }
 
 class TextLog extends Container {
-  constructor(public Aname: string, nlines = 6, public size: number = 30, public lead = 3) {
+  constructor(public Aname: string, nlines = 6, public size: number = TP.hexRad/2, public lead = 3) {
     super()
     this.lines = new Array<Text>(nlines);
     for (let ndx = 0; ndx < nlines; ndx++) this.lines[ndx] = this.newText(`#0:`)
@@ -101,9 +101,9 @@ export class Table extends EventDispatcher  {
   undoShape: Shape = new Shape();
   skipShape: Shape = new Shape();
   redoShape: Shape = new Shape();
-  undoText: Text = new Text('', F.fontSpec(30));  // length of undo stack
-  redoText: Text = new Text('', F.fontSpec(30));  // length of history stack
-  winText: Text = new Text('', F.fontSpec(40), 'green')
+  undoText: Text = new Text('', F.fontSpec(30 * TP.hexRad/60));  // length of undo stack
+  redoText: Text = new Text('', F.fontSpec(30 * TP.hexRad/60));  // length of history stack
+  winText: Text = new Text('', F.fontSpec(40 * TP.hexRad/60), 'green')
   winBack: Shape = new Shape(new Graphics().f(C.nameToRgbaString("lightgrey", .6)).r(-180, -5, 360, 130))
 
   dragger: Dragger
@@ -132,12 +132,12 @@ export class Table extends EventDispatcher  {
     const undoC = this.undoCont; undoC.name = "undo buttons"; // holds the undo buttons.
     this.scaleCont.addChild(this.undoCont);
     const { x, y } = this.hexMap.getCornerHex('W').xywh();
-    this.hexMap.mapCont.hexCont.localToLocal(x-2.5*TP.hexRad, y - this.hexMap.rowHeight * 4, undoC.parent, undoC);
-    const progressBg = new Shape(), bgw = 200, bgym = 240, y0 = 0;
+    this.hexMap.mapCont.hexCont.localToLocal(x - 8 * TP.hexRad, y - this.hexMap.rowHeight * 4, undoC.parent, undoC);
+    const progressBg = new Shape(), bgw = 3 * TP.hexRad, bgym = 3 * TP.hexRad, y0 = 0;
     const bgc = C.nameToRgbaString(TP.bgColor, .8);
     progressBg.graphics.f(bgc).r(-bgw / 2, y0, bgw, bgym - y0);
     undoC.addChildAt(progressBg, 0)
-    this.enableHexInspector(30)
+    this.enableHexInspector(TP.hexRad / 2);
     this.dragger.makeDragable(undoC)
     if (true && xOffs > 0) return
     this.skipShape.graphics.f("white").dp(0, 0, 40, 4, 0, skipRad)
@@ -476,7 +476,7 @@ export class Table extends EventDispatcher  {
         const [col, row] = locs[type.name];
         const hex = this.homeRowHex(type.name, colf(col, row)); // Busi/Resi-MarketHex
         const source = this.gamePlay.marketSource[pIndex][type.name] = new TileSource<Tile>(type, p, hex);
-        for (let i = 0; i < TP.inMarket[type.name]; i++) {
+        for (let i = 0; i < TP.inMarketPerPlayer[type.name]; i++) {
           source.availUnit(new type(undefined, p));
         }
         source.nextUnit();
@@ -582,7 +582,7 @@ export class Table extends EventDispatcher  {
       //: new (name?: string, iv?: string | number, color?: string, fSize?: number) => NumCounter
       const cname = `${name}Counter`, fSize = TP.hexRad * .75;
       const counter = player[cname] = new claz(`${cname}:${index}`, 0, color, fSize)
-      counter.setLabel(`${name}s`, { x: 0, y: fSize/2 }, 12);
+      counter.setLabel(`${name}s`, { x: 0, y: fSize / 2 }, fSize / 4);
       const pt = cont.localToLocal(colx(coff), rowy, counterCont)
       counter.attachToContainer(counterCont, pt);
       counter.clickToInc(incr);

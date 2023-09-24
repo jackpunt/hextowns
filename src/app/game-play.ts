@@ -949,7 +949,7 @@ export class GamePlay extends GamePlay0 {
   /** After setNextPlayer() */
   startTurn() {
   }
-
+  /** paint 'repaintable' tiles to reflect curPlayer (in current colorScheme) */
   paintForPlayer() {
     this.costIncHexCounters.forEach(cic => {
       const plyr = (cic.repaint instanceof Player) ? cic.repaint : this.curPlayer;

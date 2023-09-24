@@ -18,8 +18,8 @@ export class AuctionTile extends MapTile implements BagTile {
       }
     };
     tileBag.length = 0;
-    addTiles(TP.busiPerPlayer * 2 - TP.inMarket['Busi'], Busi);
-    addTiles(TP.resiPerPlayer * 2 - TP.inMarket['Resi'], Resi);
+    addTiles((TP.busiPerPlayer - TP.inMarketPerPlayer['Busi']) * 2, Busi);
+    addTiles((TP.resiPerPlayer - TP.inMarketPerPlayer['Resi']) * 2, Resi);
     addTiles(TP.pstaPerPlayer * 2, PS);
     addTiles(TP.bankPerPlayer * 2, Bank);
     addTiles(TP.lakePerPlayer * 2, Lake);

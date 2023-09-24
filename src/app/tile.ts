@@ -109,7 +109,7 @@ export class BonusMark extends Container {
 
 class TileLoader {
   Uname = ['Univ0', 'Univ1'];
-  Monu = new Array(TP.inMarket['Monument']).fill(1).map((v, k) => `Monument${k}`);
+  Monu = new Array(TP.inMarketPerPlayer['Monument']).fill(1).map((v, k) => `Monument${k}`);
   imageMap = new Map<string, HTMLImageElement>();
   aliases = { Monument1: 'arc_de_triomphe3', Monument2: 'Statue-of-liberty' };
   fromAlias(names: string[]) {
@@ -180,7 +180,7 @@ class Tile0 extends Container {
     const info = BonusMark.bonusMap.get(star);
     let mark = this.vpStar;
     if (!mark && show) {
-      const index = this.econEcon ? this.getChildIndex(this.econEcon) : this.numChildren - 1;
+      const index = this.econEcon ? this.getChildIndex(this.econEcon) : this.numChildren;
       mark = this.vpStar = this.addChildAt(new info.dtype(), index);
       info.paint(mark, info);
     } else if (mark) {
@@ -249,7 +249,7 @@ class Tile0 extends Container {
 export class Tile extends Tile0 {
   static allTiles: Tile[] = [];
 
-  static textSize = 20;
+  static textSize = TP.hexRad / 3;
   nameText: Text;
   get nB() { return 0; }
   get nR() { return 0; }
@@ -784,7 +784,7 @@ export class Monument extends MapTile {
   static lincost = [2, 4, 7, 11, 16, 22, 29];
   static ln2cost = [2, 2, 4, 4, 7, 7, 11, 11];
   static cost = Monument.lincost; // + 1 for this.inf
-  static costs = Monument.cost.slice(0, TP.inMarket['Monument']).reverse();
+  static costs = Monument.cost.slice(0, TP.inMarketPerPlayer['Monument']).reverse();
   // Invoked from TileSource<Monument>.newInst()
   constructor(Aname?: string, player?: Player, inf = 1, vp = 1, cost = 0, econ = -1, public inst = Monument.getId(player)) {
     super(Aname ?? `Mnt:${player?.index ?? '?'}-${inst}`, player, inf, vp, cost, econ);

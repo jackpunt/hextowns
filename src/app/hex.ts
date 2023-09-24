@@ -353,11 +353,12 @@ export class Hex2 extends Hex {
     this.hexShape.name = this.Aname;
     const nf = (n: number) => `${n !== undefined ? (n === Math.floor(n)) ? n : n.toFixed(1) : ''}`;
     const rc = `${nf(row)},${nf(col)}`, tdy = -25;
-    const rct = this.rcText = new Text(rc, F.fontSpec(26), 'white'); // radius/2 ?
+    const fsize1 = TP.hexRad * 26 / 60, fsize2 = TP.hexRad * 20 / 60;
+    const rct = this.rcText = new Text(rc, F.fontSpec(fsize1), 'white'); // radius/2 ?
     rct.textAlign = 'center'; rct.y = tdy; // based on fontSize? & radius
     this.cont.addChild(rct);
 
-    this.distText = new Text(``, F.fontSpec(20));
+    this.distText = new Text(``, F.fontSpec(fsize2));
     this.distText.textAlign = 'center'; this.distText.y = tdy + 46 // yc + 26+20
     this.cont.addChild(this.distText);
     this.legalMark.setOnHex(this);

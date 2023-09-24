@@ -1,10 +1,12 @@
 import { Params } from "@angular/router";
 import { C, CycleChoice, DropdownStyle, makeStage, ParamGUI, ParamItem, stime } from "@thegraid/easeljs-lib";
-import { Container, Stage } from "@thegraid/easeljs-module";
+import { Bitmap, Container, DisplayObject, Stage } from "@thegraid/easeljs-module";
+import { EzPromise } from "@thegraid/ezpromise";
+import { AuctionTile } from "./auction-tile";
 import { EBC, PidChoice } from "./choosers";
 import { GamePlay } from "./game-play";
 import { InfMark } from "./hex";
-import { ImageSetup } from "./image-setup";
+import { ImageGrid } from "./image-setup";
 import { Meeple } from "./meeple";
 import { Player } from "./player";
 import { StatsPanel, TableStats } from "./stats";
@@ -16,6 +18,13 @@ import { Tile } from "./tile";
 stime.anno = (obj: string | { constructor: { name: string; }; }) => {
   let stage = obj?.['stage'] || obj?.['table']?.['stage']
   return !!stage ? (!!stage.canvas ? " C" : " R") : " -" as string
+}
+async function imageFromDataURL(dataURL: string, width?, height?) {
+  const image = new Image(width, height);
+  const rv = new EzPromise<HTMLImageElement>();
+  image.onload = () => rv.fulfill(image);
+  image.src = dataURL;
+  return rv;
 }
 
 /** initialize & reset & startup the application/game. */
@@ -66,6 +75,36 @@ export class GameSetup {
     setTimeout(() => this.netState = netState, 100) // onChange-> ("new", "join", "ref") initiate a new connection
     return rv
   }
+
+  makeImagePages() {
+    const imageGrid = new ImageGrid();
+    // 2-sided: Busi(9), Resi(11)
+    const allInBag = Tile.allTiles.filter(t => t.radius === TP.hexRad);
+    const auctionTile = allInBag.filter(t => (t instanceof AuctionTile) );
+    console.log(stime(this, `.makeImagePages: allInBag=`), allInBag);
+    console.log(stime(this, `.makeImagePages: doubleSided=`), auctionTile); // 58 instances
+    const frontImg = [] as DisplayObject[];
+    const backImg = [];
+    const player0 = Player.allPlayers[0];
+    const player1 = Player.allPlayers[1];
+    const bm = ((tile: Tile, player: Player) => {
+      tile.setPlayerAndPaint(player);
+      const bm = new Bitmap(tile.bitmapCache.getCacheDataURL());
+      bm.x = -bm.image.width / 2;
+      bm.y = -bm.image.height / 2;
+      return bm;
+    })
+    auctionTile.forEach(tile => {
+      // TODO: tweak the cache bounds to fit ImageGrid (width <= delx)
+      frontImg.push(bm(tile, player0));
+      backImg.push(bm(tile, player1));
+    });
+    const wh = imageGrid.makePage({ gridSpec: ImageGrid.hexDouble_1_19, frontObjs: frontImg, backObjs: backImg, });
+    console.log(stime(this, `.makeImagePages: canvasSize=`), wh);
+    // setTimeout( () => imageGrid.setCanvasSize(wh), 20);
+    return;
+  }
+
   /**
    * Make new Table/layout & gamePlay/hexMap & Players.
    * @param ext Extensions from URL
@@ -74,23 +113,16 @@ export class GameSetup {
     Tile.allTiles = [];
     Meeple.allMeeples = [];
     Player.allPlayers = [];
-    if (qParams['image']) {
-      const stageComp = document.getElementById('stageComp');
-      const canvasElt = document.getElementById(this.canvasId) as HTMLCanvasElement;
-      canvasElt.width = 3300; canvasElt.height = 2550; // single-sided: landscape
-      const imageSetup = new ImageSetup(this.canvasId, qParams);
-      imageSetup.startup(qParams, imap); // paint canvas with some HexShapes
-      // imageSetup.clickButton();
-      return undefined;
-    }
 
     const table = new Table(this.stage)        // EventDispatcher, ScaleCont, GUI-Player
     const gamePlay = new GamePlay(table, this) // hexMap, players, fillBag, gStats, mouse/keyboard->GamePlay
     this.gamePlay = gamePlay
     table.layoutTable(gamePlay)              // mutual injection, all the GUI components, fill hexMap
+    if (qParams['image'])  return this.makeImagePages();
+
     gamePlay.forEachPlayer(p => p.newGame(gamePlay))        // make Planner *after* table & gamePlay are setup
     if (this.stage.canvas) {
-      const statsx = -300, statsy = 30
+      const statsx = -TP.hexRad * 5, statsy = 30
       const statsPanel = this.makeStatsPanel(gamePlay.gStats, table.scaleCont, statsx, statsy)
       table.statsPanel = statsPanel
       const guiy = statsPanel.y + statsPanel.ymax + statsPanel.lead * 2
@@ -105,7 +137,7 @@ export class GameSetup {
   }
   /** reporting stats. values also used by AI Player. */
   makeStatsPanel(gStats: TableStats, parent: Container, x: number, y: number): StatsPanel {
-    let panel = new StatsPanel(gStats) // a ReadOnly ParamGUI reading gStats [& pstat(color)]
+    let panel = new StatsPanel(gStats, { fontSize: TP.fontSize }) // a ReadOnly ParamGUI reading gStats [& pstat(color)]
     panel.makeParamSpec("nCoins")     // implicit: opts = { chooser: StatChoice }
     // panel.makeParamSpec("nInf")
     // panel.makeParamSpec("nAttacks")
@@ -129,7 +161,7 @@ export class GameSetup {
    */
   makeParamGUI(table: Table, parent: Container, x: number, y: number) {
     let restart = false
-    const gui = new ParamGUI(TP, { textAlign: 'right'})
+    const gui = new ParamGUI(TP, { textAlign: 'right', fontSize: TP.fontSize })
     const schemeAry = TP.schemeNames.map(n => { return { text: n, value: TP[n] } })
     const setSize = (nh = TP.nHexes) => { restart && this.restart.call(this, nh) };
     gui.makeParamSpec("nh", [7, 8, 9], { fontColor: "red" });
@@ -170,8 +202,9 @@ export class GameSetup {
     gui.x = x // (3*cw+1*ch+6*m) + max(line.width) - (max(choser.width) + 20)
     gui.y = y
     gui.makeLines()
-    const gui2 = this.makeParamGUI2(parent, x - 320, y)
-    const gui3 = this.makeNetworkGUI(parent, x - 320, y + gui.ymax + 200 )
+    const xoff = TP.hexRad * (320/60);
+    const gui2 = this.makeParamGUI2(parent, x - xoff, y)
+    const gui3 = this.makeNetworkGUI(parent, x - xoff, y + gui.ymax + 200 )
     gui.parent.addChild(gui) // bring to top
     gui.stage.update()
     restart = true // *after* makeLines has stablilized selectValue
@@ -179,7 +212,7 @@ export class GameSetup {
   }
   /** configures the AI player */
   makeParamGUI2(parent: Container, x: number, y: number) {
-    const gui = new ParamGUI(TP, { textAlign: 'center' })
+    const gui = new ParamGUI(TP, { textAlign: 'center', fontSize: TP.fontSize  })
     gui.makeParamSpec("log", [-1, 0, 1, 2], { style: { textAlign: 'right' } }); TP.log
     gui.makeParamSpec("maxPlys", [1, 2, 3, 4, 5, 6, 7, 8], { fontColor: "blue" }); TP.maxPlys
     gui.makeParamSpec("maxBreadth", [5, 6, 7, 8, 9, 10], { fontColor: "blue" }); TP.maxBreadth
@@ -198,7 +231,7 @@ export class GameSetup {
     return gui
   }
   netColor: string = "rgba(160,160,160, .8)"
-  netStyle: DropdownStyle = { textAlign: 'right' };
+  netStyle: DropdownStyle = { textAlign: 'right', fontSize: TP.fontSize  };
   /** controls multiplayer network participation */
   makeNetworkGUI (parent: Container, x: number, y: number) {
     const gui = this.netGUI = new ParamGUI(TP, this.netStyle)
