@@ -97,7 +97,7 @@ export class TP {
   static tHexes = TP.ftHexes(this.mHexes) * TP.ftHexes(this.nHexes)
   static nMinControl  = (TP.nHexes <= 1) ? 1 : TP.nHexes + 1 // [1, 1, 3, 4, 5, ...]
   static nDiffControl = (TP.nHexes <= 1) ? 0 : TP.nHexes - 1 // [0, 0, 1, 2, 3, ...]
-  static hexRad = 180;
+  static hexRad = 210; // 210 fills Print&Play template
   static fontSize = TP.hexRad / 2;
   static meepleRad = TP.hexRad / 1.9;
   static meepleY0 = TP.hexRad * .25;

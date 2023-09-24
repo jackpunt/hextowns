@@ -1,5 +1,5 @@
 import { Params } from "@angular/router";
-import { C, CycleChoice, DropdownStyle, makeStage, ParamGUI, ParamItem, stime } from "@thegraid/easeljs-lib";
+import { C, CycleChoice, DropdownStyle, makeStage, ParamGUI, ParamItem, stime, XY } from "@thegraid/easeljs-lib";
 import { Bitmap, Container, DisplayObject, Stage } from "@thegraid/easeljs-module";
 import { EzPromise } from "@thegraid/ezpromise";
 import { AuctionTile } from "./auction-tile";
@@ -89,10 +89,15 @@ export class GameSetup {
     const bm = ((tile: Tile, player: Player) => {
       const plyr0 = tile.player;
       tile.setPlayerAndPaint(player);
-      const bm = new Bitmap(tile.bitmapCache.getCacheDataURL());
-      bm.x = -bm.image.width / 2;
-      bm.y = -bm.image.height / 2;
+      const dataURL = tile.bitmapCache.getCacheDataURL();
       tile.setPlayerAndPaint(plyr0);
+      const bm = new Bitmap(dataURL);
+      const bitmap = tile.bitmapCache as any as XY;
+      bm.x = bitmap.x;
+      bm.y = bitmap.y
+      const cont = new Container()
+
+      cont.addChild(bm)
       return bm;
     })
     auctionTile.forEach(tile => {

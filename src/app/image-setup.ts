@@ -48,8 +48,8 @@ export class ImageGrid {
 
   static hexDouble_1_19: GridSpec = {
     width: 3300, height: 5100,
-    x0: 576, y0: 452,
-    delx: 357, dely: 413,
+    x0: 576, y0: 451, // 244 + (659 - 244) / 2,
+    delx: 357, dely: 413.1,
     dpi: 1,
   }
 
@@ -116,7 +116,7 @@ export class ImageGrid {
       const backObj = backObjs?.[n];
       if (backObj) {
         backObj.x += x;
-        backObj.y += (height * dpi - y); // + 3?
+        backObj.y += (height * dpi - y) + 3; // template is asymetric!
         cont.addChild(backObj);
       }
       col += 1;
