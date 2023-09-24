@@ -76,11 +76,17 @@ export class GameSetup {
     return rv
   }
 
+  setAnchorClick(id: string, onclick: (ev) => void) {
+    const anchor = document.getElementById(id) as HTMLAnchorElement;
+    anchor.onclick = onclick;
+  }
+
+  imageGrid = new ImageGrid();
   makeImagePages() {
     // 2-sided: Busi(9), Resi(11)
     const allInBag = Tile.allTiles.filter(t => t.radius === TP.hexRad);
     const auctionTile = allInBag.filter(t => (t instanceof AuctionTile) );
-    console.log(stime(this, `.makeImagePages: allInBag=`), allInBag);
+    // console.log(stime(this, `.makeImagePages: allInBag=`), allInBag);
     console.log(stime(this, `.makeImagePages: doubleSided=`), auctionTile); // 58 instances
     const frontObjs = [] as DisplayObject[];
     const backObjs = [] as DisplayObject[];
@@ -108,9 +114,8 @@ export class GameSetup {
     const gridSpec = ImageGrid.hexDouble_1_19;
     const filename = `image_${stime.fs("MM-DD_kk_mm_ss")}.png`;
     const pageSpec = { gridSpec, frontObjs, backObjs, filename };
-    const imageGrid = new ImageGrid(pageSpec); // invoke on click
-    // imageGrid.makePage(, true, 'gridCanvas');
-    // setTimeout( () => imageGrid.setCanvasSize(wh), 20);
+    this.imageGrid.makePage(pageSpec);  // make canvas with images, but do not download [yet]
+    this.setAnchorClick('download', (ev) => this.imageGrid.downloadImage(filename));
     return;
   }
 
@@ -127,9 +132,7 @@ export class GameSetup {
     const gamePlay = new GamePlay(table, this) // hexMap, players, fillBag, gStats, mouse/keyboard->GamePlay
     this.gamePlay = gamePlay
     table.layoutTable(gamePlay)              // mutual injection, all the GUI components, fill hexMap
-    // if (qParams['image']) {
-      this.makeImagePages();
-    // } else {
+    this.setAnchorClick('makePage', () => this.makeImagePages());
     gamePlay.forEachPlayer(p => p.newGame(gamePlay))        // make Planner *after* table & gamePlay are setup
     if (this.stage.canvas) {
       const statsx = -TP.hexRad * 5, statsy = 30
@@ -149,10 +152,6 @@ export class GameSetup {
   makeStatsPanel(gStats: TableStats, parent: Container, x: number, y: number): StatsPanel {
     let panel = new StatsPanel(gStats, { fontSize: TP.fontSize }) // a ReadOnly ParamGUI reading gStats [& pstat(color)]
     panel.makeParamSpec("nCoins")     // implicit: opts = { chooser: StatChoice }
-    // panel.makeParamSpec("nInf")
-    // panel.makeParamSpec("nAttacks")
-    // panel.makeParamSpec("nThreats")
-    // panel.makeParamSpec("dMax")
     panel.makeParamSpec("score", [], {name: `score: ${TP.nVictory}`})
     panel.makeParamSpec("sStat", [1])
 
@@ -227,13 +226,6 @@ export class GameSetup {
     gui.makeParamSpec("maxPlys", [1, 2, 3, 4, 5, 6, 7, 8], { fontColor: "blue" }); TP.maxPlys
     gui.makeParamSpec("maxBreadth", [5, 6, 7, 8, 9, 10], { fontColor: "blue" }); TP.maxBreadth
     gui.makeParamSpec('infOnCivic', [0, 1]); TP.infOnCivic;
-    // gui.makeParamSpec("nPerDist", [2, 3, 4, 5, 6, 8, 11, 15, 19], { fontColor: "blue" }); TP.nPerDist
-    // gui.makeParamSpec("pWeight", [1, .99, .97, .95, .9]) ; TP.pWeight
-    // gui.makeParamSpec("pWorker", [true, false], { chooser: BC }); TP.pWorker
-    // gui.makeParamSpec("pPlaner", [true, false], { chooser: BC, name: "parallel" }); TP.pPlaner
-    // gui.makeParamSpec("pBoards", [true, false], { chooser: BC }); TP.pBoards
-    // gui.makeParamSpec("pMoves",  [true, false], { chooser: BC }); TP.pMoves
-    // gui.makeParamSpec("pGCM",    [true, false], { chooser: BC }); TP.pGCM
     parent.addChild(gui)
     gui.x = x; gui.y = y
     gui.makeLines()

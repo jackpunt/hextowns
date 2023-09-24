@@ -1,4 +1,5 @@
 import { WH, stime } from "@thegraid/common-lib";
+import { afterUpdate } from "@thegraid/easeljs-lib";
 import { Container, DisplayObject, Stage } from "@thegraid/easeljs-module";
 
 
@@ -56,15 +57,14 @@ export class ImageGrid {
   stage: Stage;
   canvas: HTMLCanvasElement;
 
-  constructor(pageSpec?: PageSpec, anchorId?: string) {
-    stime.fmt = "MM-DD kk:mm:ss.SSS";
-    this.setupButtons(pageSpec, anchorId);
+  constructor() {
   }
 
   setStage(wh: WH, canvasId: string | HTMLCanvasElement = 'gridCanvas') {
     if (!this.canvas) {
       if (typeof canvasId === 'string') {
         this.canvas = (document.getElementById(canvasId) ?? document.createElement('canvas')) as HTMLCanvasElement;
+        this.canvas.id = canvasId;
       } else {
         this.canvas = canvasId as HTMLCanvasElement;
       }
@@ -72,6 +72,7 @@ export class ImageGrid {
     if (!this.stage) {
       this.stage = makeStage(this.canvas);
     }
+    this.stage.removeAllChildren();
     this.setCanvasSize(wh);
   }
 
@@ -80,20 +81,13 @@ export class ImageGrid {
     this.canvas.height = wh.height;
   }
 
-  makePages(pageSpecs?: PageSpec[]) {
-    pageSpecs.forEach(pageSpec => this.makePage(pageSpec, true));
-  }
-
-  makePage(pageSpec: PageSpec, click = false, canvasId?: HTMLCanvasElement | string ) {
-    const gridSpec = pageSpec.gridSpec, filename = pageSpec.filename;
+  makePage(pageSpec: PageSpec, canvasId?: HTMLCanvasElement | string ) {
+    const gridSpec = pageSpec.gridSpec;
     this.setStage(gridSpec, canvasId);
     const nc = this.addObjects(gridSpec, pageSpec.frontObjs, pageSpec.backObjs)
     this.stage.update();
-    // afterUpdate(this.stage, () => {
-      if (click) this.clickButton(filename);
-    // });
-    const wh = { width: this.canvas.width, height: this.canvas.height, nc, filename }; // not essential...
-    console.log(stime(this, `.makeImagePages: canvasSize=`), wh);
+    const wh = { width: this.canvas.width, height: this.canvas.height, nc }; // not essential...
+    console.log(stime(this, `.makePage: wh =`), wh);
     return;
   }
 
@@ -128,27 +122,15 @@ export class ImageGrid {
     return cont.numChildren;
   }
 
-  anchorId = 'download';
-  setupButtons(pageSpec?: PageSpec, id = this.anchorId) {
-    this.anchorId = id;
-    const anchor1 = document.getElementById('makePage') as HTMLAnchorElement;
-    anchor1.onclick = (ev) => this.makePage(pageSpec, false);
-    const anchor2 = document.getElementById(this.anchorId) as HTMLAnchorElement;
-    anchor2.onclick = (ev) => this.downloadImage(pageSpec.filename);
-  }
-
-  clickButton(filename = 'image.png') {
-    const anchor = document.getElementById(this.anchorId) as HTMLAnchorElement;
-    anchor.download = filename;
-    anchor.click();
-  }
-
-  downloadImage(filename = 'image.png') {
-    const anchor = document.getElementById(this.anchorId) as HTMLAnchorElement;
-    const image = this.canvas.toDataURL("image/png");
-    const octets = image.replace("image/png", "image/octet-stream");
-    anchor.setAttribute("download", filename);
-    anchor.setAttribute("href", octets);
-    console.log(stime(this, `.downloadImage: ${anchor.download}`))
+  downloadImage(filename = 'image.png', downloadId = 'download') {
+    afterUpdate(this.stage, () => {
+      const anchor = document.getElementById(downloadId) as HTMLAnchorElement;
+      const canvas = this.stage.canvas as HTMLCanvasElement;
+      const imageURL = canvas.toDataURL("image/png");
+      const octetURL = imageURL.replace("image/png", "image/octet-stream");
+      anchor.download = filename;
+      anchor.href = octetURL;
+      console.log(stime(this, `.downloadImage: ${anchor.download}`))
+    })
   }
 }
