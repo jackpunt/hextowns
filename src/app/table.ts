@@ -169,7 +169,7 @@ export class Table extends EventDispatcher  {
     this.hexMap.update()
   }
   enableHexInspector(qY = 52, cont = this.undoCont) {
-    const qShape = new HexShape(TP.hexRad/3, 'N');
+    const qShape = new HexShape(TP.hexRad / 3);
     qShape.paint(C.BLACK);
     qShape.y = qY;  // size of 'skip' Triangles
     cont.addChild(qShape);

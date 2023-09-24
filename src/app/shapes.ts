@@ -1,4 +1,4 @@
-import { C, F, XY, className } from "@thegraid/common-lib";
+import { C, F, XY, XYWH, className } from "@thegraid/common-lib";
 import { Container, DisplayObject, Graphics, Shape, Text } from "@thegraid/easeljs-module";
 import type { Hex2 } from "./hex";
 import { H, HexDir } from "./hex-intfs";
@@ -22,26 +22,170 @@ export class CenterText extends Text {
 
 export interface Paintable extends DisplayObject {
   /** paint with new player color; updateCache() */
-  paint(colorn: string): void;
+  paint(colorn: string, force?: boolean): Graphics;
+}
+
+/** Color Graphics Function */
+export type CGF = (color?: string) => Graphics;
+
+export class ColorGraphics extends Graphics {
+
+  static circleShape(rad = 30, fillc0 = C.white, strokec = C.black, g0?: Graphics): CGF {
+    return (fillc = fillc0) => {
+      const g = g0?.clone() ?? new Graphics();
+      (fillc ? g.f(fillc) : g.ef());
+      (strokec ? g.s(strokec) : g.es());
+      g.dc(0, 0, rad);
+      return g;
+    }
+  }
+}
+/**
+ * Usage:
+ * - ps = super.makeShape(); // ISA PaintableShape
+ * - ps.gf = (color) => new CG(color);
+ * - ...
+ * - ps.paint(red); --> ps.graphics = gf(red) --> new CG(red);
+ * -
+ * - const cgf: CGF = (color: string) => {
+ * -     return new Graphics().f(this.color).dc(0, 0, rad);
+ * -   }
+ * - }
+ */
+
+export class PaintableShape extends Shape implements Paintable {
+  constructor(public _cgf: CGF, public colorn?: string) {
+    super();
+    this.name = className(this);
+  }
+  get cgf() { return this._cgf; }
+  set cgf(cgf: CGF) {
+    this._cgf = cgf;
+    if (this.cgfGraphics) {
+      this.cgfGraphics = undefined;
+      this.paint(this.colorn);
+    }
+  }
+  /** previous/current graphics that were rendered. */
+  cgfGraphics: Graphics;
+  /** render graphics from cgf. */
+  paint(colorn: string = this.colorn, force = false): Graphics {
+    if (force || this.graphics !== this.cgfGraphics || this.colorn !== colorn) {
+      // need to repaint, even if same color:
+      this.graphics.clear();
+      this.graphics = this.cgfGraphics = this.cgf(this.colorn = colorn);
+      if (this.updateCacheInPaint && this.cacheID) this.updateCache();
+    }
+    return this.graphics;
+  }
+  updateCacheInPaint = true;
 }
 
 /**
  * The colored PaintableShape that fills a Hex.
  * @param radius in call to drawPolyStar()
  */
-export class HexShape extends Shape implements Paintable {
+export class HexShape extends PaintableShape {
   constructor(
     readonly radius = TP.hexRad,
-    readonly tiltDir: HexDir = 'NE',
+    readonly tilt = TP.useEwTopo ? 30 : 0,  // ewTopo->30, nsTopo->0
   ) {
-    super();
-    this.name = className(this);
+    super((fillc) => this.hscgf(fillc));
+    this.setHexBounds(radius, tilt); // Assert: radius & tilt are readonly, so bounds never changes!
   }
 
-  /** draw a Hexagon 1/60th inside the given radius */
-  paint(color: string) {
-    const g = this.graphics.c(), tilt = H.ewDirRot[this.tiltDir];
-    return g.f(color).dp(0, 0, Math.floor(this.radius * 59 / 60), 6, 0, tilt);
+  setCacheID() {
+    const b = this.getBounds();              // Bounds are set
+    this.cache(b.x, b.y, b.width, b.height);
+  }
+
+  setHexBounds(r = this.radius, tilt = this.tilt) {
+    // dp(...6), so tilt: 30 | 0; being nsAxis or ewAxis;
+    const w = r * Math.cos(H.degToRadians * tilt);
+    const h = r * Math.cos(H.degToRadians * (tilt - 30));
+    this.setBounds(-w, -h, 2 * w, 2 * h);
+    return { x: -2, y: -H, w: 2 * w, h: 2 * h };
+  }
+
+  /**
+   * Draw a Hexagon 1/60th inside the given radius.
+   * overrides should include call to setHexBounds(radius, angle)
+   * or in other way setBounds().
+   */
+  hscgf(color: string) {
+    return this.graphics.f(color).dp(0, 0, Math.floor(this.radius * 59 / 60), 6, 0, this.tilt); // 30 or 0
+  }
+}
+
+
+export class CircleShape extends PaintableShape {
+  g0: Graphics;
+  constructor(public fillc = C.white, public rad = 30, public strokec = C.black, g0?: Graphics) {
+    super((fillc) => this.cscgf(fillc));
+    this.g0 = g0?.clone();
+    this.paint(fillc);
+  }
+
+  cscgf(fillc: string) {
+    const g = this.g0 ? this.g0.clone() : new Graphics();
+    ((this.fillc = fillc) ? g.f(fillc) : g.ef());
+    (this.strokec ? g.s(this.strokec) : g.es());
+    g.dc(0, 0, this.rad);  // presumably easlejs can determine Bounds of Circle.
+    return g;
+  }
+}
+export class PolyShape extends PaintableShape {
+  g0: Graphics;
+  constructor(public nsides = 4, public tilt = 0, public fillc = C.white, public rad = 30, public strokec = C.black, g0?: Graphics) {
+    super((fillc) => this.pscgf(fillc));
+    this.g0 = g0?.clone();
+    this.paint(fillc);
+  }
+
+  pscgf(fillc: string) {
+    const g = this.g0 ? this.g0.clone() : new Graphics();
+    ((this.fillc = fillc) ? g.f(fillc) : g.ef());
+    (this.strokec ? g.s(this.strokec) : g.es());
+    g.dp(0, 0, this.rad, this.nsides, 0, this.tilt * H.degToRadians);
+    return g;
+  }
+}
+export class RectShape extends PaintableShape {
+  static rectWHXY(w: number, h: number, x = -w / 2, y = -h / 2, g0 = new Graphics()) {
+    return g0.dr(x, y, w, h)
+  }
+  /** draw rectangle suitable for given Text; with border, textAlign. */
+  static rectText(t: Text | string, fs?: number, b?: number, align = (t instanceof Text) ? t.textAlign : 'center', g0 = new Graphics()) {
+    const txt = (t instanceof Text) ? t : new CenterText(t, fs ?? 30);
+    txt.textAlign = align;
+    if (txt.text === undefined) return g0; // or RectShape.rectWHXY(0,0,0,0); ??
+    if (fs === undefined) fs = txt.getMeasuredHeight();
+    if (b === undefined) b = fs * .1;
+    const txtw = txt.getMeasuredWidth(), w = b + txtw + b, h = b + fs + b;
+    const x = (align == 'right') ? w-b : (align === 'left') ? -b : w / 2;
+    return RectShape.rectWHXY(w, h, -x, -h / 2, g0);
+  }
+
+  g0: Graphics;
+  rect: XYWH;
+  constructor({ x = 0, y = 0, w = 30, h = 30 }: XYWH, public fillc = C.white, public strokec = C.black, g0?: Graphics) {
+    super((fillc) => this.rscgf(fillc));
+    this.rect = { x, y, w: w, h: h }
+    this.g0 = g0?.clone();
+    this.paint(fillc);
+    const g = this.graphics;
+    if (fillc) g.f(fillc);
+    if (strokec) g.s(strokec);
+    g.dr(x ?? 0, y ?? 0, w ?? 30, h ?? 30);
+  }
+
+  rscgf(fillc: string) {
+    const g = this.g0 ? this.g0.clone() : new Graphics();
+    const { x, y, w, h } = this.rect;
+    (fillc ? g.f(fillc) : g.ef());
+    (this.strokec ? g.s(this.strokec) : g.es());
+    g.dr(x ?? 0, y ?? 0, w ?? 30, h ?? 30);
+    return g;
   }
 }
 
@@ -51,20 +195,21 @@ export class InfRays extends Shape {
    * draw 6 rays (around a HexShape)
    * @param inf number of rays to draw (degree of influence)
    * @param infColor color of ray
-   * @param y0 start of ray (ends at .9) X TP.hexRad
+   * @param yIn start ray @ yIn X TP.hexRad
+   * @param yOut end ray @ YOut X TP.hexRad
    * @param xw width of each ray
    */
-  constructor(inf = 1, infColor?: PlayerColor, y0 = .7, xw = 3, g = new Graphics()) {
+  constructor(inf = 1, colorn: string, yIn = .7, yOut = .9, xw = 3, g = new Graphics()) {
     super(g);
-    const color = infColor ? TP.colorScheme[infColor] : C.WHITE;
-    const rad = TP.hexRad, y1 = y0 * rad, y2 = .9 * rad;
+    const rad = TP.hexRad, y1 = yIn * rad, y2 = yOut * rad;
     const xs = [[0], [-.1 * rad, +.1 * rad], [-.1 * rad, 0, +.1 * rad]][Math.abs(inf) - 1];
     const pts = xs.map(x => { return { mt: { x: x, y: y1 }, lt: { x: x, y: y2 } } })
     const rotpt = (rot: number, x: number, y: number) => {
       return { x: Math.cos(rot) * x + Math.sin(rot) * y, y: Math.cos(rot) * y - Math.sin(rot) * x }
     }
-    g.ss(xw).s(color);
-    H.ewDirs.forEach(dir => {
+    g.ss(xw).s(colorn);
+    const hexDirs = TP.useEwTopo ? H.ewDirs : H.nsDirs;
+    hexDirs.forEach((dir: HexDir) => {
       const rot = H.ewDirRot[dir] * H.degToRadians;
       pts.forEach(mtlt => {
         const mt = rotpt(rot, mtlt.mt.x, mtlt.mt.y), lt = rotpt(rot, mtlt.lt.x, mtlt.lt.y);
@@ -75,25 +220,32 @@ export class InfRays extends Shape {
   }
 }
 
-export class InfShape extends Shape implements Paintable {
+export class InfShape extends PaintableShape {
   /** hexagon scaled by TP.hexRad/4 */
   constructor(bgColor = 'grey') {
-    super();
+    super((fillc) => this.iscgf(fillc));
     this.paint(bgColor);
   }
 
-  paint(colorn: string) {
+  iscgf(colorn: string) {
     const g = this.graphics;
     g.c().f(colorn).dp(0, 0, TP.hexRad, 6, 0, 30);
-    new InfRays(1, undefined, .3, 10, g); // short & wide; it gets scaled down
+    new InfRays(1, undefined, .3, .9, 10, g); // short & wide; it gets scaled down
     return this.graphics;
   }
 }
-
 export class TileShape extends HexShape {
   static fillColor = C1.lightgrey_8;// 'rgba(200,200,200,.8)'
 
+  constructor(radius?: number, tilt?: number) {
+    super(radius, tilt); // sets Bounnds & this.cgf
+    this.cgf = this.tscgf;
+    this.updateCacheInPaint = false;
+  }
+
   replaceDisk(colorn: string, r2 = this.radius) {
+    if (!this.cacheID) this.setCacheID();
+    else this.updateCache();               // write curent graphics to cache
     const g = this.graphics;
     g.c().f(C.BLACK).dc(0, 0, r2);       // bits to remove
     this.updateCache("destination-out"); // remove disk from solid hexagon
@@ -101,17 +253,10 @@ export class TileShape extends HexShape {
     this.updateCache("source-over");     // update with new disk
     return g;
   }
-
   /** colored HexShape filled with very-lightgrey disk: */
-  override paint(colorn: string) {
-    super.paint(colorn);                 // solid hexagon
-    // calculate bounds of hexagon for cache:
-    let r = this.radius, g = this.graphics, tilt = H.ewDirRot[this.tiltDir];
-    // dp(...6), so tilt: 30 | 0; being nsAxis or ewAxis;
-    let w = r * Math.cos(H.degToRadians * tilt)
-    let h = r * Math.cos(H.degToRadians * (tilt - 30))
-    this.cache(-w, -h, 2 * w, 2 * h);    // solid hexagon
-    this.replaceDisk(TileShape.fillColor, this.radius * H.sqrt3_2 * (55 / 60));
+  tscgf(colorn: string, super_cgf: CGF = this.hscgf) {
+    super_cgf.call(this, colorn); // paint HexShape(colorn)
+    const g = this.replaceDisk(TileShape.fillColor, this.radius * H.sqrt3_2 * (55 / 60));
     return g;
   }
 }
@@ -184,13 +329,69 @@ export class MeepCapMark extends CapMark {
 }
 
 export class LegalMark extends Shape {
+  hex2: Hex2;
   setOnHex(hex: Hex2) {
-    let parent = hex.mapCont.markCont;
-    this.mouseEnabled = false;
+    this.hex2 = hex;
+    const parent = hex.mapCont.markCont;
     this.graphics.f(C.legalGreen).dc(0, 0, TP.hexRad/2);
     hex.cont.parent.localToLocal(hex.x, hex.y, parent, this);
-    this.mouseEnabled = false;
+    this.hitArea = hex.hexShape; // legal mark is used for hexUnderObject, so need to cover whole hex.
+    this.mouseEnabled = true;
     this.visible = false;
     parent.addChild(this);
   }
+}
+
+export class UtilButton extends Container implements Paintable {
+  blocked: boolean = false
+  shape: PaintableShape;
+  label: CenterText;
+  get label_text() { return this.label.text; }
+  set label_text(t: string) {
+    this.label.text = t;
+    this.paint(undefined, true);
+  }
+
+  constructor(color: string, text: string, public fontSize = 30, public textColor = C.black, cgf?: CGF) {
+    super();
+    this.label = new CenterText(text, fontSize, textColor);
+    this.shape = new PaintableShape(cgf ?? ((c) => this.ubcsf(c)));
+    this.shape.paint(color);
+    this.addChild(this.shape, this.label);
+  }
+
+  ubcsf(color: string) {
+    return RectShape.rectText(this.label.text, this.fontSize, this.fontSize * .3, this.label.textAlign, new Graphics().f(color))
+  }
+
+  paint(color = this.shape.colorn, force = false ) {
+    return this.shape.paint(color, force);
+  }
+
+  /**
+   * Repaint the stage with button visible or not.
+   *
+   * Allow Chrome to finish stage.update before proceeding with afterUpdate().
+   *
+   * Other code can watch this.blocked; then call updateWait(false) to reset.
+   * @param hide true to hide and disable the turnButton
+   * @param afterUpdate callback ('drawend') when stage.update is done [none]
+   * @param scope thisArg for afterUpdate [this TurnButton]
+   */
+  updateWait(hide: boolean, afterUpdate?: (evt?: Object, ...args: any) => void, scope: any = this) {
+    this.blocked = hide;
+    this.visible = this.mouseEnabled = !hide
+    // using @thegraid/easeljs-module@^1.1.8: on(once=true) will now 'just work'
+    afterUpdate && this.stage.on('drawend', afterUpdate, scope, true)
+    this.stage.update()
+  }
+}
+
+export class EdgeShape extends Shape {
+  constructor(public color: string, public hex: Hex2, public dir: HexDir, parent: Container) {
+    super()
+    this.reset()
+    parent.addChild(this);
+  }
+  reset(color = this.color) { this.graphics.c().ss(12, 'round', 'round').s(color) }
 }
