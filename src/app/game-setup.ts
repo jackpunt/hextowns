@@ -77,30 +77,34 @@ export class GameSetup {
   }
 
   makeImagePages() {
-    const imageGrid = new ImageGrid();
     // 2-sided: Busi(9), Resi(11)
     const allInBag = Tile.allTiles.filter(t => t.radius === TP.hexRad);
     const auctionTile = allInBag.filter(t => (t instanceof AuctionTile) );
     console.log(stime(this, `.makeImagePages: allInBag=`), allInBag);
     console.log(stime(this, `.makeImagePages: doubleSided=`), auctionTile); // 58 instances
-    const frontImg = [] as DisplayObject[];
-    const backImg = [];
+    const frontObjs = [] as DisplayObject[];
+    const backObjs = [] as DisplayObject[];
     const player0 = Player.allPlayers[0];
     const player1 = Player.allPlayers[1];
     const bm = ((tile: Tile, player: Player) => {
+      const plyr0 = tile.player;
       tile.setPlayerAndPaint(player);
       const bm = new Bitmap(tile.bitmapCache.getCacheDataURL());
       bm.x = -bm.image.width / 2;
       bm.y = -bm.image.height / 2;
+      tile.setPlayerAndPaint(plyr0);
       return bm;
     })
     auctionTile.forEach(tile => {
       // TODO: tweak the cache bounds to fit ImageGrid (width <= delx)
-      frontImg.push(bm(tile, player0));
-      backImg.push(bm(tile, player1));
+      frontObjs.push(bm(tile, player0));
+      backObjs.push(bm(tile, player1));
     });
-    const wh = imageGrid.makePage({ gridSpec: ImageGrid.hexDouble_1_19, frontObjs: frontImg, backObjs: backImg, });
-    console.log(stime(this, `.makeImagePages: canvasSize=`), wh);
+    const gridSpec = ImageGrid.hexDouble_1_19;
+    const filename = `image_${stime.fs("MM-DD_kk_mm_ss")}.png`;
+    const pageSpec = { gridSpec, frontObjs, backObjs, filename };
+    const imageGrid = new ImageGrid(pageSpec); // invoke on click
+    // imageGrid.makePage(, true, 'gridCanvas');
     // setTimeout( () => imageGrid.setCanvasSize(wh), 20);
     return;
   }
@@ -118,8 +122,9 @@ export class GameSetup {
     const gamePlay = new GamePlay(table, this) // hexMap, players, fillBag, gStats, mouse/keyboard->GamePlay
     this.gamePlay = gamePlay
     table.layoutTable(gamePlay)              // mutual injection, all the GUI components, fill hexMap
-    if (qParams['image'])  return this.makeImagePages();
-
+    // if (qParams['image']) {
+      this.makeImagePages();
+    // } else {
     gamePlay.forEachPlayer(p => p.newGame(gamePlay))        // make Planner *after* table & gamePlay are setup
     if (this.stage.canvas) {
       const statsx = -TP.hexRad * 5, statsy = 30

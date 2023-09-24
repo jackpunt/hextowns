@@ -1,5 +1,4 @@
 import { WH, stime } from "@thegraid/common-lib";
-// import { makeStage } from "@thegraid/easeljs-lib";
 import { Container, DisplayObject, Stage } from "@thegraid/easeljs-module";
 
 
@@ -28,6 +27,7 @@ export type PageSpec = {
   gridSpec: GridSpec,
   frontObjs: DisplayObject[],
   backObjs?: DisplayObject[],
+  filename?: string,
 }
 
 export class ImageGrid {
@@ -56,14 +56,18 @@ export class ImageGrid {
   stage: Stage;
   canvas: HTMLCanvasElement;
 
-  constructor() {
+  constructor(pageSpec?: PageSpec, anchorId?: string) {
     stime.fmt = "MM-DD kk:mm:ss.SSS";
-    this.setupDownload();
+    this.setupButtons(pageSpec, anchorId);
   }
 
-  setStage(wh: WH) {
+  setStage(wh: WH, canvasId: string | HTMLCanvasElement = 'gridCanvas') {
     if (!this.canvas) {
-      this.canvas = document.createElement('canvas');
+      if (typeof canvasId === 'string') {
+        this.canvas = (document.getElementById(canvasId) ?? document.createElement('canvas')) as HTMLCanvasElement;
+      } else {
+        this.canvas = canvasId as HTMLCanvasElement;
+      }
     }
     if (!this.stage) {
       this.stage = makeStage(this.canvas);
@@ -80,12 +84,17 @@ export class ImageGrid {
     pageSpecs.forEach(pageSpec => this.makePage(pageSpec, true));
   }
 
-  makePage(pageSpec: PageSpec, click = false) {
-    const gridSpec = pageSpec.gridSpec;
-    this.setStage(gridSpec);
-    this.addObjects(gridSpec, pageSpec.frontObjs, pageSpec.backObjs)
-    if (click) this.clickButton();
-    return { width: this.canvas.width, height: this.canvas.height }; // not essential...
+  makePage(pageSpec: PageSpec, click = false, canvasId?: HTMLCanvasElement | string ) {
+    const gridSpec = pageSpec.gridSpec, filename = pageSpec.filename;
+    this.setStage(gridSpec, canvasId);
+    const nc = this.addObjects(gridSpec, pageSpec.frontObjs, pageSpec.backObjs)
+    this.stage.update();
+    // afterUpdate(this.stage, () => {
+      if (click) this.clickButton(filename);
+    // });
+    const wh = { width: this.canvas.width, height: this.canvas.height, nc, filename }; // not essential...
+    console.log(stime(this, `.makeImagePages: canvasSize=`), wh);
+    return;
   }
 
   addObjects(gridSpec: GridSpec, frontObjs: DisplayObject[], backObjs: DisplayObject[]) {
@@ -110,32 +119,36 @@ export class ImageGrid {
         backObj.y += (height * dpi - y); // + 3?
         cont.addChild(backObj);
       }
-      this.stage.update();
       col += 1;
       if ((col * delx) > (width - x0 - x0)) {
         col = 0;
         row += 1;
       }
     });
+    return cont.numChildren;
   }
 
   anchorId = 'download';
-  setupDownload(id = this.anchorId) {
+  setupButtons(pageSpec?: PageSpec, id = this.anchorId) {
     this.anchorId = id;
-    const anchor = document.getElementById(this.anchorId) as HTMLAnchorElement;
-    anchor.onclick = (ev) => this.downloadImage();
+    const anchor1 = document.getElementById('makePage') as HTMLAnchorElement;
+    anchor1.onclick = (ev) => this.makePage(pageSpec, false);
+    const anchor2 = document.getElementById(this.anchorId) as HTMLAnchorElement;
+    anchor2.onclick = (ev) => this.downloadImage(pageSpec.filename);
   }
 
-  clickButton(filename='image.png') {
+  clickButton(filename = 'image.png') {
     const anchor = document.getElementById(this.anchorId) as HTMLAnchorElement;
     anchor.download = filename;
     anchor.click();
   }
 
-  downloadImage() {
+  downloadImage(filename = 'image.png') {
     const anchor = document.getElementById(this.anchorId) as HTMLAnchorElement;
     const image = this.canvas.toDataURL("image/png");
     const octets = image.replace("image/png", "image/octet-stream");
+    anchor.setAttribute("download", filename);
     anchor.setAttribute("href", octets);
+    console.log(stime(this, `.downloadImage: ${anchor.download}`))
   }
 }
