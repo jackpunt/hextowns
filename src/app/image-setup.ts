@@ -1,5 +1,4 @@
 import { WH, stime } from "@thegraid/common-lib";
-import { afterUpdate } from "@thegraid/easeljs-lib";
 import { Container, DisplayObject, Stage } from "@thegraid/easeljs-module";
 
 
@@ -28,7 +27,7 @@ export type PageSpec = {
   gridSpec: GridSpec,
   frontObjs: DisplayObject[],
   backObjs?: DisplayObject[],
-  filename?: string,
+  canvas?: HTMLCanvasElement,
 }
 
 export class ImageGrid {
@@ -61,17 +60,13 @@ export class ImageGrid {
   }
 
   setStage(wh: WH, canvasId: string | HTMLCanvasElement = 'gridCanvas') {
-    if (!this.canvas) {
-      if (typeof canvasId === 'string') {
-        this.canvas = (document.getElementById(canvasId) ?? document.createElement('canvas')) as HTMLCanvasElement;
-        this.canvas.id = canvasId;
-      } else {
-        this.canvas = canvasId as HTMLCanvasElement;
-      }
+    if (typeof canvasId === 'string') {
+      this.canvas = (document.getElementById(canvasId) ?? document.createElement('canvas')) as HTMLCanvasElement;
+      this.canvas.id = canvasId;
+    } else {
+      this.canvas = canvasId as HTMLCanvasElement;
     }
-    if (!this.stage) {
-      this.stage = makeStage(this.canvas);
-    }
+    this.stage = makeStage(this.canvas);
     this.stage.removeAllChildren();
     this.setCanvasSize(wh);
   }
@@ -81,13 +76,16 @@ export class ImageGrid {
     this.canvas.height = wh.height;
   }
 
-  makePage(pageSpec: PageSpec, canvasId?: HTMLCanvasElement | string ) {
+  makePage(pageSpec: PageSpec, canvas?: HTMLCanvasElement | string ) {
     const gridSpec = pageSpec.gridSpec;
-    this.setStage(gridSpec, canvasId);
+    this.setStage(gridSpec, canvas);
     const nc = this.addObjects(gridSpec, pageSpec.frontObjs, pageSpec.backObjs)
     this.stage.update();
-    const wh = { width: this.canvas.width, height: this.canvas.height, nc }; // not essential...
-    console.log(stime(this, `.makePage: wh =`), wh);
+    pageSpec.canvas = this.canvas;
+
+    const { id, width, height } = this.canvas;
+    const info = { id, width, height, nc }; // not essential...
+    console.log(stime(this, `.makePage: info =`), info);
     return;
   }
 
@@ -122,15 +120,12 @@ export class ImageGrid {
     return cont.numChildren;
   }
 
-  downloadImage(filename = 'image.png', downloadId = 'download') {
-    afterUpdate(this.stage, () => {
-      const anchor = document.getElementById(downloadId) as HTMLAnchorElement;
-      const canvas = this.stage.canvas as HTMLCanvasElement;
-      const imageURL = canvas.toDataURL("image/png");
-      const octetURL = imageURL.replace("image/png", "image/octet-stream");
-      anchor.download = filename;
-      anchor.href = octetURL;
-      console.log(stime(this, `.downloadImage: ${anchor.download}`))
-    })
+  downloadImage(canvas: HTMLCanvasElement, filename = 'image.png', downloadId = 'download') {
+    const anchor = document.getElementById(downloadId) as HTMLAnchorElement;
+    const imageURL = canvas.toDataURL("image/png");
+    const octetURL = imageURL.replace("image/png", "image/octet-stream");
+    anchor.download = filename;
+    anchor.href = octetURL;
+    console.log(stime(this, `.downloadImage: ${canvas.id} -> ${filename} ${octetURL.length}`))
   }
 }

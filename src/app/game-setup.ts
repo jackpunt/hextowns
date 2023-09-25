@@ -1,20 +1,17 @@
 import { Params } from "@angular/router";
-import { C, CycleChoice, DropdownStyle, makeStage, ParamGUI, ParamItem, stime, XY } from "@thegraid/easeljs-lib";
-import { Bitmap, Container, DisplayObject, Stage } from "@thegraid/easeljs-module";
+import { C, CycleChoice, DropdownStyle, makeStage, ParamGUI, ParamItem, stime } from "@thegraid/easeljs-lib";
+import { Container, Stage } from "@thegraid/easeljs-module";
 import { EzPromise } from "@thegraid/ezpromise";
-import { AuctionTile } from "./auction-tile";
 import { EBC, PidChoice } from "./choosers";
 import { GamePlay } from "./game-play";
 import { InfMark } from "./hex";
-import { H } from "./hex-intfs";
-import { ImageGrid } from "./image-setup";
 import { Meeple } from "./meeple";
 import { Player } from "./player";
-import { CircleShape, HexShape } from "./shapes";
 import { StatsPanel, TableStats } from "./stats";
 import { Table } from "./table";
 import { TP } from "./table-params";
 import { Tile } from "./tile";
+import { TileExporter } from "./tile-exporter";
 
 /** show " R" for " N" */
 stime.anno = (obj: string | { constructor: { name: string; }; }) => {
@@ -54,6 +51,8 @@ export class GameSetup {
   get netState() { return this._netState }
   set playerId(val: string) { this.netGUI?.selectValue("PlayerId", val || "     ") }
 
+  tileExporter = new TileExporter();
+
   /** C-s ==> kill game, start a new one, possibly with new dbp */
   restart(nh = TP.nHexes) {
     let netState = this.netState
@@ -78,58 +77,6 @@ export class GameSetup {
     return rv
   }
 
-  setAnchorClick(id: string, onclick: (ev) => void) {
-    const anchor = document.getElementById(id) as HTMLAnchorElement;
-    anchor.onclick = onclick;
-  }
-
-  imageGrid = new ImageGrid();
-  makeImagePages() {
-    // 2-sided: Busi(9), Resi(11)
-    const allInBag = Tile.allTiles.filter(t => t.radius === TP.hexRad);
-    const auctionTile = allInBag.filter(t => (t instanceof AuctionTile) );
-    // console.log(stime(this, `.makeImagePages: allInBag=`), allInBag);
-    console.log(stime(this, `.makeImagePages: doubleSided=`), auctionTile); // 58 instances
-    const frontObjs = [] as DisplayObject[];
-    const backObjs = [] as DisplayObject[];
-    const player0 = Player.allPlayers[0];
-    const player1 = Player.allPlayers[1];
-    const bm = ((tile: Tile, player: Player, n: number, wbkg = true) => {
-      const plyr0 = tile.player;
-      tile.setPlayerAndPaint(player);
-      const dataURL = tile.bitmapCache.getCacheDataURL();
-      tile.setPlayerAndPaint(plyr0);
-      const bm = new Bitmap(dataURL);
-      const bitmap = tile.bitmapCache as any as XY;
-      bm.x = bitmap.x;
-      bm.y = bitmap.y;
-      const bkg = new HexShape(tile.radius + (wbkg ? 40 : -10)); // 1/6 inch
-      const c = new CircleShape(C.WHITE, tile.radius * H.sqrt3_2 * (55 / 60));
-      {
-        bkg.paint(player.colorn, true);
-        const col = n % 7, dx0 = col === 0 ? 30 : 0, dw = col === 6 ? 30 : 0;
-        const { x, y, width, height } = tile.baseShape.getBounds(), d = 30;
-        bkg.setBounds(x, y, width, height);
-        bkg.cache(x - dx0, y - d, width + dx0 + dw , height + 2 * d);
-      }
-      const cont = new Container();
-      cont.addChild(bkg, c, bm);
-      return cont;
-    })
-    auctionTile.forEach((tile, n) => {
-      // TODO: tweak the cache bounds to fit ImageGrid (width <= delx)
-      const wbkg = n > 3 && n < 32 || true;
-      frontObjs.push(bm(tile, player0, n, wbkg));
-      backObjs.push(bm(tile, player1, n, wbkg));
-    });
-    const gridSpec = ImageGrid.hexDouble_1_19;
-    const filename = `image_${stime.fs("MM-DD_kk_mm_ss")}.png`;
-    const pageSpec = { gridSpec, frontObjs, backObjs, filename };
-    this.imageGrid.makePage(pageSpec);  // make canvas with images, but do not download [yet]
-    this.setAnchorClick('download', (ev) => this.imageGrid.downloadImage(filename));
-    return;
-  }
-
   /**
    * Make new Table/layout & gamePlay/hexMap & Players.
    * @param ext Extensions from URL
@@ -143,7 +90,6 @@ export class GameSetup {
     const gamePlay = new GamePlay(table, this) // hexMap, players, fillBag, gStats, mouse/keyboard->GamePlay
     this.gamePlay = gamePlay
     table.layoutTable(gamePlay)              // mutual injection, all the GUI components, fill hexMap
-    this.setAnchorClick('makePage', () => this.makeImagePages());
     gamePlay.forEachPlayer(p => p.newGame(gamePlay))        // make Planner *after* table & gamePlay are setup
     if (this.stage.canvas) {
       const statsx = -TP.hexRad * 5, statsy = 30

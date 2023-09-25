@@ -11,9 +11,9 @@ import { TileBag } from "./tile-bag";
 export class AuctionTile extends MapTile implements BagTile {
 
   static fillBag(tileBag: TileBag<AuctionTile>) {
-    const addTiles = (n: number, type: new () => AuctionTile) => {
+    const addTiles = (n: number, claz: new () => AuctionTile) => {
       for (let i = 0; i < n; i++) {
-        const tile = new type();
+        const tile = new claz();
         tileBag.push(tile);
       }
     };

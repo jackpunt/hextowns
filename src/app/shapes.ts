@@ -257,7 +257,7 @@ export class TileShape extends HexShape {
   /** colored HexShape filled with very-lightgrey disk: */
   tscgf(colorn: string, super_cgf: CGF = this.hscgf) {
     super_cgf.call(this, colorn); // paint HexShape(colorn)
-    const g = this.replaceDisk(TileShape.fillColor, this.radius * H.sqrt3_2 * (55 / 60));
+    const g = this.replaceDisk(TileShape.fillColor, this.radius * H.sqrt3_2 * (54 / 60));
     return g;
   }
 }
@@ -274,14 +274,15 @@ export class BalMark extends Shape {
   constructor(tile: Tile) {
     super();
     this.name = className(this);
-    const { nB, fB, nR, fR } = tile, x0 = TP.hexRad * H.sqrt3_2 * .75, len = TP.hexRad * (5 / 60);
+    const { nB, fB, nR, fR } = tile, len = TP.hexRad * (5 / 60);
+    const x0 = Math.floor(TP.hexRad * H.sqrt3_2 * .75 / len) * len + len / 2;
     this.bMark(nB, fB, x0-len, BalMark.bColor, len);
     this.bMark(nR, fR, x0 - 0, BalMark.rColor, len);
   }
 
-  bMark(n = 0, f = 0, x = 0, color = C.black, len = TP.hexRad * (5 / 60)) {
+  bMark(n = 0, f = 0, x = 0, color = C.black, len = 5, ss = len) {
     if (n + f <= 0) return;
-    const g = this.graphics, y = TP.hexRad / 4, ss = TP.hexRad * (5 / 60);
+    const g = this.graphics, y = TP.hexRad * .28;
     if (n === 0) { g.sd([len, len]) };
     g.ss(ss).s(color).mt(-x, y).lt(x, y);
     return;
