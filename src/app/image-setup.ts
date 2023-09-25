@@ -110,7 +110,7 @@ export class ImageGrid {
       const backObj = backObjs?.[n];
       if (backObj) {
         backObj.x += x;
-        backObj.y += (height * dpi - y) + 3; // template is asymetric!
+        backObj.y += (height * dpi - y) + 2; // template is asymetric!
         cont.addChild(backObj);
       }
       col += 1;

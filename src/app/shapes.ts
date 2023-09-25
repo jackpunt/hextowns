@@ -10,6 +10,7 @@ export class C1 {
   static grey = 'grey';
   static lightgrey2 = 'rgb(225,225,225)' // needs to contrast with WHITE influence lines
   static lightgrey_8 = 'rgb(225,225,225,.8)' // needs to contrast with WHITE influence lines
+  static white_8 = 'rgb(255,255,255,.8)' // needs to contrast with WHITE influence lines
 }
 
 export class CenterText extends Text {
@@ -230,27 +231,27 @@ export class InfShape extends PaintableShape {
   iscgf(colorn: string) {
     const g = this.graphics;
     g.c().f(colorn).dp(0, 0, TP.hexRad, 6, 0, 30);
-    new InfRays(1, undefined, .3, .9, 10, g); // short & wide; it gets scaled down
+    new InfRays(1, C.WHITE, .3, .86, TP.hexRad * (10 / 60), g); // short & wide; it gets scaled down
     return this.graphics;
   }
 }
 export class TileShape extends HexShape {
-  static fillColor = C1.lightgrey_8;// 'rgba(200,200,200,.8)'
+  static fillColor = C1.white_8;
 
   constructor(radius?: number, tilt?: number) {
     super(radius, tilt); // sets Bounnds & this.cgf
     this.cgf = this.tscgf;
-    this.updateCacheInPaint = false;
   }
 
   replaceDisk(colorn: string, r2 = this.radius) {
     if (!this.cacheID) this.setCacheID();
-    else this.updateCache();               // write curent graphics to cache
+    else this.updateCache();             // write curent graphics to cache
     const g = this.graphics;
     g.c().f(C.BLACK).dc(0, 0, r2);       // bits to remove
     this.updateCache("destination-out"); // remove disk from solid hexagon
     g.c().f(colorn).dc(0, 0, r2);        // fill with translucent disk
     this.updateCache("source-over");     // update with new disk
+    this.updateCacheInPaint = false;     // graphics does not represent the final image
     return g;
   }
   /** colored HexShape filled with very-lightgrey disk: */
@@ -273,16 +274,16 @@ export class BalMark extends Shape {
   constructor(tile: Tile) {
     super();
     this.name = className(this);
-    const { nB, fB, nR, fR } = tile, x0 = TP.hexRad * H.sqrt3_2 * .75;
-    this.bMark(nB, fB, x0-5, BalMark.bColor);
-    this.bMark(nR, fR, x0-0, BalMark.rColor);
+    const { nB, fB, nR, fR } = tile, x0 = TP.hexRad * H.sqrt3_2 * .75, len = TP.hexRad * (5 / 60);
+    this.bMark(nB, fB, x0-len, BalMark.bColor, len);
+    this.bMark(nR, fR, x0 - 0, BalMark.rColor, len);
   }
 
-  bMark(n = 0, f = 0, x = 0, color = C.black, ds = [5, 5]) {
+  bMark(n = 0, f = 0, x = 0, color = C.black, len = TP.hexRad * (5 / 60)) {
     if (n + f <= 0) return;
-    const g = this.graphics, y = TP.hexRad / 4;
-    if (n) { g.ss(4) } else { g.sd(ds) };
-    g.s(color).mt(-x, y).lt(x, y);
+    const g = this.graphics, y = TP.hexRad / 4, ss = TP.hexRad * (5 / 60);
+    if (n === 0) { g.sd([len, len]) };
+    g.ss(ss).s(color).mt(-x, y).lt(x, y);
     return;
   }
 }

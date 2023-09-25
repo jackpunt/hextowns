@@ -6,9 +6,11 @@ import { AuctionTile } from "./auction-tile";
 import { EBC, PidChoice } from "./choosers";
 import { GamePlay } from "./game-play";
 import { InfMark } from "./hex";
+import { H } from "./hex-intfs";
 import { ImageGrid } from "./image-setup";
 import { Meeple } from "./meeple";
 import { Player } from "./player";
+import { CircleShape, HexShape } from "./shapes";
 import { StatsPanel, TableStats } from "./stats";
 import { Table } from "./table";
 import { TP } from "./table-params";
@@ -92,7 +94,7 @@ export class GameSetup {
     const backObjs = [] as DisplayObject[];
     const player0 = Player.allPlayers[0];
     const player1 = Player.allPlayers[1];
-    const bm = ((tile: Tile, player: Player) => {
+    const bm = ((tile: Tile, player: Player, n: number, wbkg = true) => {
       const plyr0 = tile.player;
       tile.setPlayerAndPaint(player);
       const dataURL = tile.bitmapCache.getCacheDataURL();
@@ -100,16 +102,25 @@ export class GameSetup {
       const bm = new Bitmap(dataURL);
       const bitmap = tile.bitmapCache as any as XY;
       bm.x = bitmap.x;
-      bm.y = bitmap.y
-      const cont = new Container()
-
-      cont.addChild(bm)
-      return bm;
+      bm.y = bitmap.y;
+      const bkg = new HexShape(tile.radius + (wbkg ? 40 : -10)); // 1/6 inch
+      const c = new CircleShape(C.WHITE, tile.radius * H.sqrt3_2 * (55 / 60));
+      {
+        bkg.paint(player.colorn, true);
+        const col = n % 7, dx0 = col === 0 ? 30 : 0, dw = col === 6 ? 30 : 0;
+        const { x, y, width, height } = tile.baseShape.getBounds(), d = 30;
+        bkg.setBounds(x, y, width, height);
+        bkg.cache(x - dx0, y - d, width + dx0 + dw , height + 2 * d);
+      }
+      const cont = new Container();
+      cont.addChild(bkg, c, bm);
+      return cont;
     })
-    auctionTile.forEach(tile => {
+    auctionTile.forEach((tile, n) => {
       // TODO: tweak the cache bounds to fit ImageGrid (width <= delx)
-      frontObjs.push(bm(tile, player0));
-      backObjs.push(bm(tile, player1));
+      const wbkg = n > 3 && n < 32 || true;
+      frontObjs.push(bm(tile, player0, n, wbkg));
+      backObjs.push(bm(tile, player1, n, wbkg));
     });
     const gridSpec = ImageGrid.hexDouble_1_19;
     const filename = `image_${stime.fs("MM-DD_kk_mm_ss")}.png`;
