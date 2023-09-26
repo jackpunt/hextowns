@@ -10,7 +10,7 @@ export class C1 {
   static grey = 'grey';
   static lightgrey2 = 'rgb(225,225,225)' // needs to contrast with WHITE influence lines
   static lightgrey_8 = 'rgb(225,225,225,.8)' // needs to contrast with WHITE influence lines
-  static white_8 = 'rgb(255,255,255,.8)' // needs to contrast with WHITE influence lines
+  static white_8 = 'rgb(255,255,255,.8)' // not contrasting on physical tiles
 }
 
 export class CenterText extends Text {

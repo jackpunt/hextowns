@@ -6,6 +6,7 @@ import { DragContext } from './table';
 import { BagTile, Civic, Tile } from './tile';
 import { Criminal, Leader, Police } from './meeple';
 import { TP } from './table-params';
+import { H } from './hex-intfs';
 
 interface EvalSpec {
   text?: string,
@@ -95,15 +96,15 @@ class EventSpecs extends EventSpec {
     { text: 'Capture  one  Criminal', Aname: 'Capture Criminal' },
     { text: 'Build  Monument  on site adj  3 types', Aname: 'Build Monument' },
     { text: '+2 Coins  per  un-placed  Leader', Aname: 'Coins per Leader' },
-    { text: '  +3 Coins', Aname: '+3 Coins' },
-    { text: '  +1 VP', Aname: '+1 VP', vp: 1 },
-    { text: '  +10 TVP', Aname: '+10 TVP' },
+    { text: '+3 Coins', Aname: '+3 Coins' },
+    { text: '+1 VP', Aname: '+1 VP', vp: 1 },
+    { text: '+10 TVP', Aname: '+10 TVP' },
     // Urban renewal:
     { text: 'Demolish  your Resi  +5 TVP', Aname: 'Demo Resi +5 TVP' },
     { text: 'Demolish  your Lake  +5 TVP', Aname: 'Demo Lake +5 TVP' },
     { text: 'Demolish  your Busi  +5 Coins', Aname: 'Demo Busi +5 Coins' },
     { text: 'Demolish  your Bank  +5 Coins', Aname: 'Demo Bank +5 Coins' },
-    { text: 'Demolish  any  Auction  tile', Aname: 'Demo Auction' },
+    { text: 'Demolish  an Auction  tile', Aname: 'Demo Auction' },
 
     // { text: ''},
     // { text: ''},
@@ -220,8 +221,8 @@ class PolicySpecs extends SpecClass {
       rhex: function () { this.incTvp0(-this.val) },
     }),
 
-    new EconWhenCond(20, '  +1 Econ', { Aname: 'Invest-1', val: 1 }, true),
-    new EconWhenCond(20, '  +1 Econ', { Aname: 'Invest-2', val: 1 }, true),
+    new EconWhenCond(20, '+1 Econ', { Aname: 'Invest-1', val: 1 }, true),
+    new EconWhenCond(20, '+1 Econ', { Aname: 'Invest-2', val: 1 }, true),
 
     new EconWhenCond(10, '+1 Econ  per  Police', { Aname: 'Econ/Police', val: 0 },
       function () { (this as any as EconWhenCond).setVal(this.val = this.nOnMap(Police)); return true; }),
@@ -288,7 +289,10 @@ export class EvalTile extends Tile implements BagTile {
 
   constructor(Aname: string, readonly spec: EvalSpec) {
     super(Aname, undefined, 0, spec?.vp ?? 0, spec?.cost ?? 0, 0); // (Aname, player, inf, vp, cost, econ)
-    this.addTextChild(-0.4 * this.radius, this.lineBreak(this.spec?.text ?? ''), 18, true);
+    const lineText = this.lineBreak(this.spec?.text ?? '');
+    const nLines = lineText.split('\n').length, lineH = TP.hexRad * (18 / 60);
+    const y0 = (this.radius * H.sqrt3 - (lineH * nLines)) / 2 - this.radius * H.sqrt3_2 + lineH / 2;
+    this.addTextChild(y0, lineText, lineH, true);
     if (spec instanceof SpecClass) spec.tile = this;
   }
 
@@ -368,15 +372,18 @@ export class EvalTile extends Tile implements BagTile {
 }
 
 export class EventTile extends EvalTile {
+  static get allTileArgs() { return new EventSpecs().allSpecs.map((spec, ndx) => [spec, ndx] as [EvalSpec, number]) }
   static override allTiles: EventTile[];
   static override makeAllTiles() {
-    EventTile.allTiles = new EventSpecs().allSpecs.map((spec, ndx) => new EventTile(spec, ndx));
+    EventTile.allTiles = EventTile.allTileArgs.map(([spec, ndx]) => new EventTile(spec, ndx));
   }
 
   constructor(spec: EvalSpec, n = 0) {
     super(EventTile.aname(spec, EventTile, n), spec);
   }
-  override paint(pColor?: 'b' | 'w' | 'c', colorn = C.WHITE): void {
+  get defColor() { return ((this.text ?? '').startsWith('Demolish') ? C.RED : C.GREEN);}
+
+  override paint(pColor?: 'b' | 'w' | 'c', colorn = this.defColor): void {
     super.paint(pColor, colorn);
   }
 
@@ -412,9 +419,10 @@ export class AutoCrime extends EventTile {
 }
 
 export class PolicyTile extends EvalTile {
+  static get allTileArgs() { return new PolicySpecs().allSpecs.map((spec, ndx) => [spec, ndx] as [EvalSpec, number]) }
   static override allTiles: PolicyTile[];
   static override makeAllTiles() {
-    PolicyTile.allTiles = new PolicySpecs().allSpecs.map((spec, ndx) => new PolicyTile(spec, ndx));
+    PolicyTile.allTiles = PolicyTile.allTileArgs.map(([spec, ndx]) => new PolicyTile(spec, ndx));
   }
 
   constructor(spec: EvalSpec, n: number) {

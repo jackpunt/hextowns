@@ -66,7 +66,7 @@ export class BonusMark extends Container {
     },
     // Bonus mark for any AuctionTile
     {
-      bonusId: 'econ', dtype: CenterText, x: 0, y: -1.1, size: TP.hexRad / 2, paint: (t: Text, info) => {
+      bonusId: 'econ', dtype: CenterText, x: 0, y: -1.0, size: TP.hexRad / 2, paint: (t: Text, info) => {
         t.text = '$'
         t.color = C.GREEN
         t.font = F.fontSpec(info.size)
@@ -85,7 +85,7 @@ export class BonusMark extends Container {
       bonusId: 'actn', dtype: Shape, x: -1.4, y: -1.3, size: TP.hexRad / 4, paint: (s: Shape, info) => {
         s.scaleX = s.scaleY = info.size / 4
         let path: [x: number, y: number][] = [[-1, 4], [2, -1], [-2, 1], [1, -4]].map(([x, y]) => [x + info.x*4, y + info.y*4])
-        let g = s.graphics.ss(1).s(C.YELLOW).mt(...path.shift())
+        let g = s.graphics.ss(1).s(C.ORANGE).mt(...path.shift())
         path.map((xy) => g.lt(...xy))
         g.es()
       }
@@ -671,6 +671,10 @@ export class BonusTile extends MapTile implements BagTile {
   constructor( bonusId: AuctionBonus | undefined, ) {
     super(undefined, undefined, 0, 0, 0, 0); // BonusTile
     if (bonusId) this.addBonus(bonusId);
+  }
+
+  override paint(pColor?: "b" | "w" | "c", colorn?: string): void {
+    super.paint(undefined, 'darkgrey');
   }
 
   override placeTile(toHex: Hex, payCost?: boolean): void {
