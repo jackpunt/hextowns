@@ -1,6 +1,6 @@
 import { C, Constructor, stime } from "@thegraid/common-lib";
 import { Container, DisplayObject } from "@thegraid/easeljs-module";
-import { AuctionTile, Bank, Busi, Lake, PS, Resi } from "./auction-tile";
+import { Bank, Blank, Busi, Lake, PS, Resi } from "./auction-tile";
 import { EventTile, PolicyTile } from "./event-tile";
 import { H } from "./hex-intfs";
 import { ImageGrid, PageSpec } from "./image-setup";
@@ -25,10 +25,6 @@ export class TileExporter {
   makeImagePages() {
     const u = undefined, p0 = Player.allPlayers[0], p1 = Player.allPlayers[1];
     const doubleSided = [
-      [2, BonusTile, 'star'],
-      [2, BonusTile, 'econ'],
-      [2, BonusTile, 'infl'],
-      [1, BonusTile, 'actn'],
       [2, Monument, u, u, u, u, u, u, 0],
       [2, Monument, u, u, u, u, u, u, 1],
       [2, Monument, u, u, u, u, u, u, 2],
@@ -39,12 +35,17 @@ export class TileExporter {
       [ 7, Lake], // TP.lakePerPlayer * 2, 6,
       [ 7, Bank], // TP.bankPerPlayer * 2, 6,
       [ 7,  PS], // TP.pstaPerPlayer * 2, 6,
-      [25, Resi], // TP.resiPerPlayer * 2, 22,
-      [21, Busi], // TP.busiPerPlayer * 2, 18,
-      [3, BonusTile, 'actn'],
-      ...PolicyTile.allTileArgs.map(clasArgs => [1, PolicyTile, ...clasArgs]),
-      [3, undefined],
-      ...EventTile.allTileArgs.map(clasArgs => [1, EventTile, ...clasArgs]),
+      //
+      [2, BonusTile, 'actn'],
+      [2, BonusTile, 'econ'],
+      [2, BonusTile, 'infl'],
+      [2, BonusTile, 'star'],
+      ...EventTile.allTileArgs.map(clasArgs => [1, EventTile, ...clasArgs]), // 19 + 5 + 3
+      //
+      ...PolicyTile.allTileArgs.map(clasArgs => [1, PolicyTile, ...clasArgs]), // 14 + 6 + 1
+      [20, Busi], // TP.busiPerPlayer * 2, 18,
+      [5, Blank], //
+      [24, Resi], // TP.resiPerPlayer * 2, 22,
     ] as CountClaz[];
     const pageSpecs = [];
     this.tilesToTemplate(doubleSided, 'both', pageSpecs);

@@ -85,8 +85,12 @@ export class TP {
   static Black_White = playerColorRecord<'BLACK' | 'WHITE' | 'DARKGREY'>('BLACK', 'WHITE', 'DARKGREY')
   static Blue_Red = playerColorRecord<'BLUE' | 'RED' | 'DARKGREY'>('BLUE', 'RED', 'DARKGREY')
   static Red_Blue = playerColorRecord<'RED' | 'BLUE' | 'DARKGREY'>('RED', 'BLUE', 'DARKGREY')
-  static schemeNames = ['Red_Blue', 'Blue_Red'];
+  static Purpl_Orng = playerColorRecord<'ORANGE' | 'BLUE' | 'DARKGREY'>('BLUE', 'ORANGE', 'DARKGREY')
+  static schemeNames = ['Red_Blue', 'Blue_Red', 'Purpl_Orng'];
   static colorScheme = TP.Blue_Red;
+  static policyColor = 'YELLOW';
+  static eventColor = 'GREEN';
+  static eventColor2 = 'ORANGE';
   static numPlayers = 2;
   /** Order [number of rings] of metaHexes */
   static mHexes = 1   // number hexes on side of Meta-Hex

@@ -60,7 +60,7 @@ export class GameSetup {
     // this.gamePlay.logWriter?.closeFile()
     this.gamePlay.forEachPlayer(p => p.endGame())
     Tile.allTiles.forEach(tile => tile.hex = undefined)
-    let deContainer = (cont: Container) => {
+    const deContainer = (cont: Container) => {
       cont.children.forEach(dObj => {
         dObj.removeAllEventListeners()
         if (dObj instanceof Container) deContainer(dObj)

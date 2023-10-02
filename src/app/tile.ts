@@ -350,7 +350,7 @@ export class Tile extends Tile0 {
   setInfRays(inf = this.hex?.getInfP(this.infColor) ?? this.infP, ) {
     this.removeChildType(InfRays);
     if (inf !== 0) {
-      this.addChild(new InfRays(inf, this.infColor));
+      this.addChild(new InfRays(inf, TP.colorScheme[this.infColor]));
     }
     const rad = this.radius;
     this.cache(-rad, -rad, 2 * rad, 2 * rad);

@@ -159,6 +159,12 @@ export class AuctionTile extends MapTile implements BagTile {
     }
   }
 }
+export class Blank extends AuctionTile {
+  constructor(Aname?: string, player?: Player, inf = 0, vp = 0, cost = 0, econ = 0) {
+    super(Aname, player, inf, vp, cost, econ);
+    // no image
+  }
+}
 
 export class Resi extends AuctionTile {
   override get nR() { return 1; } // Resi

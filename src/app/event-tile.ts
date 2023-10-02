@@ -80,6 +80,17 @@ class EventSpecs extends EventSpec {
   constructor() { super('EventSpecs', {}); }
 
   allSpecs: EvalSpec[] = [
+    // Urban renewal:
+    { text: 'Demolish  your Resi  +5 TVP', Aname: 'Demo Resi +5 TVP' },
+    { text: 'Demolish  your Lake  +5 TVP', Aname: 'Demo Lake +5 TVP' },
+    { text: 'Demolish  your Busi  +5 Coins', Aname: 'Demo Busi +5 Coins' },
+    { text: 'Demolish  your Bank  +5 Coins', Aname: 'Demo Bank +5 Coins' },
+    { text: 'Demolish  an Auction  tile', Aname: 'Demo Auction' },
+    // Blank events:
+    { text: '', Aname: 'Blank' },
+    { text: '', Aname: 'Blank'},
+    { text: '', Aname: 'Blank'},
+    // Positive events:
     { text: 'Do a  Crime  action', Aname: 'Crime Action' },
     { text: 'Do a  Build  action', Aname: 'Build Action' },
     { text: 'Do a  Police  action', Aname: 'Police Action' },
@@ -99,16 +110,6 @@ class EventSpecs extends EventSpec {
     { text: '+3 Coins', Aname: '+3 Coins' },
     { text: '+1 VP', Aname: '+1 VP', vp: 1 },
     { text: '+10 TVP', Aname: '+10 TVP' },
-    // Urban renewal:
-    { text: 'Demolish  your Resi  +5 TVP', Aname: 'Demo Resi +5 TVP' },
-    { text: 'Demolish  your Lake  +5 TVP', Aname: 'Demo Lake +5 TVP' },
-    { text: 'Demolish  your Busi  +5 Coins', Aname: 'Demo Busi +5 Coins' },
-    { text: 'Demolish  your Bank  +5 Coins', Aname: 'Demo Bank +5 Coins' },
-    { text: 'Demolish  an Auction  tile', Aname: 'Demo Auction' },
-
-    // { text: ''},
-    // { text: ''},
-    // { text: ''},
   ];
 }
 
@@ -258,7 +259,7 @@ class PolicySpecs extends SpecClass {
     }),
     new SpecClass(8, 'Extra  Reserve  Hex', { Aname: 'Reserve Hex 1', }),  // place this as Reserve Hex
     new SpecClass(8, 'Extra  Reserve  Hex', { Aname: 'Reserve Hex 2', }),  // place this as Reserve Hex
-    // { text: ''},
+    { text: ''},
     // { text: ''},
     // { text: ''},
   ];
@@ -271,8 +272,8 @@ export class EvalTile extends Tile implements BagTile {
   }
 
   /** add all or selected EvalTile to tileBag. */
-  static addToBag(tileBag: TileBag<BagTile>, max: number, allTiles: BagTile[]) {
-    const tiles = allTiles.slice() as BagTile[]; // draw without replacement from copy of Tile[]
+  static addToBag(tileBag: TileBag<BagTile>, max: number, allTiles: EvalTile[]) {
+    const tiles = allTiles.filter(t => t.spec.text) as BagTile[]; // draw without replacement from copy of Tile[]
     // tiles.splice(0, 0, ...PolicyTile.goInBag() as BagType[]);
     if (max >= tiles.length || max < 0) {
       tileBag.push(...tiles);  // push them all, in order
@@ -381,7 +382,8 @@ export class EventTile extends EvalTile {
   constructor(spec: EvalSpec, n = 0) {
     super(EventTile.aname(spec, EventTile, n), spec);
   }
-  get defColor() { return ((this.text ?? '').startsWith('Demolish') ? C.RED : C.GREEN);}
+
+  get defColor() { return ((this.text ?? '').startsWith('Demolish') ? TP.eventColor2 : TP.eventColor);}
 
   override paint(pColor?: 'b' | 'w' | 'c', colorn = this.defColor): void {
     super.paint(pColor, colorn);
@@ -430,7 +432,7 @@ export class PolicyTile extends EvalTile {
     this.spec.policy = true;
   }
 
-  override paint(pColor?: 'b' | 'w' | 'c', colorn = C.YELLOW): void {
+  override paint(pColor?: 'b' | 'w' | 'c', colorn = TP.policyColor): void {
     super.paint(pColor, colorn);
   }
 

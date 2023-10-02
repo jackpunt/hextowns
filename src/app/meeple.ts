@@ -10,6 +10,8 @@ import { PlayerColor, TP, criminalColor } from "./table-params";
 import { Civic, Tile } from "./tile";
 import { UnitSource } from "./tile-source";
 
+
+/** baseShape for Meeple (replaces TileShape/HexShape), see makeShape. */
 class MeepleShape extends Shape implements Paintable {
   static fillColor = 'rgba(225,225,225,.7)';
   static backColor = 'rgba(210,210,120,.5)'; // transparent light green
@@ -31,11 +33,11 @@ class MeepleShape extends Shape implements Paintable {
     return over;
   }
 
-  /** stroke a ring of colorn, stroke-width = 2, r = radius-2; fill disk with (~WHITE,.7) */
+  /** stroke a ring of colorn, stroke-size = 2, r = radius-2; fill disk with (~WHITE,.7) */
   paint(colorn = this.player?.colorn ?? C1.grey) {
-    const x0 = 0, y0 = 0, r = this.radius, ss = TP.hexRad / 30, rs = 1;
-    const g = this.graphics.c().ss(ss).s(colorn).dc(x0, y0, r - rs);
-    g.f(MeepleShape.fillColor).dc(x0, y0, r - 1)  // disk
+    const x0 = 0, y0 = 0, r = this.radius, ss = 4 * TP.hexRad / 60, rs = r - ss / 2;
+    const g = this.graphics.c().f(MeepleShape.fillColor).dc(x0, y0, r - 1)  // disk
+    g.ss(ss).s(colorn).dc(x0, y0, rs);
     this.setBounds(x0 - r, y0 - r, 2 * r, 2 * r)
     return g
   }
@@ -138,7 +140,7 @@ export class Meeple extends Tile {
   override setInfRays(inf = this.hex?.getInfP(this.infColor) ?? this.infP): void {
     this.removeChildType(InfRays);
     if (inf !== 0) {
-      this.addChildAt(new InfRays(inf, this.infColor), this.children.length - 1);
+      this.addChildAt(new InfRays(inf, TP.colorScheme[this.infColor]), this.children.length - 1);
     }
     const radxy = -TP.hexRad, radwh = 2 * TP.hexRad;
     this.cache(radxy, radxy, radwh, radwh);
@@ -279,11 +281,18 @@ class SourcedMeeple extends Meeple {
     super(Aname, player, inf, vp, cost, econ);
   }
 
-  paintRings(colorn: string, rColor = C.BLACK, ss = 4, rs = 4) {
+  /**
+   * Draw a circle with a thick stroke, making a ring.
+   * @param colorn baseShape fill color
+   * @param rColor ring color (stroke color)
+   * @param ss stroke size
+   * @param rs ring size (reduction in radius)
+   */
+  paintRing(colorn: string, rColor = C.BLACK, ss = 4, rs = 4) {
     const r = (this.baseShape as MeepleShape).radius;
     const g = (this.baseShape as MeepleShape).graphics;
-    this.baseShape.paint(colorn);       // [2, 1]
-    g.ss(ss).s(rColor).dc(0, 0, r - rs) // stroke a colored ring inside black ring
+    // this.baseShape.paint(colorn);       // [4, 2]
+    g.ss(ss * TP.hexRad / 60).s(rColor).dc(0, 0, r - (rs * TP.hexRad / 60)) // stroke a colored ring inside black ring
     this.updateCache();
   }
 
@@ -317,7 +326,8 @@ export class Police extends SourcedMeeple {
     super(Police.source[player.index], `P-${serial}`, player, 1, 0, TP.policeCost, TP.policeEcon);
   }
   override paint(pColor = this.player?.color, colorn = pColor ? TP.colorScheme[pColor] : C1.grey) {
-    this.paintRings(colorn, C.briteGold, 4, 4);
+    super.paint(pColor, colorn);
+    this.paintRing(colorn, C.briteGold, 4, 6);
   }
 
   override isLegalTarget(hex: Hex, ctx?: DragContext) { // Police
@@ -364,7 +374,12 @@ export class Criminal extends SourcedMeeple {
   override get infColor(): PlayerColor { return criminalColor; }
 
   override paint(pColor = this.player?.color, colorn = pColor ? TP.colorScheme[pColor] : C1.grey) {
-    this.paintRings(colorn, C.black, ...this.autoCrime ? [4, 4]: [2, 3]);
+    super.paint(pColor, colorn);
+    this.paintRing(colorn, C.black, 3, 5); // less than Police, because BLACK is 'bold'...
+    if (this.autoCrime) {
+      (this.baseShape as MeepleShape).graphics.es().f(C1.grey).dp(0, this.radius / 2, this.radius / 3, 4, 0, 45);
+      this.updateCache();
+    }
   }
 
   override moveTo(hex: Hex) {
