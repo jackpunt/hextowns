@@ -1,12 +1,12 @@
 import { C, stime } from "@thegraid/common-lib";
 import { NoZeroCounter } from "./counters";
 import { GP } from "./game-play";
-import type { Hex2, Hex } from "./hex";
+import type { Hex, Hex2 } from "./hex";
+import { HexShape, PaintableShape } from "./shapes";
 import type { DragContext } from "./table";
 import { PlayerColor } from "./table-params";
-import { Token, Tile } from "./tile";
+import { Tile, Token } from "./tile";
 import { TileSource } from "./tile-source";
-import { Paintable } from "./shapes";
 
 export class DebtSource extends TileSource<Debt> {
   constructor(hex: Hex2) {
@@ -19,6 +19,22 @@ export class DebtSource extends TileSource<Debt> {
     this.hex.tile.debt = debt;  // put Debt on Tile, not on Hex.
     return debt;
   }
+}
+
+/** for solid circle Debt token when makePages */
+export class DebtCircle extends Tile {
+  constructor() {
+    super('', undefined, 0, 0, 0, 0);
+  }
+
+  override makeShape(): PaintableShape {
+    return new HexShape(); // rather than a TileShape, which has hollow center...
+  }
+
+  override paint(pColor?: PlayerColor, colorn?: string): void {
+    super.paint(pColor, C.debtRust);
+  }
+
 }
 
 /**
@@ -53,7 +69,7 @@ export class Debt extends Token {
 
   override get recycleVerb() { return 'paid-off'; }
 
-  override makeShape(): Paintable {
+  override makeShape(): PaintableShape {
     const shape = super.makeShape();
     shape.y += this.radius * .3
     return shape;

@@ -4,7 +4,7 @@ import { PS } from "./auction-tile";
 import { GP } from "./game-play";
 import type { Hex, Hex2 } from "./hex";
 import type { Player } from "./player";
-import { C1, InfRays, Paintable } from "./shapes";
+import { C1, InfRays, PaintableShape } from "./shapes";
 import type { DragContext, Table } from "./table";
 import { PlayerColor, TP, criminalColor } from "./table-params";
 import { Civic, Tile } from "./tile";
@@ -12,15 +12,19 @@ import { UnitSource } from "./tile-source";
 
 
 /** baseShape for Meeple (replaces TileShape/HexShape), see makeShape. */
-class MeepleShape extends Shape implements Paintable {
+class MeepleShape extends PaintableShape {
   static fillColor = 'rgba(225,225,225,.7)';
   static backColor = 'rgba(210,210,120,.5)'; // transparent light green
 
   constructor(public player: Player, public radius = TP.meepleRad) {
-    super();
+    super((color) => this.mscgf(color));
     this.y = TP.meepleY0;
     this.paint();
+    this.setMeepleBounds();
     this.backSide = this.makeOverlay(this.y);
+  }
+  setMeepleBounds(r = this.radius) {
+    this.setBounds(-r, -r, 2 * r, 2 * r);
   }
 
   backSide: Shape;  // visible when Meeple is 'faceDown' after a move.
@@ -33,13 +37,11 @@ class MeepleShape extends Shape implements Paintable {
     return over;
   }
 
-  /** stroke a ring of colorn, stroke-size = 2, r = radius-2; fill disk with (~WHITE,.7) */
-  paint(colorn = this.player?.colorn ?? C1.grey) {
-    const x0 = 0, y0 = 0, r = this.radius, ss = 4 * TP.hexRad / 60, rs = r - ss / 2;
-    const g = this.graphics.c().f(MeepleShape.fillColor).dc(x0, y0, r - 1)  // disk
-    g.ss(ss).s(colorn).dc(x0, y0, rs);
-    this.setBounds(x0 - r, y0 - r, 2 * r, 2 * r)
-    return g
+  /** stroke a ring of colorn, stroke-width = 2, r = radius-2; fill disk with (~WHITE,.7) */
+  mscgf(colorn = this.player?.colorn ?? C1.grey, ss = 2, rs = 0) {
+    const r = this.radius;
+    const g = this.graphics.c().ss(ss).s(colorn).f(MeepleShape.fillColor).dc(0, 0, r - rs - ss/2);  // disk & ring
+    return g;
   }
 }
 
@@ -48,7 +50,7 @@ export class Meeple extends Tile {
   static allMeeples: Meeple[] = [];
 
   readonly colorValues = C.nameToRgba("blue"); // with alpha component
-  get backSide() { return (this.baseShape as MeepleShape).backSide; }
+  get backSide() { return this.baseShape.backSide; }
   override get recycleVerb() { return 'dismissed'; }
 
   /**
@@ -85,9 +87,10 @@ export class Meeple extends Tile {
     if (hex !== undefined) hex.meep = this;
   }
 
-  override get radius() { return TP.meepleRad } // TP.hexRad /1.9 = 31.578 vs * .4 = 24
+  override get radius() { return TP.meepleRad } // 31.578 vs 60*.4 = 24
   override textVis(v: boolean) { super.textVis(true); }
-  override makeShape(): Paintable { return new MeepleShape(this.player, this.radius); }
+  override makeShape() { return new MeepleShape(this.player, this.radius); }
+  declare baseShape: MeepleShape;
 
   /** location at start-of-turn; for Meeples.unMove() */
   startHex: Hex;

@@ -5,7 +5,7 @@ import { NumCounter, NumCounterBox } from "./counters";
 import { GP } from "./game-play";
 import { Hex, Hex2 } from "./hex";
 import { Player } from "./player";
-import { CenterText, HexShape, InfShape, Paintable } from "./shapes";
+import { CenterText, HexShape, InfShape, PaintableShape } from "./shapes";
 import { DragContext } from "./table";
 import { PlayerColor, TP } from "./table-params";
 import { AuctionBonus, Tile, Token } from "./tile";
@@ -130,7 +130,7 @@ class SourcedToken extends Token {
 }
 
 /** Half-size Tokens that confer their bonusType: AuctionBonus to the Tile they are dropped on. */
-class BonusToken extends SourcedToken {
+export class BonusToken extends SourcedToken {
   static Bname(bonusType: AuctionBonus, player: Player) {
     // UID+1 will be this.id
     return `${bonusType}:${player?.index ?? ''}-${UID.get() + 1}`
@@ -144,7 +144,7 @@ class BonusToken extends SourcedToken {
     super(source, BonusToken.Bname(bonusType, player), player, inf, vp, cost, econ);
   }
 
-  override makeShape(): Paintable {
+  override makeShape(): PaintableShape {
     return new HexShape(TP.hexRad * .5);
   }
 
@@ -198,9 +198,9 @@ export class InflToken extends BonusToken {
     super('infl', source, player, inf, vp, cost, econ);
   }
 
-  override makeShape(): Paintable {
+  override makeShape(): PaintableShape {
     const shape = new InfShape(InflToken.colorn);
-    shape.scaleX = shape.scaleY = .5;
+    shape.scaleX = shape.scaleY = .5; // <--- move to better place
     return shape;
   }
 
@@ -227,6 +227,32 @@ export class EconToken extends BonusToken {
   }
 }
 
+export class EconToken2 extends EconToken {
+  constructor() {
+    super(undefined, undefined);
+    const text = this.getChildAt(this.numChildren - 1);
+    text.scaleX = text.scaleY = text.scaleX * 1.8;
+  }
+}
+export class ActnToken2 extends BonusToken {
+  constructor() {
+    super('actn', undefined, undefined, 0, 0, 0, 0);
+    this.drawStar('actn');
+    const actn = this.getChildAt(4); // HexShape, BalMark, text, text, ActnShape
+    actn.scaleX = actn.scaleY = actn.scaleX * 2;
+    actn.x += this.radius * .7; actn.y += this.radius * .6;
+    this.updateCache();
+  }
+}
+
+export class StarToken2 extends BonusToken {
+  constructor(source: TokenSource, player: Player, inf: TileInf = 0, vp = 0, cost = 0, econ = 0) {
+    super('star', source, player, inf, vp, cost, econ);
+    const star =this.drawStar('star');
+    star.scaleX = star.scaleY = star.scaleX * 1.8;
+    this.updateCache();
+  }
+}
 export class StarToken extends BonusToken {
   static source: TokenSource;
   static targetClaz: Constructor<AuctionTile>;
@@ -249,7 +275,7 @@ export class StarToken extends BonusToken {
     super('star', source, player, inf, vp, cost, econ);
     this.drawStar('star');
     this.updateCache();
-    this.homeHex = source.hex;
+    this.homeHex = source?.hex;
   }
 
   override isLegalTarget(toHex: Hex, ctx?: DragContext): boolean {

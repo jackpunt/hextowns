@@ -44,14 +44,6 @@ export class ImageGrid {
     dpi: 300,
   }
 
-  /** 8 rows of 8 columns */
-  static circDouble_1_19: GridSpec = {
-    width: 3300, height: 2550, nrow: 8, ncol: 8,
-    x0: 245, y0: 335, x1: 435,
-    delx: 375, dely: 375,  // ; 2625/7 = 375 ; 1876/5 = 375.2
-    dpi: 1,
-  }
-
   /** 5 rows of 7 columns */
   static hexSingle_1_19: GridSpec = {
     width: 3300, height: 2550, nrow: 5, ncol: 7,
@@ -65,6 +57,14 @@ export class ImageGrid {
     width: 3300, height: 5100, nrow: 5, ncol: 7,
     x0: 576, y0: 451,        // 245 + 412/2 = 451  (5099 - 245 = 4854) !~== 4854
     delx: 357, dely: 413.1,  // 1.19*300=357; 357/H.sqrt_3_2 = 412.2 === (2308 - 247)/5 == 2061 = 412.2
+    dpi: 1,
+  }
+
+  /** 8 rows of 8 columns */
+  static circDouble_0_79: GridSpec = {
+    width: 3300, height: 5100, nrow: 8, ncol: 8,
+    x0: 245, y0: 335, x1: 435,
+    delx: 375, dely: 375,  // ; 2625/7 = 375 ; 1876/5 = 375.2
     dpi: 1,
   }
 
@@ -107,15 +107,16 @@ export class ImageGrid {
   addObjects(gridSpec: GridSpec, frontObjs: DisplayObject[], backObjs: DisplayObject[]) {
     const cont = new Container();
     const def = { x0: 0, y0: 0, delx: 300, dely: 300, dpi: 1 }
-    const { width, height, x0, y0, x1, delx, dely, dpi } = { ...def, ...gridSpec };
-    const ymax = backObjs ? height / 2 : height;
+    const { width, height, x0, y0, x1, delx, dely, dpi, nrow, ncol } = { ...def, ...gridSpec };
 
     this.stage.addChild(cont);
-    let row = 0, col = 0;
+    const XX = [x0, x1 ?? x0];
     frontObjs.forEach((dObj, n) => {
+      const row = Math.floor(n / ncol);
+      const col = n % ncol;
       const frontObj = dObj;
-      if (row * dely > (ymax - y0 - y0 / 2)) return;
-      const X0 = (row % 1 == 0) ? x0 : x1 ?? x0;
+      if (row > nrow) return;
+      const X0 = XX[row % 2]; // = ((row % 2) === 0) ? x0 : x1 ?? x0;
       const x = (X0 + col * delx) * dpi;
       const y = (y0 + row * dely) * dpi;
       frontObj.x += x;
@@ -126,11 +127,6 @@ export class ImageGrid {
         backObj.x += x;
         backObj.y += (height * dpi - y); // + 2; // template is asymetric!
         cont.addChild(backObj);
-      }
-      col += 1;
-      if ((col * delx) > (width - x0 - x0)) {
-        col = 0;
-        row += 1;
       }
     });
     return cont.numChildren;

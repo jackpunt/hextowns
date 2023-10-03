@@ -1,9 +1,11 @@
 import { C, Constructor, stime } from "@thegraid/common-lib";
 import { Container, DisplayObject } from "@thegraid/easeljs-module";
 import { AuctionTile, Bank, Blank, Busi, Lake, PS, Resi } from "./auction-tile";
+import { DebtCircle } from "./debt";
 import { EventTile, PolicyTile } from "./event-tile";
 import { H } from "./hex-intfs";
 import { ImageGrid, PageSpec } from "./image-setup";
+import { ActnToken2, EconToken2, InflToken, StarToken2 } from "./infl";
 import { Player } from "./player";
 import { CircleShape, HexShape, PaintableShape } from "./shapes";
 import { BonusTile, Church, Courthouse, Monument, Tile, TownStart, University } from "./tile";
@@ -48,10 +50,14 @@ export class TileExporter {
       [24, Resi], // TP.resiPerPlayer * 2, 22,
     ] as CountClaz[];
     const circDouble = [
-      []
-    ]
+      [8, DebtCircle],
+      [8, ActnToken2],
+      [8, EconToken2],
+      [8, InflToken],
+      [8, StarToken2],
+    ] as CountClaz[];
     const pageSpecs = [];
-    this.tilesToTemplate(hexDouble, 'both', pageSpecs);
+    this.tilesToTemplate(circDouble, ImageGrid.circDouble_0_79, pageSpecs);
     this.downloadPageSpecs(pageSpecs);
   }
 
@@ -65,6 +71,7 @@ export class TileExporter {
       const bleed = new HexShape(tile.radius + addBleed); // .09 inch + 1px
       {
         bleed.paint((tile.baseShape as PaintableShape).colorn ?? C.grey, true);
+        // bleed.paint(C.lightpink, true);
         // trim to fit template, allow extra on first/last column of row:
         const dx0 = (edge === 'L') ? 30 : 0, dw = (edge === 'R') ? 30 : 0;
         const { x, y, width, height } = tile.baseShape.getBounds(), d = -3;
@@ -77,21 +84,20 @@ export class TileExporter {
   }
 
   /** each PageSpec will identify the canvas that contains the Tile-Images */
-  tilesToTemplate(countClaz: CountClaz[], player?: (Player | 'both'), pageSpecs: PageSpec[] = []) {
-    const both = (player === 'both'), double = true;
-    const gridSpec = double ? ImageGrid.hexDouble_1_19 : ImageGrid.hexSingle_1_19;
+  tilesToTemplate(countClaz: CountClaz[], gridSpec = ImageGrid.hexDouble_1_19, pageSpecs: PageSpec[] = []) {
+    const both = true, double = true;
     const frontAry = [] as DisplayObject[][];
     const backAry = [] as DisplayObject[][];
     const page = pageSpecs.length;
     const { nrow, ncol } = gridSpec, perPage = nrow * ncol;
     let nt = page * perPage;
     countClaz.forEach(([count, claz, ...args]) => {
-      const frontPlayer = both ? Player.allPlayers[0] : player;
-      const backPlayer = both ? Player.allPlayers[1] : player;
+      const frontPlayer = both ? Player.allPlayers[0] : undefined;
+      const backPlayer = both ? Player.allPlayers[1] : undefined;
       const nreps = Math.abs(count);
       for (let i = 0; i < nreps; i++) {
-        const n = nt % perPage, pagen = Math.floor(nt++ / 35);
-        const addBleed = (false || n > 3 && n < 32) ? undefined : -10; // for DEBUG: no bleed to see template positioning
+        const n = nt % perPage, pagen = Math.floor(nt++ / perPage);
+        const addBleed = (true || n > 3 && n < 32) ? undefined : -10; // for DEBUG: no bleed to see template positioning
         if (!frontAry[pagen]) frontAry[pagen] = [];
         const col = n % ncol, edge = (col === 0) ? 'L' : (col === ncol - 1) ? 'R' : 'C';
         const frontTile = this.composeTile(claz, args, frontPlayer, edge, addBleed)

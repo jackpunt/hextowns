@@ -221,10 +221,11 @@ export class InfRays extends Shape {
   }
 }
 
-export class InfShape extends PaintableShape {
+export class InfShape extends HexShape {
   /** hexagon scaled by TP.hexRad/4 */
   constructor(bgColor = 'grey') {
-    super((fillc) => this.iscgf(fillc));
+    super();
+    this.cgf = this.iscgf;
     this.paint(bgColor);
   }
 

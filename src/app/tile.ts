@@ -1,10 +1,11 @@
 import { C, Constructor, F, ImageLoader, S, className, stime } from "@thegraid/common-lib";
 import { Bitmap, Container, DisplayObject, MouseEvent, Shape, Text } from "@thegraid/easeljs-module";
 import type { Debt } from "./debt";
-import { GP } from "./game-play";
+import { removeChildType } from "./functions";
+import { GP, GamePlay } from "./game-play";
 import { Hex, Hex2, HexMap } from "./hex";
 import type { Player } from "./player";
-import { BalMark, C1, CapMark, CenterText, HexShape, InfRays, InfShape, Paintable, TileShape } from "./shapes";
+import { BalMark, C1, CapMark, CenterText, HexShape, InfRays, InfShape, PaintableShape, TileShape } from "./shapes";
 import type { DragContext, Table } from "./table";
 import { PlayerColor, PlayerColorRecord, TP, criminalColor, playerColorRecord, playerColorsC } from "./table-params";
 import { TileBag } from "./tile-bag";
@@ -12,6 +13,7 @@ import { TileBag } from "./tile-bag";
 export type AuctionBonus = 'star' | 'econ' | 'infl' | 'actn';
 export type AdjBonusId = 'Bank' | 'Lake';
 export type BonusId = 'Star' | 'Econ' | AdjBonusId | AuctionBonus;
+
 type BonusObj = { [key in AuctionBonus]: boolean}
 
 type BonusInfo<T extends DisplayObject> = {
@@ -19,6 +21,13 @@ type BonusInfo<T extends DisplayObject> = {
   x: number, y: number, size: number,
   paint?: (s: T, info: BonusInfo<T>) => void
 }
+
+declare module "@thegraid/easeljs-module" {
+  interface Container {
+    removeChildType<T extends DisplayObject>(type: Constructor<T>, pred?: (dobj: T) => boolean ): T[];
+  }
+}
+Container.prototype.removeChildType = removeChildType;
 
 export class BonusMark extends Container {
 
@@ -134,10 +143,12 @@ class TileLoader {
 
 /** Someday refactor: all the cardboard bits (Tiles, Meeples & Coins) */
 class Tile0 extends Container {
+  static gamePlay: GamePlay;
   static loader = new TileLoader();
   // constructor() { super(); }
 
-  public player: Player;
+  public gamePlay = Tile.gamePlay;
+  public player: Player | undefined;
   get infColor() { return this.player?.color }
   get recycleVerb(): string { return 'demolished'; }
 
@@ -154,14 +165,14 @@ class Tile0 extends Container {
     return bm;
   }
 
-  get radius() { return TP.hexRad};
-  readonly baseShape: Paintable = this.makeShape();
+  get radius() { return TP.hexRad };
+  baseShape: PaintableShape = this.makeShape();
 
   /** Default is TileShape; a HexShape with translucent disk.
    * add more graphics with paint(colorn)
    * also: addBitmapImage()
    */
-  makeShape(): Paintable {
+  makeShape(): PaintableShape {
     return new TileShape(this.radius);
   }
 
@@ -233,13 +244,6 @@ class Tile0 extends Container {
     this.removeChildType(BonusMark, crit);
     this.paint();
   }
-
-  removeChildType(type: Constructor<DisplayObject>, pred = (dobj: DisplayObject) => true ) {
-    const rems = this.children.filter(c => (c instanceof type) && pred(c));
-    this.removeChild(...rems);
-    this.updateCache()
-  }
-
 }
 
 /** all the [Hexagonal] game pieces that appear; can be dragged/dropped/bagged.
@@ -587,7 +591,7 @@ export class Tile extends Tile0 {
 
 /** A plain WHITE tile; for Debt */
 export class WhiteTile extends Tile {
-  override makeShape(): Paintable { return new HexShape(this.radius); }
+  override makeShape(): PaintableShape { return new HexShape(this.radius); }
   override get isDragable() { return false; }
 
   override paint(pColor?: PlayerColor, colorn?: string): void {
@@ -599,7 +603,7 @@ export class WhiteTile extends Tile {
 /** a half-sized Tile. */
 export class Token extends Tile {
 
-  override makeShape(): Paintable {
+  override makeShape(): PaintableShape {
     return new HexShape(this.radius * .5);
   }
 
