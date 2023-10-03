@@ -111,7 +111,7 @@ class TileLoader {
   Uname = ['Univ0', 'Univ1'];
   Monu = new Array(TP.inMarketPerPlayer['Monument']).fill(1).map((v, k) => `Monument${k}`);
   imageMap = new Map<string, HTMLImageElement>();
-  aliases = { Monument1: 'arc_de_triomphe3', Monument2: 'Statue-of-liberty' };
+  aliases = { Monument1: 'arc_de_triomphe5', Monument2: 'Statue-of-liberty' };
   fromAlias(names: string[]) {
     return names.map(name => this.aliases[name] ?? name);
   }

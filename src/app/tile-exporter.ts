@@ -1,6 +1,6 @@
 import { C, Constructor, stime } from "@thegraid/common-lib";
 import { Container, DisplayObject } from "@thegraid/easeljs-module";
-import { Bank, Blank, Busi, Lake, PS, Resi } from "./auction-tile";
+import { AuctionTile, Bank, Blank, Busi, Lake, PS, Resi } from "./auction-tile";
 import { EventTile, PolicyTile } from "./event-tile";
 import { H } from "./hex-intfs";
 import { ImageGrid, PageSpec } from "./image-setup";
@@ -24,7 +24,7 @@ export class TileExporter {
 
   makeImagePages() {
     const u = undefined, p0 = Player.allPlayers[0], p1 = Player.allPlayers[1];
-    const doubleSided = [
+    const hexDouble = [
       [2, Monument, u, u, u, u, u, u, 0],
       [2, Monument, u, u, u, u, u, u, 1],
       [2, Monument, u, u, u, u, u, u, 2],
@@ -47,57 +47,64 @@ export class TileExporter {
       [5, Blank], //
       [24, Resi], // TP.resiPerPlayer * 2, 22,
     ] as CountClaz[];
+    const circDouble = [
+      []
+    ]
     const pageSpecs = [];
-    this.tilesToTemplate(doubleSided, 'both', pageSpecs);
-    // this.tilesToTemplate(singleSided1, undefined, pageSpecs);
-    // this.tilesToTemplate(singleSided2, undefined, pageSpecs);
+    this.tilesToTemplate(hexDouble, 'both', pageSpecs);
     this.downloadPageSpecs(pageSpecs);
   }
 
-  composeTile(claz: Constructor<Tile>, args: any[], player: Player, n: number, wbkg = true) {
+  /** compose bleed, background and Tile (Tile may be transparent, so white background over bleed) */
+  composeTile(claz: Constructor<Tile>, args: any[], player: Player, edge: 'L'|'R'|'C', addBleed = 28) {
     const cont = new Container();
     if (claz) {
       const tile = new claz(...args);
       tile.setPlayerAndPaint(player);
-      const circ = new CircleShape(C.WHITE, tile.radius * H.sqrt3_2 * (55 / 60));
-      const bkg = new HexShape(tile.radius + (wbkg ? 40 : -10)); // 1/6 inch
+      const back = new CircleShape(C.WHITE, tile.radius * H.sqrt3_2 * (55 / 60));
+      const bleed = new HexShape(tile.radius + addBleed); // .09 inch + 1px
       {
-        bkg.paint((tile.baseShape as PaintableShape).colorn ?? C.grey, true);
+        bleed.paint((tile.baseShape as PaintableShape).colorn ?? C.grey, true);
         // trim to fit template, allow extra on first/last column of row:
-        const col = n % 7, dx0 = col === 0 ? 30 : 0, dw = col === 6 ? 30 : 0;
+        const dx0 = (edge === 'L') ? 30 : 0, dw = (edge === 'R') ? 30 : 0;
         const { x, y, width, height } = tile.baseShape.getBounds(), d = -3;
-        bkg.setBounds(x, y, width, height);
-        bkg.cache(x - dx0, y - d, width + dx0 + dw, height + 2 * d);
+        bleed.setBounds(x, y, width, height);
+        bleed.cache(x - dx0, y - d, width + dx0 + dw, height + 2 * d);
       }
-      cont.addChild(bkg, circ, tile);
+      cont.addChild(bleed, back, tile);
     }
     return cont;
   }
 
+  /** each PageSpec will identify the canvas that contains the Tile-Images */
   tilesToTemplate(countClaz: CountClaz[], player?: (Player | 'both'), pageSpecs: PageSpec[] = []) {
     const both = (player === 'both'), double = true;
+    const gridSpec = double ? ImageGrid.hexDouble_1_19 : ImageGrid.hexSingle_1_19;
     const frontAry = [] as DisplayObject[][];
     const backAry = [] as DisplayObject[][];
     const page = pageSpecs.length;
-    let nt = page * 35;
+    const { nrow, ncol } = gridSpec, perPage = nrow * ncol;
+    let nt = page * perPage;
     countClaz.forEach(([count, claz, ...args]) => {
       const frontPlayer = both ? Player.allPlayers[0] : player;
       const backPlayer = both ? Player.allPlayers[1] : player;
       const nreps = Math.abs(count);
       for (let i = 0; i < nreps; i++) {
-        const n = nt % 35, pagen = Math.floor(nt++ / 35);
-        const wbkg = true || n > 3 && n < 32;
+        const n = nt % perPage, pagen = Math.floor(nt++ / 35);
+        const addBleed = (false || n > 3 && n < 32) ? undefined : -10; // for DEBUG: no bleed to see template positioning
         if (!frontAry[pagen]) frontAry[pagen] = [];
-        const frontTile = this.composeTile(claz, args, frontPlayer, n, wbkg)
+        const col = n % ncol, edge = (col === 0) ? 'L' : (col === ncol - 1) ? 'R' : 'C';
+        const frontTile = this.composeTile(claz, args, frontPlayer, edge, addBleed)
         frontAry[pagen].push(frontTile);
         if (double) {
           if (!backAry[pagen]) backAry[pagen] = [];
-          const backTile = (claz === BonusTile) ? undefined : this.composeTile(claz, args, backPlayer, n, wbkg);
+          const backTile = (claz === BonusTile) ? undefined : this.composeTile(claz, args, backPlayer, edge, addBleed);
+          const tile = backTile?.getChildAt(2);
+          if (tile && !(tile instanceof AuctionTile || tile instanceof Monument)) tile.rotation = 180;
           backAry[pagen].push(backTile);
         }
       }
     });
-    const gridSpec = double ? ImageGrid.hexDouble_1_19 : ImageGrid.hexSingle_1_19;
     frontAry.forEach((ary, pagen) => {
       const frontObjs = frontAry[pagen], backObjs = double ? backAry[pagen] : undefined;
       const canvasId = `canvas_P${pagen}`;
