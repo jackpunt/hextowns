@@ -1,13 +1,13 @@
 import { Constructor } from "@thegraid/common-lib";
+import { ValueEvent } from "@thegraid/easeljs-lib";
 import { NumCounter } from "./counters";
 import { GP } from "./game-play";
 import type { Hex2 } from "./hex";
 import { H } from "./hex-intfs";
-import type { Meeple } from "./meeple";
+import { Meeple } from "./meeple";
 import type { Player } from "./player";
 import { TP } from "./table-params";
-import type { Tile } from "./tile";
-import { ValueEvent } from "@thegraid/easeljs-lib";
+import { Tile } from "./tile";
 
 /** a Dispenser of a set of Tiles.
  *
