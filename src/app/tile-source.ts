@@ -9,7 +9,10 @@ import { TP } from "./table-params";
 import type { Tile } from "./tile";
 import { ValueEvent } from "@thegraid/easeljs-lib";
 
-/** a Dispenser of a set of Tiles. */
+/** a Dispenser of a set of Tiles.
+ *
+ * Source.hex.tile or Source.hex.meep holds an available Tile, placed by moveTo()
+ */
 export class TileSource<T extends Tile> {
   static update = 'update';
   readonly Aname: string
@@ -24,7 +27,7 @@ export class TileSource<T extends Tile> {
     counter?: NumCounter,
   ) {
     this.Aname = `${type.name}Source`;
-    if (!counter) {
+    if (counter === undefined) {
       const cont = hex.map.mapCont.counterCont; // GP.gamePlay.hexMap.mapCont.counterCont;
       const xy = hex.cont.localToLocal(0, -TP.hexRad / H.sqrt3, cont);
       counter = this.makeCounter(`${type.name}:${player?.index ?? 'any'}`, this.numAvailable, `lightblue`, TP.hexRad / 2);
@@ -33,40 +36,46 @@ export class TileSource<T extends Tile> {
     this.counter = counter;
   }
 
+  /** can override */
   makeCounter(name: string, initValue: number, color: string, fontSize: number, fontName?: string, textColor?: string) {
     return new NumCounter(name, initValue, color, fontSize, fontName, textColor);
   }
 
+  /** length of available[] plus unit on this.hex */
   get numAvailable() { return this.available.length + (this.hex?.tile || this.hex?.meep ? 1 : 0); }
 
   /** mark unit available for later deployment */
   availUnit(unit: T) {
+    if (!this.allUnits.includes(unit)) {
+      this.allUnits.push(unit);
+      unit.source = this;
+    }
     if (!this.available.includes(unit)) {
       this.available.push(unit);
       unit.hex = undefined;
       unit.visible = false;
+      unit.x = unit.y = 0;
     }
     this.updateCounter();
   }
 
-  /** enroll a new Unit to this source. */
-  newUnit(unit: T) {
-    this.allUnits.push(unit);
-    this.availUnit(unit);
-  }
-
+  /** is the top available unit, next to be picked. */
   protected isAvailable(unit: Tile) {
     return this.hex.tile === unit;
   }
 
+  /** move unit to undefined, remove from parent container, remove from available and allUnits. */
   deleteUnit(unit: T) {
     if (unit && this.isAvailable(unit)) {
       unit.moveTo(undefined); // --> this.nextUnit();
       unit.parent?.removeChild(unit);
     }
     const ndx = this.allUnits.indexOf(unit);
-    if (ndx >= 0) {
-      this.allUnits.splice(ndx, 1);
+    if (ndx >= 0) this.allUnits.splice(ndx, 1);
+    const adx = this.available.indexOf(unit);
+    if (adx > 0) {
+      this.available.splice(adx, 1);
+      this.updateCounter();
     }
   }
 

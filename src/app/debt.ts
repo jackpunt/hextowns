@@ -47,7 +47,7 @@ export class Debt extends Token {
   static makeSource(hex: Hex2, n = 30) {
     const source = Debt.source = new DebtSource(hex)
     for (let i = 0; i < n; i++) {
-      source.newUnit(new Debt(i + 1));
+      source.availUnit(new Debt(i + 1));
     }
     source.nextUnit(); // moveTo(source.hex)
     return source;

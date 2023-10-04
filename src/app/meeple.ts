@@ -212,6 +212,21 @@ export class Meeple extends Tile {
     this.faceUp();
     super.sendHome();
   }
+
+  /**
+   * Draw a circle with a thick stroke, making a ring.
+   * @param colorn baseShape fill color
+   * @param rColor ring color (stroke color)
+   * @param ss stroke size
+   * @param rs ring size (reduction in radius)
+   */
+  paintRing(colorn: string, rColor = C.BLACK, ss = 4, rs = 4) {
+    const r = (this.baseShape as MeepleShape).radius;
+    const g = (this.baseShape as MeepleShape).graphics;
+    // this.baseShape.paint(colorn);       // [4, 2]
+    g.ss(ss * TP.hexRad / 60).s(rColor).dc(0, 0, r - (rs * TP.hexRad / 60)) // stroke a colored ring inside black ring
+    this.updateCache();
+  }
 }
 
 export class Leader extends Meeple {
@@ -270,63 +285,17 @@ export class Priest extends Leader {
   }
 }
 
-class SourcedMeeple extends Meeple {
 
-  static makeSource0<TS extends UnitSource<SourcedMeeple>, T extends SourcedMeeple>(stype: new(type, p, hex) => TS, type: new(p: Player, n: number) => T, player: Player, hex: Hex2, n = 0) {
-    const source = new stype(type, player, hex);
-    type['source'][player.index] = source; // static source: TS = [];
-    for (let i = 0; i < n; i++) source.newUnit(new type(player, i + 1))
-    source.nextUnit();  // unit.moveTo(source.hex)
-    return source;
-  }
-
-  constructor(readonly source: UnitSource<SourcedMeeple>, Aname: string, player?: Player, inf?: MeepleInf, vp?: number, cost?: number, econ?: number) {
-    super(Aname, player, inf, vp, cost, econ);
-  }
-
-  /**
-   * Draw a circle with a thick stroke, making a ring.
-   * @param colorn baseShape fill color
-   * @param rColor ring color (stroke color)
-   * @param ss stroke size
-   * @param rs ring size (reduction in radius)
-   */
-  paintRing(colorn: string, rColor = C.BLACK, ss = 4, rs = 4) {
-    const r = (this.baseShape as MeepleShape).radius;
-    const g = (this.baseShape as MeepleShape).graphics;
-    // this.baseShape.paint(colorn);       // [4, 2]
-    g.ss(ss * TP.hexRad / 60).s(rColor).dc(0, 0, r - (rs * TP.hexRad / 60)) // stroke a colored ring inside black ring
-    this.updateCache();
-  }
-
-  override moveTo(hex: Hex) {
-    const source = this.source;
-    const fromHex = this.hex;
-    const toHex = super.moveTo(hex);  // collides with source.hex.meep
-    if (fromHex === this.source.hex && fromHex !== toHex) {
-      source.nextUnit()   // shift; moveTo(source.hex); update source counter
-    }
-    return hex;
-  }
-
-  override sendHome(): void { // Criminal
-    super.sendHome();         // this.resetTile(); moveTo(this.homeHex = undefined)
-    const source = this.source;
-    source.availUnit(this);
-    if (!source.hex.meep) source.nextUnit();
-  }
-}
-
-export class Police extends SourcedMeeple {
-  private static source: UnitSource<Police>[] = [];
+export class Police extends Meeple {
+  static source: UnitSource<Police>[] = [];
 
   static makeSource(player: Player, hex: Hex2, n = TP.policePerPlayer) {
-    return SourcedMeeple.makeSource0(UnitSource, Police, player, hex, n);
+    return Police.makeSource0(UnitSource, Police, player, hex, n);
   }
 
   // Police
   constructor(player: Player, serial: number) {
-    super(Police.source[player.index], `P-${serial}`, player, 1, 0, TP.policeCost, TP.policeEcon);
+    super(`P-${serial}`, player, 1, 0, TP.policeCost, TP.policeEcon);
   }
   override paint(pColor = this.player?.color, colorn = pColor ? TP.colorScheme[pColor] : C1.grey) {
     super.paint(pColor, colorn);
@@ -359,11 +328,11 @@ export class CriminalSource extends UnitSource<Criminal> {
  *
  * if autoCrime, then owning Player is not charged for econ cost.
  */
-export class Criminal extends SourcedMeeple {
-  private static source: CriminalSource[] = [];
+export class Criminal extends Meeple {
+  static source: CriminalSource[] = [];
 
   static makeSource(player: Player, hex: Hex2, n = TP.criminalPerPlayer) {
-    return Criminal.source[player.index] = SourcedMeeple.makeSource0(CriminalSource, Criminal, player, hex, n);
+    return Criminal.makeSource0(CriminalSource, Criminal, player, hex, n);
   }
 
   autoCrime = false;  // set true for zero-econ for this unit.
@@ -371,7 +340,7 @@ export class Criminal extends SourcedMeeple {
   override get econ(): number { return this.autoCrime ? 0 : super.econ; }
 
   constructor(player: Player, serial: number) {
-    super(Criminal.source[player.index], `C-${serial}`, player, 1, 0, TP.criminalCost, TP.criminalEcon)
+    super(`C-${serial}`, player, 1, 0, TP.criminalCost, TP.criminalEcon)
   }
 
   override get infColor(): PlayerColor { return criminalColor; }

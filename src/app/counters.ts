@@ -1,12 +1,12 @@
-import { C, F, S, XY, stime } from "@thegraid/common-lib";
-import { DisplayObject, Shape, Text, MouseEvent } from "@thegraid/easeljs-module";
+import { C, S, XY } from "@thegraid/common-lib";
+import { ValueCounter, ValueEvent } from "@thegraid/easeljs-lib"; // "./value-counter";
+import { DisplayObject, MouseEvent, Shape, Text } from "@thegraid/easeljs-module";
 import { GP } from "./game-play";
 import type { Hex2 } from "./hex";
 import { H } from "./hex-intfs";
-import { TP } from "./table-params";
-import { InfShape } from "./shapes";
-import { ValueCounter, ValueEvent } from "@thegraid/easeljs-lib"; // "./value-counter";
 import type { Player } from "./player";
+import { InfShape } from "./shapes";
+import { TP } from "./table-params";
 
 /** ValueCounter in a Rectangle. */
 export class ValueCounterBox extends ValueCounter {

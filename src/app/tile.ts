@@ -1,5 +1,6 @@
 import { C, Constructor, F, ImageLoader, S, className, stime } from "@thegraid/common-lib";
 import { Bitmap, Container, DisplayObject, MouseEvent, Shape, Text } from "@thegraid/easeljs-module";
+import { NumCounter } from "./counters";
 import type { Debt } from "./debt";
 import { removeChildType } from "./functions";
 import { GP, GamePlay } from "./game-play";
@@ -9,6 +10,7 @@ import { BalMark, C1, CapMark, CenterText, HexShape, InfRays, InfShape, Paintabl
 import type { DragContext, Table } from "./table";
 import { PlayerColor, PlayerColorRecord, TP, criminalColor, playerColorRecord, playerColorsC } from "./table-params";
 import { TileBag } from "./tile-bag";
+import { TileSource } from "./tile-source";
 
 export type AuctionBonus = 'star' | 'econ' | 'infl' | 'actn';
 export type AdjBonusId = 'Bank' | 'Lake';
@@ -181,8 +183,8 @@ class Tile0 extends Container {
    * @param colorn the actual color (default = TP.colorScheme[pColor])
    */
   paint(pColor = this.player?.color, colorn = pColor ? TP.colorScheme[pColor] : C1.grey) {
-    this.baseShape.paint(colorn); // recache baseShape
-    this.updateCache();
+    this.baseShape.paint(colorn); // set or update baseShape.graphics
+    this.updateCache();           // push graphics to bitmapCache
   }
 
   vpStar: DisplayObject;
@@ -254,6 +256,35 @@ export class Tile extends Tile0 {
   static allTiles: Tile[] = [];
 
   static textSize = TP.hexRad / 3;
+
+  static makeSource0<T extends Tile, TS extends TileSource<T>>(
+    clazTS: new (type: Constructor<Tile>, p: Player, hex: Hex2, numCtr?: NumCounter) => TS,
+    claz: Constructor<T>,
+    player: Player,
+    hex: Hex2,
+    n = 0,
+    counter?: NumCounter,
+  ) {
+    const source = new clazTS(claz, player, hex, counter); // make a TileSource<T>
+    if (player) {
+      // static source: TS[] = [];
+      if (!claz['source']) claz['source'] = [];
+      claz['source'][player.index] = source;
+    } else {
+      // static source: TS;
+      claz['source'] = source;
+    }
+    // Create initial Tile/Units:
+    for (let i = 0; i < n; i++) {
+      const unit = new claz(player, i + 1, );
+      source.availUnit(unit);
+    }
+    source.nextUnit();  // unit.moveTo(source.hex)
+    return source as TS;
+  }
+  /** source: when set from TileSource.availUnit */
+  source: TileSource<Tile>;
+
   nameText: Text;
   get nB() { return 0; }
   get nR() { return 0; }
@@ -447,10 +478,17 @@ export class Tile extends Tile0 {
   }
 
   // Tile
-  /** Post-condition: tile.hex == hex; low-level, physical move */
+  /** Post-condition: tile.hex == hex; low-level, physical move.
+   *
+   * calls this.source.nextUnit() if tile was dragged from this.source.
+   */
   moveTo(hex: Hex) {
-    this.hex = hex;     // INCLUDES: hex.tile = tile
-    return hex;
+    const fromHex = this.fromHex;
+    this.hex = hex;       // may collide with source.hex.meep, setUnit, overSet?
+    if (this.source && fromHex === this.source.hex && fromHex !== hex) {
+      this.source.nextUnit()   // shift; moveTo(source.hex); update source counter
+    }
+    return hex;           // TODO: do not return hex; caller to use this.hex;
   }
 
   /** Tile.dropFunc() --> placeTile (to Map, reserve, ~>auction; not Recycle); semantic move/action. */
@@ -504,6 +542,11 @@ export class Tile extends Tile0 {
     this.resetTile();
     this.moveTo(this.homeHex) // override for AuctionTile.tileBag & UnitSource<Meeple>
     if (!this.homeHex) this.parent?.removeChild(this);
+    const source = this.source;
+    if (source) {
+      source.availUnit(this);
+      if (!source.hex.tile) source.nextUnit();
+    }
   }
 
   /**
@@ -803,7 +846,7 @@ export class Monument extends MapTile {
     // TODO: update cost/infl in CostIncCounter
   }
 
-  get source() { return GP.gamePlay.marketSource[this.player.index]['Monument']}
+  // get source() { return GP.gamePlay.marketSource[this.player.index]['Monument']}
 
   override isLegalTarget(toHex: Hex, ctx?: DragContext): boolean {
     if (!super.isLegalTarget(toHex, ctx)) return false;

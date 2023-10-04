@@ -69,9 +69,9 @@ class TokenCounter extends NumCounterBox {
   protected makeUnit(source: TokenSource) {
     const table = GP.gamePlay.table;
     const player = source.player;
-    const unit = new source.type(source, player); // (source, player, inf, vp, cost, econ)
+    const unit = new source.type(player); // (player, inf, vp, cost, econ)
     table.makeDragable(unit);
-    source.newUnit(unit);
+    source.availUnit(unit);
     if (!source.hex.tile) source.nextUnit();
   }
 
@@ -88,49 +88,8 @@ class TokenCounter extends NumCounterBox {
   }
 }
 
-// in theory, Debt could be a SourcedTile...
-/** Tokens [half-size], dispensed from a TileSource */
-class SourcedToken extends Token {
-
-  protected static makeSource0<TS extends TileSource<SourcedToken>, T extends SourcedToken>(
-    stype: new(type: Constructor<T>, p: Player, hex: Hex, counter?: NumCounter) => TS,
-    type: Constructor<T>,
-    useCounter: NumCounter,
-    player: Player, hex: Hex2, n = 0
-  ) {
-    const source = new stype(type, player, hex, useCounter);  // useCounter or stype.makeCounter(...)
-    for (let i = 0; i < n; i++) source.newUnit(new type(source, player));
-    source.nextUnit();  // unit.moveTo(source.hex)
-    return source;
-  }
-
-  constructor(
-    readonly source: TileSource<SourcedToken>,
-    Aname: string, player?: Player, inf?: TileInf, vp?: number, cost?: number, econ?: number
-  ) {
-    super(Aname, player, inf, vp, cost, econ);
-  }
-
-  override moveTo(hex: Hex) {
-    const fromHex = this.hex;
-    super.moveTo(hex);    // may invoke this.overSet(source.hex.tile)?
-    const source = this.source;
-    if (fromHex === source.hex && fromHex !== hex) {
-      source.nextUnit()   // shift; moveTo(source.hex); update source counter
-    }
-    return hex;
-  }
-
-  override sendHome(): void { // Infl
-    super.sendHome();         // this.resetTile(); moveTo(this.homeHex = undefined)
-    const source = this.source;
-    source.availUnit(this);
-    if (!source.hex.tile) source.nextUnit();
-  }
-}
-
 /** Half-size Tokens that confer their bonusType: AuctionBonus to the Tile they are dropped on. */
-export class BonusToken extends SourcedToken {
+export class BonusToken extends Token {
   static Bname(bonusType: AuctionBonus, player: Player) {
     // UID+1 will be this.id
     return `${bonusType}:${player?.index ?? ''}-${UID.get() + 1}`
@@ -138,10 +97,9 @@ export class BonusToken extends SourcedToken {
 
   constructor(
     public bonusType: AuctionBonus,
-    source: TileSource<BonusToken>,
     player?: Player, inf?: TileInf, vp?: number, cost?: number, econ?: number
   ) {
-    super(source, BonusToken.Bname(bonusType, player), player, inf, vp, cost, econ);
+    super(BonusToken.Bname(bonusType, player), player, inf, vp, cost, econ);
   }
 
   override makeShape(): PaintableShape {
@@ -191,11 +149,11 @@ export class InflToken extends BonusToken {
   static colorn = C.nameToRgbaString(C.grey, .8);
 
   static makeSource(player: Player, hex: Hex2, n = 0) {
-    return BonusToken.makeSource0(TokenSource, InflToken, player.InflCounter, player, hex, n);
+    return InflToken.makeSource0(TokenSource, InflToken, player, hex, n, player.InflCounter);
   }
 
-  constructor(source: TokenSource, player: Player, inf: TileInf = 0, vp = 0, cost = 0, econ = 0) {
-    super('infl', source, player, inf, vp, cost, econ);
+  constructor(player: Player, inf: TileInf = 0, vp = 0, cost = 0, econ = 0) {
+    super('infl', player, inf, vp, cost, econ);
   }
 
   override makeShape(): PaintableShape {
@@ -217,11 +175,11 @@ export class InflToken extends BonusToken {
 export class EconToken extends BonusToken {
 
   static makeSource(player: Player, hex: Hex2, n = 0) {
-    return BonusToken.makeSource0(TokenSource, EconToken, player.EconCounter, player, hex, n);
+    return EconToken.makeSource0(TokenSource, EconToken, player, hex, n, player.EconCounter);
   }
 
-  constructor(source: TokenSource, player: Player, inf: TileInf = 0, vp = 0, cost = 0, econ = 0) {
-    super('econ', source, player, inf, vp, cost, econ);
+  constructor(player: Player, inf: TileInf = 0, vp = 0, cost = 0, econ = 0) {
+    super('econ', player, inf, vp, cost, econ);
     this.addChild(new CenterText('$', this.radius * .8, C.GREEN));
     this.updateCache();
   }
@@ -236,7 +194,7 @@ export class EconToken2 extends EconToken {
 }
 export class ActnToken2 extends BonusToken {
   constructor() {
-    super('actn', undefined, undefined, 0, 0, 0, 0);
+    super('actn', undefined, 0, 0, 0, 0);
     this.drawStar('actn');
     const actn = this.getChildAt(4); // HexShape, BalMark, text, text, ActnShape
     actn.scaleX = actn.scaleY = actn.scaleX * 2;
@@ -246,8 +204,8 @@ export class ActnToken2 extends BonusToken {
 }
 
 export class StarToken2 extends BonusToken {
-  constructor(source: TokenSource, player: Player, inf: TileInf = 0, vp = 0, cost = 0, econ = 0) {
-    super('star', source, player, inf, vp, cost, econ);
+  constructor(player: Player, inf: TileInf = 0, vp = 0, cost = 0, econ = 0) {
+    super('star', player, inf, vp, cost, econ);
     const star =this.drawStar('star');
     star.scaleX = star.scaleY = star.scaleX * 1.8;
     this.updateCache();
@@ -264,18 +222,18 @@ export class StarToken extends BonusToken {
   }
 
   static makeSource(player: Player, hex: Hex2, n = 0) {
-    const source = BonusToken.makeSource0(TokenSource, StarToken, undefined, player, hex, n);
+    const source = BonusToken.makeSource0(TokenSource, StarToken, player, hex, n, undefined);
     source.counter.visible = false;
     StarToken.source = source;
     return source;
   }
 
   // invoked from TokenSource.newUnit(source, player)
-  constructor(source: TokenSource, player: Player, inf: TileInf = 0, vp = 0, cost = 0, econ = 0) {
-    super('star', source, player, inf, vp, cost, econ);
+  constructor(player: Player, inf: TileInf = 0, vp = 0, cost = 0, econ = 0) {
+    super('star', player, inf, vp, cost, econ);
     this.drawStar('star');
     this.updateCache();
-    this.homeHex = source?.hex;
+    this.homeHex = this.source?.hex;
   }
 
   override isLegalTarget(toHex: Hex, ctx?: DragContext): boolean {
@@ -297,9 +255,9 @@ export class StarToken extends BonusToken {
 
 // https://www.typescriptlang.org/docs/handbook/mixins.html
 export function BuyTokenMixin(Base: Constructor<BonusToken>) {
-  return class BuyToken extends Base {
-    static makeSource1(claz: Constructor<BuyToken>, player: Player, hex: Hex2, n = 0) {
-      const source = BonusToken.makeSource0(TokenSource, claz, undefined, player, hex, n);
+  const buyTokenWithBase = class BuyToken extends Base {
+    static makeSource1(claz: Constructor<Token>, player: Player, hex: Hex2, n = 0) {
+      const source = BonusToken.makeSource0(TokenSource, claz, player, hex, n, undefined);
       source.counter.visible = false;
       return source;
     };
@@ -307,9 +265,9 @@ export function BuyTokenMixin(Base: Constructor<BonusToken>) {
     static counterName = { infl: 'InflCounter', econ: 'EconCounter' };
 
     // make this look like
-    constructor(source: TokenSource, player: Player, inf: TileInf = 0, vp = 0, cost = 0, econ = 0) {
-      super(source, player, inf, vp, cost, econ); // new Infl(source, player, serial, inf, ...)
-      this.homeHex = source.hex;
+    constructor(player: Player, inf: TileInf = 0, vp = 0, cost = 0, econ = 0) {
+      super(player, inf, vp, cost, econ); // new Infl(source, player, serial, inf, ...)
+      // this.homeHex = source.hex;
     }
 
     override isLegalTarget(toHex: Hex, ctx?: DragContext): boolean {
@@ -332,6 +290,7 @@ export function BuyTokenMixin(Base: Constructor<BonusToken>) {
       super.dropFunc(hex, ctx);
     }
   }
+  return buyTokenWithBase;
 }
 
 export class BuyInfl extends BuyTokenMixin(InflToken) {
@@ -339,17 +298,17 @@ export class BuyInfl extends BuyTokenMixin(InflToken) {
     return BuyInfl.makeSource1(BuyInfl, player, hex, n);
   }
   // invoked from source.newUnit()
-  constructor(source: TokenSource, player: Player) {
-    super(source, player, 0, 0, 10, 0); // new BuyToken(source, player, inf,...)
+  constructor(player: Player) {
+    super(player, 0, 0, 10, 0); // new BuyToken(player, inf,...)
   }
 }
 
 export class BuyEcon extends BuyTokenMixin(EconToken) {
   static makeSource(player: Player, hex: Hex2, n = 0) {
-    return BuyInfl.makeSource1(BuyEcon, player, hex, n);
+    return BuyEcon.makeSource1(BuyEcon, player, hex, n);
   }
-  // invoked from source.newUnit()
-  constructor(source: TokenSource, player: Player) {
-    super(source, player, 0, 0, 10, 0); // new BuyToken(source, player, inf,...)
+  // invoked from source.availUnit()
+  constructor(player: Player) {
+    super(player, 0, 0, 10, 0); // new BuyToken(source, player, inf,...)
   }
 }

@@ -577,8 +577,11 @@ export class Table extends EventDispatcher  {
     const col0 = 2;
     const index = player.index, dir = [1, -1][index]
     const colx = (coff = 0) => dir * (col0 + coff) * TP.hexRad * H.sqrt3_2; // half-width column offset from col0
-    const layoutCounter = (name: string, color: string, rowy: number, coff = 0, incr: boolean | NumCounter = true,
-      claz = NumCounterBox) => {
+    const layoutCounter = (
+      name: string, color: string, rowy: number, coff = 0,
+      incr: boolean | NumCounter = true,
+      claz = NumCounterBox
+    ) => {
       //: new (name?: string, iv?: string | number, color?: string, fSize?: number) => NumCounter
       const cname = `${name}Counter`, fSize = TP.hexRad * .75;
       const counter = player[cname] = new claz(`${cname}:${index}`, 0, color, fSize)
