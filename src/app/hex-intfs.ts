@@ -1,11 +1,19 @@
+import { RC } from "@thegraid/common-lib"
+
 /** Hexagonal canonical directions */
 export enum Dir { C, NE, E, SE, SW, W, NW }
-export type HexDir = 'NE' | 'E' | 'SE' | 'S' | 'SW' | 'W' | 'NW' | 'N'
-export type InfDir = Exclude<HexDir, 'N' | 'S'>        //
+export type HexDir = 'NE' | 'EN' | 'E' | 'ES' | 'SE' | 'S' | 'SW' | 'WS' | 'W' | 'WN' | 'NW' | 'N';
+export type XYWH = { x: number, y: number, w: number, h: number } // like a Rectangle
+export type EwDir = Exclude<HexDir, 'N' | 'S' | 'EN' | 'WN' | 'ES' | 'WS'>;
+export type NsDir = Exclude<HexDir, 'E' | 'W' | 'NE' | 'NW' | 'SE' | 'SW'>;
+
+export type InfDir = Exclude<HexDir, 'N' | 'S' | 'EN' | 'ES' | 'WS' | 'WN'>        //
 export type HexAxis = Exclude<InfDir, 'SW' | 'W' | 'NW'>
-export type XYWH = {x: number, y: number, w: number, h: number} // like a Rectangle
-export type EwDir = Exclude<HexDir, 'N' | 'S'>
-export type NsDir = Exclude<HexDir, 'E' | 'W'>
+
+type DCR    = { [key in "dc" | "dr"]: number }  // Delta for Col & Row
+export type TopoEW = { [key in EwDir]: DCR }
+export type TopoNS = { [key in NsDir]: DCR }
+export type Topo = TopoEW | TopoNS
 
 /** Hex things */
 export namespace H {
@@ -22,16 +30,57 @@ export namespace H {
   export const SE: HexDir = "SE"
   export const SW: HexDir = "SW"
   export const NW: HexDir = "NW"
+  export const EN: HexDir = "EN"
+  export const ES: HexDir = "ES"
+  export const WS: HexDir = "WS"
+  export const WN: HexDir = "WN"
+  export function hexBounds(r = this.radius, tilt = 0) {
+    // dp(...6), so tilt: 30 | 0; being nsAxis or ewAxis;
+    const w = r * Math.cos(H.degToRadians * tilt);
+    const h = r * Math.cos(H.degToRadians * (tilt - 30));
+    return { x: -w, y: -h, width: 2 * w, height: 2 * h };
+  }
+  /** neighborhood topology, E-W & N-S orientation; even(n0) & odd(n1) rows: */
+  export const ewEvenRow: TopoEW = {
+    NE: { dc: 0, dr: -1 }, E: { dc: 1, dr: 0 }, SE: { dc: 0, dr: 1 },
+    SW: { dc: -1, dr: 1 }, W: { dc: -1, dr: 0 }, NW: { dc: -1, dr: -1 }
+  }
+  export const ewOddRow: TopoEW = {
+    NE: { dc: 1, dr: -1 }, E: { dc: 1, dr: 0 }, SE: { dc: 1, dr: 1 },
+    SW: { dc: 0, dr: 1 }, W: { dc: -1, dr: 0 }, NW: { dc: 0, dr: -1 }
+  }
+  export const nsEvenCol: TopoNS = {
+    EN: { dc: +1, dr: -1 }, N: { dc: 0, dr: -1 }, ES: { dc: +1, dr: 0 },
+    WS: { dc: -1, dr: 0 }, S: { dc: 0, dr: +1 }, WN: { dc: -1, dr: -1 }
+  }
+  export const nsOddCol: TopoNS = {
+    EN: { dc: 1, dr: 0 }, N: { dc: 0, dr: -1 }, ES: { dc: 1, dr: 1 },
+    WS: { dc: -1, dr: 1 }, S: { dc: 0, dr: 1 }, WN: { dc: -1, dr: 0 }
+  }
+  export function nsTopo(rc: RC): TopoNS { return (rc.col % 2 == 0) ? H.nsEvenCol : H.nsOddCol };
+  export function ewTopo(rc: RC): TopoEW { return (rc.row % 2 == 0) ? H.ewEvenRow : H.ewOddRow };
+
+  /** includes E & W, suitable for EwTopo */
+  export const ewDirs: EwDir[] = [NE, E, SE, SW, W, NW]; // directions for EwTOPO
+  /** includes N & S, suitable for NsTopo */
+  export const nsDirs: NsDir[] = [N, EN, ES, S, WS, WN]; // directions for NsTOPO
+  /** all hexDirs */
+  export const hexDirs: HexDir[] = (H.ewDirs as HexDir[]).concat(H.nsDirs); // standard direction signifiers () ClockWise
+
+  // angles for ewTopo!
+  export const ewDirRot: {[key in EwDir] : number} = { NE: 30, E: 90, SE: 150, SW: 210, W: 270, NW: 330 }
+  // angles for nwTopo!
+  export const nsDirRot: {[key in NsDir] : number} = { N: 0, EN: 60, ES: 120, S: 180, WS: 240, WN: 300 }
+  export const dirRot: { [key in HexDir]: number } = { ...H.ewDirRot, ...H.nsDirRot }
+
+  export const dirRev: {[key in HexDir] : HexDir} = { N: S, S: N, E: W, W: E, NE: SW, SE: NW, SW: NE, NW: SE, ES: WN, EN: WS, WS: EN, WN: ES }
+  export const dirRevEW: {[key in EwDir] : EwDir} = { E: W, W: E, NE: SW, SE: NW, SW: NE, NW: SE }
+  export const dirRevNS: {[key in NsDir] : NsDir} = { N: S, S: N, EN: WS, ES: WN, WS: EN, WN: ES }
+  export const rotDir: { [key: number]: HexDir } = { 0: 'N', 30: 'NE', 60: 'EN', 90: 'E', 120: 'ES', 150: 'SE', 180: 'S', 210: 'SW', 240: 'WS', 270: 'W', 300: 'WN', 330: 'NW', 360: 'N' }
 
   export const axis: HexAxis[] = [NE, E, SE];           // minimal reference directions
   export const dirs: HexDir[] = [NE, E, SE, SW, W, NW]; // standard direction signifiers () ClockWise
-  export const ewDirs: EwDir[] = [NE, E, SE, SW, W, NW]; // directions for EwTOPO
-  export const nsDirs: NsDir[] = [NE, SE, S, SW, NW, N]; // directions for NsTOPO
-  export const infDirs: InfDir[] = dirs as InfDir[]     // until we extract from typeof InfDir
-  export const ewDirRot: {[key in HexDir] : number} = { N: 0, NE: 30, E: 90, SE: 150, S: 180, SW: 210, W: 270, NW: 330 }
-  export const dirRev: {[key in HexDir] : HexDir} = { N: S, S: N, E: W, W: E, NE: SW, SE: NW, SW: NE, NW: SE }
-  export const dirRevEW: {[key in EwDir] : EwDir} = { E: W, W: E, NE: SW, SE: NW, SW: NE, NW: SE }
-  export const dirRevNS: {[key in NsDir] : NsDir} = { N: S, S: N, NE: SW, SE: NW, SW: NE, NW: SE }
+  export const infDirs: InfDir[] = dirs as InfDir[];
   export const dnToAxis: { [key in InfDir]: HexAxis } = { NW: 'SE', W: 'E', SW: 'NE', NE: 'NE', E: 'E', SE: 'SE' }
   export const dnToAxis2: { [key in InfDir]: InfDir } = { NW: 'NW', W: 'W', SW: 'SW', NE: 'NE', E: 'E', SE: 'SE' }
 

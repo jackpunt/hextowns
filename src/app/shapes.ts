@@ -92,7 +92,7 @@ export class HexShape extends PaintableShape {
     readonly tilt = TP.useEwTopo ? 30 : 0,  // ewTopo->30, nsTopo->0
   ) {
     super((fillc) => this.hscgf(fillc));
-    this.setHexBounds(radius, tilt); // Assert: radius & tilt are readonly, so bounds never changes!
+    this.setHexBounds(); // Assert radius & tilt are readonly, so bounds never changes!
   }
 
   setCacheID() {
@@ -236,6 +236,7 @@ export class InfShape extends HexShape {
     return this.graphics;
   }
 }
+
 export class TileShape extends HexShape {
   static fillColor = C1.white_8;
 

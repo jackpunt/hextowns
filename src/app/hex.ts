@@ -717,29 +717,13 @@ export class HexMap extends Array<Array<Hex>> implements HexM {
     }
   }
 
-  /** neighborhood topology, E-W & N-S orientation; even(n0) & odd(n1) rows: */
-  ewEvenRow: TopoEW = {
-    NE: { dc: 0, dr: -1 }, E: { dc: 1, dr: 0 }, SE: { dc: 0, dr: 1 },
-    SW: { dc: -1, dr: 1 }, W: { dc: -1, dr: 0 }, NW: { dc: -1, dr: -1 }}
-  ewOddRow: TopoEW = {
-    NE: { dc: 1, dr: -1 }, E: { dc: 1, dr: 0 }, SE: { dc: 1, dr: 1 },
-    SW: { dc: 0, dr: 1 }, W: { dc: -1, dr: 0 }, NW: { dc: 0, dr: -1 }}
-  nsOddCol: TopoNS = {
-    NE: { dc: 1, dr: -1 }, SE: { dc: 1, dr: 0 }, S: { dc: 0, dr: 1 }, N: { dc: 0, dr: -1 },
-    SW: { dc: -1, dr: 0 }, NW: { dc: -1, dr: -1 }}
-  nsEvenCol: TopoNS = {
-    NE: { dc: 1, dr: 0 }, SE: { dc: 1, dr: 1 }, S: { dc: 0, dr: 1 }, N: { dc: 0, dr: -1 },
-    SW: { dc: -1, dr: 1}, NW: { dc: -1, dr: 0 }}
-  nsTopo(rc: RC): TopoNS { return (rc.col % 2 == 0) ? this.nsEvenCol : this.nsOddCol }
-  ewTopo(rc: RC): TopoEW { return (rc.row % 2 == 0) ? this.ewEvenRow : this.ewOddRow}
-
-  nextRowCol(hex: RC, dir: HexDir, nt: Topo = this.ewTopo(hex)): RC {
+  nextRowCol(hex: RC, dir: HexDir, nt: Topo = H.ewTopo(hex)): RC {
     let row = hex.row + nt[dir].dr, col = hex.col + nt[dir].dc
     return {row, col}
   }
 
   /** link hex to/from each extant neighor */
-  link(hex: Hex, rc: RC = hex, map: Hex[][] = this, nt: Topo = this.ewTopo(rc), lf: (hex: Hex) => LINKS = (hex) => hex.links) {
+  link(hex: Hex, rc: RC = hex, map: Hex[][] = this, nt: Topo = H.ewTopo(rc), lf: (hex: Hex) => LINKS = (hex) => hex.links) {
     let topoDirs = Object.keys(nt) as Array<HexDir>
     topoDirs.forEach(dir => {
       let nr = rc.row + nt[dir].dr, nc = rc.col + nt[dir].dc //let {row, col} = this.nextRowCol(hex, dir, nt)
