@@ -79,6 +79,37 @@ export class TileSource<T extends Tile> {
     }
   }
 
+  /** move all units to undefined, and remove from parent container.
+   * remove all from available (and allUnits)
+   * @return number of units deleted (previous length of allUnits).
+   */
+  deleteAll(doAlso: (unit: T) => void) {
+    const n = this.allUnits.length;
+    this.allUnits.forEach(unit => {
+      unit.moveTo(undefined); // --> this.nextUnit();
+      unit.parent?.removeChild(unit);
+      doAlso(unit);
+    })
+    this.allUnits.length = 0;
+    this.available.length = 0;
+    this.updateCounter();
+    return n;
+  }
+
+  filterUnits(pred: (unit: T, ndx?: number) => boolean) { return this.allUnits.filter(pred) }
+
+  get sourceHexUnit() {
+    return (this.hex.tile || this.hex.meep) as T; // moveTo puts it somewhere...
+  }
+
+  /** programmatic, vs Table.dragStart */
+  takeUnit() {
+    const unit = this.sourceHexUnit;
+    unit?.moveTo(undefined);
+    this.nextUnit();
+    return unit;
+  }
+
   /** move next available unit to source.hex, make visible */
   nextUnit(unit = this.available.shift()) {
     if (unit) {
