@@ -67,7 +67,7 @@ export class TileSource<T extends Tile> {
   /** move unit to undefined, remove from parent container, remove from available and allUnits. */
   deleteUnit(unit: T) {
     if (unit && this.isAvailable(unit)) {
-      unit.moveTo(undefined); // --> this.nextUnit();
+      this.takeUnit();        // --> this.nextUnit();
       unit.parent?.removeChild(unit);
     }
     const ndx = this.allUnits.indexOf(unit);
@@ -102,7 +102,7 @@ export class TileSource<T extends Tile> {
     return (this.hex.tile || this.hex.meep) as T; // moveTo puts it somewhere...
   }
 
-  /** programmatic, vs Table.dragStart */
+  /** programmatic, vs Table.dragStart: moveTo(undefined) */
   takeUnit() {
     const unit = this.sourceHexUnit;
     unit?.moveTo(undefined);
@@ -112,6 +112,7 @@ export class TileSource<T extends Tile> {
 
   /** move next available unit to source.hex, make visible */
   nextUnit(unit = this.available.shift()) {
+    // if (this.sourceHexUnit) return this.sourceHexUnit;
     if (unit) {
       unit.visible = true;
       unit.moveTo(this.hex);     // and try push to available

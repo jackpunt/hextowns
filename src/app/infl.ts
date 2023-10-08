@@ -157,9 +157,9 @@ export class InflToken extends BonusToken {
   }
 
   override makeShape(): PaintableShape {
-    const shape = new InfShape(InflToken.colorn);
-    shape.scaleX = shape.scaleY = .5; // <--- move to better place
-    return shape;
+    const baseShape = new InfShape(InflToken.colorn);
+    baseShape.scaleX = baseShape.scaleY = .5; // <--- move to better place
+    return baseShape;
   }
 
   override paint(pColor?: PlayerColor, colorn = InflToken.colorn): void {
@@ -172,6 +172,12 @@ export class InflToken extends BonusToken {
   }
 }
 
+export class InflToken2 extends InflToken {
+  override paint(pColor?: PlayerColor, colorn = InflToken.colorn): void {
+    super.paint(pColor, colorn);
+    this.baseShape.colorn = C.WHITE;
+  }
+}
 export class EconToken extends BonusToken {
 
   static makeSource(player: Player, hex: Hex2, n = 0) {
@@ -189,7 +195,8 @@ export class EconToken2 extends EconToken {
   constructor() {
     super(undefined, undefined);
     const text = this.getChildAt(this.numChildren - 1);
-    text.scaleX = text.scaleY = text.scaleX * 1.8;
+    text.scaleX = text.scaleY = text.scaleX * 1.3;
+    text.y += 4;
   }
 }
 export class ActnToken2 extends BonusToken {
@@ -197,8 +204,8 @@ export class ActnToken2 extends BonusToken {
     super('actn', undefined, 0, 0, 0, 0);
     this.drawStar('actn');
     const actn = this.getChildAt(4); // HexShape, BalMark, text, text, ActnShape
-    actn.scaleX = actn.scaleY = actn.scaleX * 2;
-    actn.x += this.radius * .7; actn.y += this.radius * .6;
+    actn.scaleX = actn.scaleY = actn.scaleX * 1.8;
+    actn.x += this.radius * .6; actn.y += this.radius * .6;
     this.updateCache();
   }
 }
@@ -207,7 +214,7 @@ export class StarToken2 extends BonusToken {
   constructor(player: Player, inf: TileInf = 0, vp = 0, cost = 0, econ = 0) {
     super('star', player, inf, vp, cost, econ);
     const star =this.drawStar('star');
-    star.scaleX = star.scaleY = star.scaleX * 1.8;
+    star.scaleX = star.scaleY = star.scaleX * 1.5;
     this.updateCache();
   }
 }

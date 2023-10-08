@@ -34,6 +34,8 @@ export class TP {
   static allowMultiEvent = false;
   static anyPlayerAdj = true;
   static bankAdjBank = false;
+  static tvpPerVP = 4;       // integrate long-term vp -> TVP
+  static vpMulWhenCmplt = 2; // bonus for the last 1 or 2 rounds.
   static nCivics = 4;
   static vpOnCivic = 1;
   static infOnCivic = 0;

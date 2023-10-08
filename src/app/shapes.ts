@@ -171,13 +171,10 @@ export class RectShape extends PaintableShape {
   rect: XYWH;
   constructor({ x = 0, y = 0, w = 30, h = 30 }: XYWH, public fillc = C.white, public strokec = C.black, g0?: Graphics) {
     super((fillc) => this.rscgf(fillc));
-    this.rect = { x, y, w: w, h: h }
+    this.rect = { x, y, w, h }
     this.g0 = g0?.clone();
     this.paint(fillc);
-    const g = this.graphics;
-    if (fillc) g.f(fillc);
-    if (strokec) g.s(strokec);
-    g.dr(x ?? 0, y ?? 0, w ?? 30, h ?? 30);
+    // TODO: rounded rectangle!
   }
 
   rscgf(fillc: string) {
@@ -200,7 +197,7 @@ export class InfRays extends Shape {
    * @param yOut end ray @ YOut X TP.hexRad
    * @param xw width of each ray
    */
-  constructor(inf = 1, colorn: string, yIn = .7, yOut = .9, xw = 3, g = new Graphics()) {
+  constructor(inf = 1, colorn: string, yIn = .7, yOut = .9, xw = 3 * TP.hexRad / 60, g = new Graphics()) {
     super(g);
     const rad = TP.hexRad, y1 = yIn * rad, y2 = yOut * rad;
     const xs = [[0], [-.1 * rad, +.1 * rad], [-.1 * rad, 0, +.1 * rad]][Math.abs(inf) - 1];

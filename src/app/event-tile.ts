@@ -1,12 +1,12 @@
-import { AT, C, Constructor, stime } from '@thegraid/common-lib';
-import { TileBag } from "./tile-bag";
+import { AT, Constructor, stime } from '@thegraid/common-lib';
 import { GP, GamePlay } from './game-play';
 import { Hex } from './hex';
-import { DragContext } from './table';
-import { BagTile, Civic, Tile } from './tile';
-import { Criminal, Leader, Police } from './meeple';
-import { TP } from './table-params';
 import { H } from './hex-intfs';
+import { Criminal, Leader, Police } from './meeple';
+import { DragContext } from './table';
+import { TP } from './table-params';
+import { BagTile, Civic, Tile } from './tile';
+import { TileBag } from "./tile-bag";
 
 interface EvalSpec {
   text?: string,
@@ -33,11 +33,12 @@ class SpecClass implements EvalSpec {
   constructor(public cost: number, public text: string, spec: EvalSpec) {
     Object.keys(spec).forEach(key => this[key] = spec[key]);
   }
-  val?: number;
-  econ?: number;
-  vp?: number;
-  tvp = 0;
-  tile?: EvalTile;
+  val: number;    // storage for computed value
+  econ: number;   // contributes to player.econ (like '$' on a map tile)
+  vp: number;     // contributes to player.vps  (like '*' on a map tile)
+  tvp = 0;        // contributes to player TVP  (sets player.tvp0)
+  tile: EvalTile; // the tile hosting this SpecClass
+
   nOnMap(claz: Constructor<Tile>, op = false) {
     const player = op ? this.tile.player.otherPlayer : this.tile.player;
     return player.allOnMap(claz).length;
@@ -81,15 +82,15 @@ class EventSpecs extends EventSpec {
 
   allSpecs: EvalSpec[] = [
     // Urban renewal:
-    { text: 'Demolish  your Resi  +5 TVP', Aname: 'Demo Resi +5 TVP' },
-    { text: 'Demolish  your Lake  +5 TVP', Aname: 'Demo Lake +5 TVP' },
-    { text: 'Demolish  your Busi  +5 Coins', Aname: 'Demo Busi +5 Coins' },
+    { text: 'Demolish  your Resi  +2 TVP', Aname: 'Demo Resi +2 TVP' },
+    { text: 'Demolish  your Lake  +3 TVP', Aname: 'Demo Lake +3 TVP' },
+    { text: 'Demolish  your Busi  +4 Coins', Aname: 'Demo Busi +4 Coins' },
     { text: 'Demolish  your Bank  +5 Coins', Aname: 'Demo Bank +5 Coins' },
     { text: 'Demolish  an Auction  tile', Aname: 'Demo Auction' },
     // Blank events:
     { text: '', Aname: 'Blank' },
-    { text: '', Aname: 'Blank'},
-    { text: '', Aname: 'Blank'},
+    { text: '', Aname: 'Blank' },
+    { text: '', Aname: 'Blank' },
     // Positive events:
     { text: 'Do a  Crime  action', Aname: 'Crime Action' },
     { text: 'Do a  Build  action', Aname: 'Build Action' },
@@ -171,27 +172,6 @@ class VpUntilHired extends VpWhenCond {
       this.origMeeps = undefined;
     }
   }
-  // phex() {
-  //   console.log(stime(this, `.phex:`), this);
-  //   this.incVp0(this.val);
-  //   this.curMeeps = this.meepf();
-  // }
-  // eval0() {
-  //   this.curMeeps = this.meepf();
-  // };
-  // eval1() {
-  //   if (!!this.meepf().find(meep => !this.curMeeps.includes(meep))) {
-  //     this.incVp0(-this.val);
-  //     this.curMeeps = undefined;
-  //     this.tile.sendHome();
-  //   }
-  // };
-  // rhex() {
-  //   if (this.curMeeps !== undefined) {
-  //     this.incVp0(-this.val);
-  //     this.curMeeps = undefined;
-  //   }
-  // }
 }
 
 class PolicySpecs extends SpecClass {
@@ -202,8 +182,8 @@ class PolicySpecs extends SpecClass {
   // 'until' Policy loses effect when condition fails; and is removed by eval0 or eval1.
 
   allSpecs: EvalSpec[] = [ // TODO: use claz, otherPlyr: boolean
-    new VpUntilHired(8, '+1 VP  until  Police  is hired', { Aname: 'No Police' }, Police),
-    new VpUntilHired(10, '+1 VP  until  Leader  is hired', { Aname: 'No Leader' }, Leader,),
+    new VpUntilHired(12, '+2 VP  until  Police  is hired', { Aname: 'No Police' }, Police),
+    new VpUntilHired(12, '+2 VP  until  Leader  is hired', { Aname: 'No Leader' }, Leader,),
     new VpUntilHired(12, '+1 VP  until  Criminal  is hired', { Aname: 'No Mercs' }, Criminal),
 
     new VpWhenCond(8, '+1 VP  when no  opposing  Criminal', { Aname: 'No Crime', val: 1, },
@@ -215,7 +195,7 @@ class PolicySpecs extends SpecClass {
       eval1: function () { this.incVp0(- this.val); this.incVp0(this.val = this.nOnMap(Police)); },
       rhex: function () { this.incVp0(- this.val); this.val = 0; }
     }),
-    new SpecClass(10, '+20 TVP  until  Police', {          // discard when Police are hired
+    new SpecClass(12, '+20 TVP  until  Police', {          // discard when Police are hired
       Aname: 'Never Police', tvp: 20, val: 0,
       phex: function () { this.incTvp0(this.val = 20) },
       eval1: function () { if (this.nOnMap(Police) > 0) { this.recycle() } },
@@ -223,12 +203,12 @@ class PolicySpecs extends SpecClass {
     }),
 
     new EconWhenCond(20, '+1 Econ', { Aname: 'Invest-1', val: 1 }, true),
-    new EconWhenCond(20, '+1 Econ', { Aname: 'Invest-2', val: 1 }, true),
+    // new EconWhenCond(20, '+1 Econ', { Aname: 'Invest-2', val: 1 }, true),
 
     new EconWhenCond(10, '+1 Econ  per  Police', { Aname: 'Econ/Police', val: 0 },
       function () { (this as any as EconWhenCond).setVal(this.val = this.nOnMap(Police)); return true; }),
 
-    new VpWhenCond(10, '+1 Vp  per  Police', { Aname: 'VP/Police', val: 0 },
+    new VpWhenCond(10, '+1 VP  per  Police', { Aname: 'VP/Police', val: 0 },
       function () { (this as any as VpWhenCond).setVal(this.val = this.nOnMap(Police)); return true; }),
 
     new EconWhenCond(10, '+1 Econ  for one  Police', { Aname: 'Police +1', val: 1 }, function () { return this.nOnMap(Police) >= this.val }),
@@ -239,22 +219,29 @@ class PolicySpecs extends SpecClass {
     new EconWhenCond(15, '+2 Econ  for two  Civics', { Aname: 'Civic +2', val: 2 }, function () { return this.nOnMap(Civic) >= this.val }),
     new EconWhenCond(10, '+3 Econ  for three  Civics', { Aname: 'Civic +3', val: 3 }, function () { return this.nOnMap(Civic) >= this.val }),
 
-    new SpecClass(8, '+10 TVP  if no  adjacent  Civics', { Aname: 'No adjacent Civics', val: 10,
+    new SpecClass(30, '+1 Econ  per  Leader  on map', { Aname: 'Leader discount',
+      phex: function () { this.econ = this.tile.player.allOnMap(Leader).length; },
+      eval1: function () { this.econ = this.tile.player.allOnMap(Leader).length; },
+    }),
+
+    new SpecClass(8, '+12 TVP  -2 TVP per  adjacent  Civics', { Aname: 'No adjacent Civics', val: 10,
       ehex: function () { this.val = 0; },
-      phex: function () { this.incTvp0(this.val = 10) },
+      phex: function () { this.incTvp0(this.val = 12) },
       rhex: function () { this.incTvp0(-this.val) },
       eval1: function () {
-        const adj = this.tile.player.allOnMap(Civic).find((civ: Civic) => civ.hex.findLinkHex(hex => hex.tile instanceof Civic));
-        this.incTvp0((this.val = (adj ? 0 : 10)) - this.val);
+        const civics = this.tile.player.allOnMap(Civic) as Civic[];
+        const adj = civics.filter((civ: Civic) => !!civ.hex.findLinkHex(hex => hex.tile instanceof Civic));
+        this.incTvp0((this.val = (12 - adj.length * 2)) - this.val);
       },
     }),
-    new SpecClass(8, '+30 TVP  if no  colinear  Civics', { Aname: 'No colinear Civics', val: 30,
+    new SpecClass(8, '+30 TVP  -5 TVP per  colinear  Civics', { Aname: 'No colinear Civics', val: 30,
       ehex: function () { this.val = 0; },
       phex: function () { this.incTvp0(this.val = 30) },
       rhex: function () { this.incTvp0(-this.val) },
       eval1: function () {
-        const adj = this.tile.player.allOnMap(Civic).find((civ: Civic) => civ.hex.findLinkHex((hex, dir) => !!hex.findInDir(dir, hex => hex.tile instanceof Civic)));
-        this.incTvp0((this.val = (adj ? 0 : 10)) - this.val);
+        const civics = this.tile.player.allOnMap(Civic) as Civic[];
+        const adj = civics.filter((civ: Civic) => !!civ.hex.findLinkHex((hex, dir) => !!hex.findInDir(dir, hex => hex.tile instanceof Civic)));
+        this.incTvp0((this.val = (30 - adj.length * 5)) - this.val);
       },
     }),
     new SpecClass(8, 'Extra  Reserve  Hex', { Aname: 'Reserve Hex 1', }),  // place this as Reserve Hex

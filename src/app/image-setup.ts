@@ -23,6 +23,9 @@ export type GridSpec = {
   x1?: number,    // odd numbered line indent (x1 ?? x0)
   delx?: number,
   dely?: number,
+  cardw?: number,
+  cardh?: number,
+  bleed?: number,
   dpi?: number,   // multiply [x0, y0, delx, dely] to get pixels; default: 1 (already in pixels)
 }
 
@@ -63,10 +66,22 @@ export class ImageGrid {
   /** 8 rows of 8 columns */
   static circDouble_0_79: GridSpec = {
     width: 3300, height: 5100, nrow: 8, ncol: 8,
-    x0: 245, y0: 335, x1: 435,
+    x0: 242, y0: 335, x1: 430,
     delx: 375, dely: 375,  // ; 2625/7 = 375 ; 1876/5 = 375.2
     dpi: 1,
   }
+    // (define PPG-POKER-18-SPEC '((file "PPGPoker18-0.png") (cardw 1108) (cardh 808)
+    // (xmin 120) (ymin 85) (xinc 1125) (yinc 825)
+    // (ncol 3) (nrow 6) (bleed 25)))
+  static cardSingle_3_5: GridSpec = {
+    width: 3600, height: 5400, nrow: 6, ncol: 3, cardw: 1110, cardh: 810, // (w*300 + 2*bleed)
+    x0: 120 + 3.5 * 150 + 30, y0: 85 + 3.5 * 150 + 30, delx: 1125, dely: 825, bleed: 30,
+  };
+
+  static cardSingle_1_75: GridSpec = {
+    width: 3600, height: 5400, nrow: 9, ncol: 4, cardw: 800, cardh: 575,
+    x0: 150 + 1.75 * 150 + 30, y0: 100 + 1.75 * 150 + 30, delx: 833, dely: 578.25, bleed: 30,
+  };
 
   stage: Stage;
   canvas: HTMLCanvasElement;

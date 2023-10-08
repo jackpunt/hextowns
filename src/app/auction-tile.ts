@@ -135,7 +135,7 @@ export class AuctionTile extends MapTile implements BagTile {
     }
 
     // if from market source:
-    gamePlay.fromMarket(this.fromHex)?.nextUnit();
+    if (!this.source?.hex.tile) this.source?.nextUnit();
     gamePlay.updateCostCounters(); // update if fromMarket (or toMarket!)
 
     // special treatment for where tile landed:

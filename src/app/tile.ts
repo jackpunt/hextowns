@@ -1,16 +1,17 @@
 import { C, Constructor, F, ImageLoader, S, className, stime } from "@thegraid/common-lib";
-import { Bitmap, Container, DisplayObject, MouseEvent, Shape, Text } from "@thegraid/easeljs-module";
+import { Bitmap, Container, DisplayObject, Graphics, MouseEvent, Shape, Text } from "@thegraid/easeljs-module";
 import { NumCounter } from "./counters";
 import type { Debt } from "./debt";
-import { removeChildType } from "./functions";
+import { removeChildType, selectN } from "./functions";
 import { GP, GamePlay } from "./game-play";
 import { Hex, Hex2, HexMap } from "./hex";
 import type { Player } from "./player";
-import { BalMark, C1, CapMark, CenterText, HexShape, InfRays, InfShape, PaintableShape, TileShape } from "./shapes";
+import { BalMark, C1, CapMark, CenterText, HexShape, InfRays, InfShape, PaintableShape, RectShape, TileShape } from "./shapes";
 import type { DragContext, Table } from "./table";
 import { PlayerColor, PlayerColorRecord, TP, criminalColor, playerColorRecord, playerColorsC } from "./table-params";
 import { TileBag } from "./tile-bag";
 import { TileSource } from "./tile-source";
+import { CountClaz } from "./tile-exporter";
 
 export type AuctionBonus = 'star' | 'econ' | 'infl' | 'actn';
 export type AdjBonusId = 'Bank' | 'Lake';
@@ -357,7 +358,10 @@ export class Tile extends Tile0 {
     if (_econ !== 0) this.drawEcon(_econ);
     this.nameText = this.addTextChild(rad / 4);
     this.infText = this.addTextChild(rad / 2, '');
+    const ctSize = rad / 5, txt = this.cost > 0 ? `${this.cost}` : ``;
+    this.costText = this.addTextChild(rad * .7, txt, ctSize, true);
   }
+  costText: Text;
 
   setPlayerAndPaint(player: Player) {
     this.player = player;
@@ -772,36 +776,105 @@ export class Civic extends MapTile {
   }
 }
 
-type TownSpec = string
+type RuleSpec = [ts0: string, ts1: string, c0?: string, c1?: string];
+export class TownRule extends Tile {
+  static override allTiles: TownRule[];
+  static rulesBag: TownRule[] = [];
 
-export class TownRules {
-  static rulesText: Array<Array<TownSpec>> = [
-    ['+1 Actn, +1 Coins  (fast start)', '+6 Econ  (fast start)'], // 6 Econ buys Police/Mayor
-    ['+1 TVP per R/B in 37 meta-hex around TC, -2 TVP per other hex', // (compact) ~23 (4-Civic, Lake, Bank, PS)
-     '+1 TVP per R/B*, R/B* are Level-1 (compact)'], // -1 inflR on R/B*
-    ['+4 TVP per Civic-adj-Civic', '+1 per edge of Civic meta-triad'], // 12-20 TVP (dense), 6,12,24 (tactical/spread)
-    ['+2 TVP per tile in longest strip', '+4 TVP per strip >= length 5 (strip)'], // 10-20 ; 12-24
-    ['+3 TVP per business triad', '+3 per resi triad'], // 18-27 & Banks!; more R, but Lakes
-    ['+10 TVP per business r-hex', '+10 per residential r-hex (hexes)'], // 6 in ring
-    ['+1 TVP per Police & Station & Prisoner & Threat (police state)'],  // threats at EoG (also regular prisoner points)
-    ['+24 TVP, -1 per Police & Station & Police Action (libertarian)'], // -1 everytime you build/recruit!
-    ['+1 TVP, +1 Coin per Criminal hired', '+1 TVP for each tile/meep destroyed (crime boss)'], //
-  ];
-  rulesBag: TownSpec[] = [];
-  fillRulesBag() {
-    this.rulesBag = TownRules.rulesText.slice(0)[0];
+  /** make Card images */
+  static makeAllTiles() {
+    TownRule.allTiles = TownRule.rulesText.map((spec, ndx) => new TownRule(spec));
   }
-  selectOne(bag = this.rulesBag) {
-    return bag.splice(Math.floor(Math.random() * bag.length), 1);
+
+  static fillRulesBag() {
+    TownRule.makeAllTiles();
+    TownRule.rulesBag = TownRule.allTiles.concat();
   }
-  static inst = new TownRules();
+
+  static selectOne() {
+    const rule = selectN(TownRule.allTiles, 1, true)[0];
+    return rule;
+  }
+
+  static rulesText = [
+    // ['', ''],
+    ['+1 Actn, +1 Coin  for first 6 turns', '+6 Econ  for first 6 turns', 'Fast Start'], // 6 Econ buys Police/Mayor
+    ['+1 TVP per Resi/Busi  within 3 steps of TC,  -2 TVP per other Tile', // (compact) ~23/39 (4-Civic, Lake, Bank, PS)
+      '+1 TVP per open edge,  -1 TVP per tile', 'Compact', 'Linear'], // -1 inflR on R/B*
+    ['+2 TVP per tile  in longest strip', '+4 TVP per strip  length >= 5', 'Strip'], // 10-20 ; 12-24
+    ['+3 TVP per Busi triad', '+3 per Resi triad', 'Busi triads', 'Resi triads'], // 18-27 & Banks!; more R, but Lakes
+    ['+4 TVP per adjacent Civic pair', '+1 per edge  of Civic meta-triad', 'Civic cluster', 'Civic spread'], // 12-20 TVP (dense), 6,12,24 (tactical/spread)
+    ['+12 TVP  -2 TVP per adjacent Civic pair', '+30 TVP  -5 TVP per colinear Civic pair', 'Civic placement'],
+    ['+10 TVP per Busi ring', '+10 per Resi ring', 'Busi ring', 'Resi ring'], // 6 in corners of ring
+    ['+1 TVP per Police  + Station + Prisoner + Threat',  // threats at EoG (also regular prisoner points)
+      '+24 TVP, -1 Coin per Police   + Station + Police Action', 'Police State', 'Libertarian'], // -1 everytime you build/recruit!
+    ['+1 TVP, +1 Coin  per Criminal hired', '+1 TVP per tile/meep  destroyed',  'Crime boss'], //
+  ] as RuleSpec[];
+  static countClaz = TownRule.rulesText.map(rt => [1, TownRule, rt] as CountClaz);
+
+  rules: RuleSpec;
+  constructor(rules: RuleSpec) {
+    super(undefined, undefined, 0, 0, 0, 0);
+    this.rules = rules;
+    const line = new Shape(new Graphics().ss(3).s('black').mt(-this.radius/2, 0).lt(this.radius/2, 0));
+    this.addChild(line);
+    this.makeText(0);
+    this.makeText(1);
+    return;
+  }
+  get edge() { return 18 * TP.hexRad / 60 }  // bleed around edge
+  get lineH() { return 18 * TP.hexRad / 60 } // nominal 18-point text
+
+  override get radius(): number { return 3.5 * 300 } // width of Card
+  override paint(pColor?: "b" | "w" | "c", colorn?: string): void {
+    super.paint(pColor, C.WHITE);
+  }
+
+  ruleText: CenterText[] = [];
+
+  makeText(n = 0) {
+    const [rule0, rule1, title0, title1] = this.rules;
+    const rule = this.rules[n];
+    const lineText = rule ? this.lineBreak(`${['A','B'][n]}: ${rule}`) : '';
+    const nLines = lineText.split('\n').length, lineH = this.lineH;
+    const ss = this.edge, w = this.radius - ss, h = w * (2.5 / 3.5) - ss, h2 = h / 2;
+
+    const y0 = [-h2, h2][n] / 2;
+    const text = this.addTextChild(y0, lineText, lineH, true);
+    text.regY =  (lineH * nLines) / 2;
+    text.rotation = [0, 180][n];
+    this.ruleText[n] = text;
+
+    const y1 = [- lineH, lineH][n]/4;
+    const title =  [title0, title1 ?? title0][n] ?? '';//  this.rules[n + 2] ?? ['', this.rules[n + 1] ?? ''][n];
+    const title2 = (title1 !== undefined) ? title : `${title} ${['A', 'B'][n]}`;
+    const titleText = this.addTextChild(y1, title2, lineH, true);
+    titleText.regY =  (lineH) / 2;
+    titleText.rotation = [0, 180][n];
+
+  }
+
+  flip() {
+    this.ruleText.forEach(rt => rt.rotation = (rt.rotation === 0) ? 180 : 0);
+  }
+
+  lineBreak(text: string) { return text.split('  ').join('\n') }
+
+  override makeShape(): PaintableShape {
+    const ss = this.edge, w = this.radius, h = w * (2.5 / 3.5);
+    const x = -w / 2, y = -h / 2;
+    const baseShape = new RectShape({ x, y, w: w, h: h }, C.white, C.grey, new Graphics().ss(ss));
+    baseShape.setBounds(x, y, w, y);
+    return baseShape;
+  }
+
+
 }
 
 export class TownStart extends Civic {
   override get fB() { return 1; } // TS
   override get fR() { return 1; } // TS
 
-  rule: TownSpec;
   constructor(player: Player) {
     super(player, 'TS', 'TownStart')
   }
@@ -842,8 +915,8 @@ export class Monument extends MapTile {
     this.addImageBitmap(`Monument${inst}`);
   }
   override get cost(): number {
-    return Monument.costs[this.source.counter.getValue() - 1];
-    // TODO: update cost/infl in CostIncCounter
+    const inst = Monument.getId(this.player); // super constructor *has* set player;
+    return (this.source) ? Monument.costs[(this.source.counter.getValue()) - 1] : Monument.cost[inst];
   }
 
   // get source() { return GP.gamePlay.marketSource[this.player.index]['Monument']}
@@ -864,3 +937,15 @@ export class Monument extends MapTile {
     if (!this.source.hex.tile) this.source.nextUnit();
   }
 }
+
+export class Monument2 extends Monument {
+  constructor(Aname?: string, player?: Player, inf = 1, vp = 1, cost = 0, econ = -1, inst = 0) {
+    super(Aname, player, inf, vp, Monument.cost[inst], econ, inst);
+    this.addImageBitmap(`Monument${inst}`);
+  }
+
+  override get cost(): number {
+    return this._cost;
+  }}
+
+

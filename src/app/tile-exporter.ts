@@ -1,16 +1,16 @@
 import { C, Constructor, stime } from "@thegraid/common-lib";
 import { Container, DisplayObject } from "@thegraid/easeljs-module";
-import { AuctionTile, Bank, Blank, Busi, Lake, PS, Resi } from "./auction-tile";
+import { Bank, Blank, Busi, Lake, PS, Resi } from "./auction-tile";
 import { DebtCircle } from "./debt";
 import { EventTile, PolicyTile } from "./event-tile";
 import { H } from "./hex-intfs";
 import { ImageGrid, PageSpec } from "./image-setup";
-import { ActnToken2, EconToken2, InflToken, StarToken2 } from "./infl";
+import { ActnToken2, EconToken2, InflToken2, StarToken2 } from "./infl";
 import { Player } from "./player";
-import { CircleShape, HexShape, PaintableShape } from "./shapes";
-import { BonusTile, Church, Courthouse, Monument, Tile, TownStart, University } from "./tile";
+import { CircleShape, HexShape, PaintableShape, TileShape } from "./shapes";
+import { BonusTile, Church, Courthouse, MapTile, Monument2, Tile, TownRule, TownStart, University } from "./tile";
 
-type CountClaz = [count: number, claz: Constructor<Tile>, ...args: any];
+export type CountClaz = [count: number, claz: Constructor<Tile>, ...args: any];
 export class TileExporter {
   constructor(buttonId = 'makePage', label = 'MakePages') {
     this.setAnchorClick(buttonId, label, () => this.makeImagePages());
@@ -27,9 +27,9 @@ export class TileExporter {
   makeImagePages() {
     const u = undefined, p0 = Player.allPlayers[0], p1 = Player.allPlayers[1];
     const hexDouble = [
-      [2, Monument, u, u, u, u, u, u, 0],
-      [2, Monument, u, u, u, u, u, u, 1],
-      [2, Monument, u, u, u, u, u, u, 2],
+      [2, Monument2, u, u, u, u, u, u, 0],
+      [2, Monument2, u, u, u, u, u, u, 1],
+      [2, Monument2, u, u, u, u, u, u, 2],
       [1, TownStart, p0], [1, TownStart, p1],
       [1, Church, p0], [1, Church, p1],
       [1, University, p0], [1, University, p1],
@@ -45,19 +45,23 @@ export class TileExporter {
       ...EventTile.allTileArgs.map(clasArgs => [1, EventTile, ...clasArgs]), // 19 + 5 + 3
       //
       ...PolicyTile.allTileArgs.map(clasArgs => [1, PolicyTile, ...clasArgs]), // 14 + 6 + 1
-      [20, Busi], // TP.busiPerPlayer * 2, 18,
       [5, Blank], //
+      [20, Busi], // TP.busiPerPlayer * 2, 18,
       [24, Resi], // TP.resiPerPlayer * 2, 22,
     ] as CountClaz[];
     const circDouble = [
       [8, DebtCircle],
       [8, ActnToken2],
       [8, EconToken2],
-      [8, InflToken],
+      [8, InflToken2],
       [8, StarToken2],
     ] as CountClaz[];
+    const ruleFront = TownRule.countClaz as CountClaz;
+
     const pageSpecs = [];
-    this.tilesToTemplate(circDouble, ImageGrid.circDouble_0_79, pageSpecs);
+    this.tilesToTemplate(hexDouble, ImageGrid.hexDouble_1_19, pageSpecs);
+    // this.tilesToTemplate(circDouble, ImageGrid.circDouble_0_79, pageSpecs);
+    this.tilesToTemplate(ruleFront, ImageGrid.cardSingle_3_5, pageSpecs);
     this.downloadPageSpecs(pageSpecs);
   }
 
@@ -65,16 +69,17 @@ export class TileExporter {
   composeTile(claz: Constructor<Tile>, args: any[], player: Player, edge: 'L'|'R'|'C', addBleed = 28) {
     const cont = new Container();
     if (claz) {
-      const tile = new claz(...args);
+      const tile = new claz(...args), base = tile.baseShape as PaintableShape;
       tile.setPlayerAndPaint(player);
-      const back = new CircleShape(C.WHITE, tile.radius * H.sqrt3_2 * (55 / 60));
+      const backRad = (base instanceof TileShape) ? tile.radius * H.sqrt3_2 * (55 / 60) : 0;
+      const back = new CircleShape(C.WHITE, backRad);
       const bleed = new HexShape(tile.radius + addBleed); // .09 inch + 1px
       {
-        bleed.paint((tile.baseShape as PaintableShape).colorn ?? C.grey, true);
+        bleed.paint(base.colorn ?? C.grey, true);
         // bleed.paint(C.lightpink, true);
         // trim to fit template, allow extra on first/last column of row:
         const dx0 = (edge === 'L') ? 30 : 0, dw = (edge === 'R') ? 30 : 0;
-        const { x, y, width, height } = tile.baseShape.getBounds(), d = -3;
+        const { x, y, width, height } = base.getBounds(), d = -3;
         bleed.setBounds(x, y, width, height);
         bleed.cache(x - dx0, y - d, width + dx0 + dw, height + 2 * d);
       }
@@ -100,13 +105,13 @@ export class TileExporter {
         const addBleed = (true || n > 3 && n < 32) ? undefined : -10; // for DEBUG: no bleed to see template positioning
         if (!frontAry[pagen]) frontAry[pagen] = [];
         const col = n % ncol, edge = (col === 0) ? 'L' : (col === ncol - 1) ? 'R' : 'C';
-        const frontTile = this.composeTile(claz, args, frontPlayer, edge, addBleed)
+        const frontTile = this.composeTile(claz, args, frontPlayer, edge, addBleed);
         frontAry[pagen].push(frontTile);
         if (double) {
           if (!backAry[pagen]) backAry[pagen] = [];
           const backTile = (claz === BonusTile) ? undefined : this.composeTile(claz, args, backPlayer, edge, addBleed);
           const tile = backTile?.getChildAt(2);
-          if (tile && !(tile instanceof AuctionTile || tile instanceof Monument)) tile.rotation = 180;
+          if (tile && !(tile instanceof MapTile)) tile.rotation = 180;
           backAry[pagen].push(backTile);
         }
       }

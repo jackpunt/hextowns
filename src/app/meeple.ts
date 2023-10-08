@@ -354,9 +354,9 @@ export class Criminal extends Meeple {
     }
   }
 
-  override moveTo(hex: Hex) {
+  override moveTo(toHex: Hex) {
     if (this.hex === this.source.hex && this.autoCrime) this.paint();
-    const toHex = super.moveTo(hex);
+    super.moveTo(toHex);
     const curPlayer = GP.gamePlay.curPlayer;
     if (toHex === GP.gamePlay.recycleHex && this.player !== curPlayer) {
       curPlayer.coins -= this.econ;   // capturing player gets this Criminal's salary (0 if autoCrime)

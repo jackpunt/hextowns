@@ -3,13 +3,12 @@ import { KeyBinder, S, Undo, stime } from "@thegraid/easeljs-lib";
 import { Container } from "@thegraid/easeljs-module";
 import { EzPromise } from "@thegraid/ezpromise";
 import { AuctionTile, Bank, Busi, Lake, PS, Resi, } from "./auction-tile";
-import { TileBag } from "./tile-bag";
 import { CostIncCounter } from "./counters";
 import { AutoCrime, EvalTile, EventTile, PolicyTile } from "./event-tile";
 import { GameSetup } from "./game-setup";
 import { Hex, Hex2, HexMap, IHex } from "./hex";
 import { H } from "./hex-intfs";
-import { Criminal, Leader, Meeple } from "./meeple";
+import { Criminal, Meeple } from "./meeple";
 import type { Planner } from "./plan-proxy";
 import { Player } from "./player";
 import { CenterText } from "./shapes";
@@ -17,7 +16,8 @@ import { GameStats, TableStats } from "./stats";
 import { LogWriter } from "./stream-writer";
 import { AuctionShifter, Table } from "./table";
 import { PlayerColor, PlayerColorRecord, TP, criminalColor, otherColor, playerColorRecord, playerColors, } from "./table-params";
-import { AuctionBonus, BagTile, BonusTile, Civic, MapTile, Monument, Tile, TownRules } from "./tile";
+import { AuctionBonus, BagTile, BonusTile, Civic, MapTile, Monument, Tile, TownRule } from "./tile";
+import { TileBag } from "./tile-bag";
 import { TileSource } from "./tile-source";
 //import { NC } from "./choosers";
 
@@ -77,14 +77,6 @@ export class GamePlay0 {
   readonly marketTypes: Constructor<MapTile>[] = [Busi, Resi, Monument];
   // an Object per-Player:: type: <Constructor<Tile>,  { type.name: TileSource<type> }
   readonly marketSource: { Busi?: TileSource<Busi>, Resi?: TileSource<Resi>, Monument?: TileSource<Monument> }[] = [{},{}];
-  /** return the market with given Source.hex; or undefined if not from market. */
-  fromMarket(fromHex: Hex) {
-    let rv: TileSource<Tile>;
-    this.marketSource.find(ms => {
-      return rv = Object.values(ms).find(source => fromHex === source.hex);
-    })
-    return rv;
-  }
 
   removeFromAuction(tile: BagTile) {
     // remove from auctionTiles:
@@ -143,7 +135,7 @@ export class GamePlay0 {
     EventTile.makeAllTiles();
     PolicyTile.makeAllTiles();
     BonusTile.makeAllTiles();
-    TownRules.inst.fillRulesBag();
+    TownRule.fillRulesBag();
   }
 
   recycleHex: Hex;          // set by Table.layoutTable()
@@ -323,8 +315,9 @@ export class GamePlay0 {
     // this.rollDiceForBonus();
     this.curPlayer.policyHexes.forEach(hex => hex.tile instanceof PolicyTile && hex.tile.eval1());
     // Jubilee if win condition:
-    const playerVps = this.curPlayer.isComplete ? 2 * this.curPlayer.vps : this.curPlayer.vps;
-    this.curPlayer.totalVps += this.didPlayerBuild ? playerVps : Math.floor(playerVps / 2);
+    const playerVps = this.curPlayer.isComplete ? TP.vpMulWhenCmplt * this.curPlayer.vps : this.curPlayer.vps;
+    // When Build: recieve VP/N -> TVP
+    this.curPlayer.totalVps += this.didPlayerBuild ? Math.floor(playerVps / TP.tvpPerVP) : 0;
     if (this.isEndOfGame()) {
       this.endGame();
     } else {
@@ -521,7 +514,7 @@ export class GamePlay0 {
     // no charge unless from off-Map to onMap/reserve/policy
     if (!(!tile.hex?.isOnMap && (toMap || toPolicy || toReserve))) return false;
     // tile is NOT On Map && IS going to [Map or Policy or Reserve]
-    const [infR, coinR] = this.getInfR(tile); // assert coinR >= 0
+    const [infR, coinR] = this.getInfR(tile, toReserve ? -1 : undefined); // assert coinR >= 0
     let inflR = 0;
     if (toMap && infR > 0) {
       // infls can be used to reduce the influence required to deploy:
@@ -597,6 +590,7 @@ export class GamePlay0 {
     if (tile.fromHex?.isOnMap) {
       if (tile.player !== this.curPlayer) {
         this.curPlayer.captures++;
+        this.curPlayer.totalVps++;
         verb = 'captured';
       } else if (tile instanceof Meeple) {
         this.curPlayer.coins -= tile.econ;  // dismiss Meeple, claw-back salary.
@@ -677,7 +671,7 @@ export class GamePlay extends GamePlay0 {
   override autoCrime(force = false) {
     // no autoCrime until all Players have TP.econForCrime:
     if (!force && this.allPlayers.find(plyr => plyr.econs < TP.econForCrime)) return; // poverty
-    const meep = this.curPlayer.criminalSource.hexMeep; //     meep.startHex = meep.source.hex;
+    const meep = this.curPlayer.criminalSource.takeUnit();  //   meep.startHex = meep.source.hex;
     if (!meep) return;               // no Criminals available
     meep.autoCrime = true;           // no econ charge to curPlayer
     const targetHex = this.autoCrimeTarget(meep);

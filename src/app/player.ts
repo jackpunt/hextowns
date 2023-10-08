@@ -9,7 +9,7 @@ import { Chancellor, Criminal, CriminalSource, Judge, Leader, Mayor, Meeple, Pol
 import { IPlanner, newPlanner } from "./plan-proxy";
 import { CenterText } from "./shapes";
 import { PlayerColor, TP } from "./table-params";
-import { Church, Civic, Courthouse, MapTile, Tile, TownRules, TownStart, University } from "./tile";
+import { Church, Civic, Courthouse, MapTile, Tile, TownRule, TownStart, University } from "./tile";
 import { UnitSource } from "./tile-source";
 
 export class Player {
@@ -68,7 +68,7 @@ export class Player {
   get coins() { return this.coinCounter?.getValue(); }
   set coins(v: number) { this.coinCounter?.updateValue(v); }
 
-  captureCounter: NumCounter;
+  captureCounter: NumCounter; // indicates number of TVPs that have been awarded for capture
   get captures() { return this.captureCounter?.getValue(); }
   set captures(v: number) { this.captureCounter?.updateValue(v); }
 
@@ -110,7 +110,7 @@ export class Player {
 
   vpCounter: NumCounter;
   get vps() {
-    let vp = this.vp0 + this.captures;
+    let vp = this.vp0;
     this.gamePlay.hexMap.forEachHex(hex => {
       const myTile = hex.tile?.player === this;
       const dv = (!myTile || hex.meep instanceof Criminal || hex.tile?.debt) ? 0 :
@@ -186,11 +186,12 @@ export class Player {
     }
   }
 
+  townRule: string;
   /** choose TownRules & placement of TownStart */
   placeTown(town = this.civicTiles[0] as TownStart) {
-    let ruleCard = TownRules.inst.selectOne();
-    town.rule = ruleCard[Math.floor(Math.random() * 2)];
-    // in principle this could change based on the town.rule...
+    const townRule = TownRule.selectOne();
+    this.townRule = townRule.rules[0];
+    // in principle this could change based on the townRule...
     this.gamePlay.placeEither(town, this.initialHex) // place and assert influence.
   }
 
