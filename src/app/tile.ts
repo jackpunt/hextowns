@@ -797,7 +797,6 @@ export class TownRule extends Tile {
   }
 
   static rulesText = [
-    // ['', ''],
     ['+1 Actn, +1 Coin  for first 6 turns', '+6 Econ  for first 6 turns', 'Fast Start'], // 6 Econ buys Police/Mayor
     ['+1 TVP per Resi/Busi  within 3 steps of TC,  -2 TVP per other Tile', // (compact) ~23/39 (4-Civic, Lake, Bank, PS)
       '+1 TVP per open edge,  -1 TVP per tile', 'Compact', 'Linear'], // -1 inflR on R/B*
@@ -809,6 +808,7 @@ export class TownRule extends Tile {
     ['+1 TVP per Police  + Station + Prisoner + Threat',  // threats at EoG (also regular prisoner points)
       '+24 TVP, -1 Coin per Police   + Station + Police Action', 'Police State', 'Libertarian'], // -1 everytime you build/recruit!
     ['+1 TVP, +1 Coin  per Criminal hired', '+1 TVP per tile/meep  destroyed',  'Crime boss'], //
+    ['', '', '', ''], ['', '', '', ''], ['', '', '', ''],
   ] as RuleSpec[];
   static countClaz = TownRule.rulesText.map(rt => [1, TownRule, rt] as CountClaz);
 

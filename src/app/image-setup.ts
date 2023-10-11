@@ -27,6 +27,7 @@ export type GridSpec = {
   cardh?: number,
   bleed?: number,
   dpi?: number,   // multiply [x0, y0, delx, dely] to get pixels; default: 1 (already in pixels)
+  double?:boolean,
 }
 
 export type PageSpec = {
@@ -75,7 +76,7 @@ export class ImageGrid {
     // (ncol 3) (nrow 6) (bleed 25)))
   static cardSingle_3_5: GridSpec = {
     width: 3600, height: 5400, nrow: 6, ncol: 3, cardw: 1110, cardh: 810, // (w*300 + 2*bleed)
-    x0: 120 + 3.5 * 150 + 30, y0: 85 + 3.5 * 150 + 30, delx: 1125, dely: 825, bleed: 30,
+    x0: 120 + 3.5 * 150 + 30, y0: 85 + 3.5 * 150 + 30, delx: 1125, dely: 825, bleed: 30, double: false,
   };
 
   static cardSingle_1_75: GridSpec = {

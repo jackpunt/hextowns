@@ -202,10 +202,9 @@ export class EconToken2 extends EconToken {
 export class ActnToken2 extends BonusToken {
   constructor() {
     super('actn', undefined, 0, 0, 0, 0);
-    this.drawStar('actn');
-    const actn = this.getChildAt(4); // HexShape, BalMark, text, text, ActnShape
+    const actn = this.drawStar('actn');
     actn.scaleX = actn.scaleY = actn.scaleX * 1.8;
-    actn.x += this.radius * .6; actn.y += this.radius * .6;
+    actn.x += this.radius * .64; actn.y += this.radius * .6;
     this.updateCache();
   }
 }
@@ -213,7 +212,7 @@ export class ActnToken2 extends BonusToken {
 export class StarToken2 extends BonusToken {
   constructor(player: Player, inf: TileInf = 0, vp = 0, cost = 0, econ = 0) {
     super('star', player, inf, vp, cost, econ);
-    const star =this.drawStar('star');
+    const star = this.drawStar('star');
     star.scaleX = star.scaleY = star.scaleX * 1.5;
     this.updateCache();
   }

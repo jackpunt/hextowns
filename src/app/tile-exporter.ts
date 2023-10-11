@@ -50,7 +50,7 @@ export class TileExporter {
       [24, Resi], // TP.resiPerPlayer * 2, 22,
     ] as CountClaz[];
     const circDouble = [
-      [8, DebtCircle],
+      [16, DebtCircle],
       [8, ActnToken2],
       [8, EconToken2],
       [8, InflToken2],
@@ -59,9 +59,9 @@ export class TileExporter {
     const ruleFront = TownRule.countClaz as CountClaz;
 
     const pageSpecs = [];
-    this.tilesToTemplate(hexDouble, ImageGrid.hexDouble_1_19, pageSpecs);
-    // this.tilesToTemplate(circDouble, ImageGrid.circDouble_0_79, pageSpecs);
+    this.tilesToTemplate(circDouble, ImageGrid.circDouble_0_79, pageSpecs);
     this.tilesToTemplate(ruleFront, ImageGrid.cardSingle_3_5, pageSpecs);
+    this.tilesToTemplate(hexDouble, ImageGrid.hexDouble_1_19, pageSpecs);
     this.downloadPageSpecs(pageSpecs);
   }
 
@@ -90,7 +90,7 @@ export class TileExporter {
 
   /** each PageSpec will identify the canvas that contains the Tile-Images */
   tilesToTemplate(countClaz: CountClaz[], gridSpec = ImageGrid.hexDouble_1_19, pageSpecs: PageSpec[] = []) {
-    const both = true, double = true;
+    const both = true, double = gridSpec.double ?? true;
     const frontAry = [] as DisplayObject[][];
     const backAry = [] as DisplayObject[][];
     const page = pageSpecs.length;
