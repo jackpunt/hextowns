@@ -95,17 +95,14 @@ export class HexShape extends PaintableShape {
     this.setHexBounds(); // Assert radius & tilt are readonly, so bounds never changes!
   }
 
+  setHexBounds(r = this.radius, tilt = this.tilt) {
+    const b = H.hexBounds(r, tilt);
+    this.setBounds(b.x, b.y, b.width, b.height);
+  }
+
   setCacheID() {
     const b = this.getBounds();              // Bounds are set
     this.cache(b.x, b.y, b.width, b.height);
-  }
-
-  setHexBounds(r = this.radius, tilt = this.tilt) {
-    // dp(...6), so tilt: 30 | 0; being nsAxis or ewAxis;
-    const w = r * Math.cos(H.degToRadians * tilt);
-    const h = r * Math.cos(H.degToRadians * (tilt - 30));
-    this.setBounds(-w, -h, 2 * w, 2 * h);
-    return { x: -2, y: -H, w: 2 * w, h: 2 * h };
   }
 
   /**
