@@ -4,7 +4,7 @@ import { Bank, Blank, Busi, Lake, PS, Resi } from "./auction-tile";
 import { DebtCircle } from "./debt";
 import { EventTile, PolicyTile } from "./event-tile";
 import { H } from "./hex-intfs";
-import { ImageGrid, PageSpec } from "./image-setup";
+import { ImageGrid, PageSpec } from "./image-grid";
 import { ActnToken2, EconToken2, InflToken2, StarToken2 } from "./infl";
 import { Player } from "./player";
 import { CircleShape, HexShape, PaintableShape, TileShape } from "./shapes";
