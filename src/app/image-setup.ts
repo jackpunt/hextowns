@@ -1,17 +1,7 @@
 import { WH, stime } from "@thegraid/common-lib";
+import { makeStage } from "@thegraid/easeljs-lib";
 import { Container, DisplayObject, Stage } from "@thegraid/easeljs-module";
 
-
-function makeStage(canvasId: string | HTMLCanvasElement, tick = true) {
-  let stage = new Stage(canvasId)
-  stage.tickOnUpdate = stage.tickChildren = tick
-  if (!stage.canvas) {
-    stage.enableMouseOver(0)
-    stage.enableDOMEvents(false)
-    stage.tickEnabled = stage.tickChildren = false
-  }
-  return stage
-}
 
 export type GridSpec = {
   width: number,  // canvas size
