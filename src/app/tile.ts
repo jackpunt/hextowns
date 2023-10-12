@@ -255,6 +255,7 @@ class Tile0 extends Container {
  */
 export class Tile extends Tile0 {
   static allTiles: Tile[] = [];
+  static rotateBack = 180;
 
   static textSize = TP.hexRad / 3;
 
@@ -663,6 +664,7 @@ export interface BagTile extends Tile {
 
 /** Tiles that can be played to the Map: AuctionTile, Civic, Monument, BonusTile */
 export class MapTile extends Tile {
+  static override rotateBack = 0;
   override dragStart(ctx: DragContext): void {
     super.dragStart(ctx);
     if (this.infP > 0) this.setInfRays(this.infP);  // tile influence w/o meeple
@@ -692,6 +694,7 @@ export class MapTile extends Tile {
  * BonusTile.isOnMap but tile.player === undefined!
  */
 export class BonusTile extends MapTile implements BagTile {
+  static override rotateBack = undefined;
   static override allTiles: TileBag<BonusTile> = new TileBag<BonusTile>();
   static makeAllTiles(n = TP.bonusPerType) {
     for (let i = 0; i < n; i++) {

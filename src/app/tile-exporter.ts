@@ -8,19 +8,30 @@ import { ImageGrid, PageSpec } from "./image-setup";
 import { ActnToken2, EconToken2, InflToken2, StarToken2 } from "./infl";
 import { Player } from "./player";
 import { CircleShape, HexShape, PaintableShape, TileShape } from "./shapes";
-import { BonusTile, Church, Courthouse, MapTile, Monument2, Tile, TownRule, TownStart, University } from "./tile";
+import { BonusTile, Church, Courthouse, Monument2, TownRule, TownStart, University } from "./tile";
+// end imports
 
-export type CountClaz = [count: number, claz: Constructor<Tile>, ...args: any];
+interface Tile extends DisplayObject {
+  baseShape: DisplayObject;
+  radius: number;
+  setPlayerAndPaint(player?: Player): void;
+}
+
+interface Claz extends Constructor<Tile> {
+  rotateBack: number | undefined;
+}
+
+export type CountClaz = [count: number, claz: Claz, ...args: any];
 export class TileExporter {
   constructor(buttonId = 'makePage', label = 'MakePages') {
     this.setAnchorClick(buttonId, label, () => this.makeImagePages());
   }
   imageGrid = new ImageGrid();
 
-  setAnchorClick(id: string, text: string, onclick?: ((ev) => void) | 'stop') {
+  setAnchorClick(id: string, text: string, onclick?: ((ev: MouseEvent) => void) | 'stop') {
     const anchor = document.getElementById(id) as HTMLAnchorElement;
     anchor.innerHTML = `<button type="button">${text}</button>`;
-    if (onclick === 'stop') { anchor.href = 'javascript:void(0);'; anchor.onclick = undefined; }
+    if (onclick === 'stop') { anchor.href = 'javascript:void(0);'; anchor.onclick = null; }
     else if (onclick) anchor.onclick = onclick;
   }
 
@@ -58,15 +69,15 @@ export class TileExporter {
     ] as CountClaz[];
     const ruleFront = TownRule.countClaz as CountClaz;
 
-    const pageSpecs = [];
-    this.tilesToTemplate(circDouble, ImageGrid.circDouble_0_79, pageSpecs);
-    this.tilesToTemplate(ruleFront, ImageGrid.cardSingle_3_5, pageSpecs);
-    this.tilesToTemplate(hexDouble, ImageGrid.hexDouble_1_19, pageSpecs);
+    const pageSpecs: PageSpec[] = [];
+    this.clazToTemplate(circDouble, ImageGrid.circDouble_0_79, pageSpecs);
+    this.clazToTemplate(ruleFront, ImageGrid.cardSingle_3_5, pageSpecs);
+    this.clazToTemplate(hexDouble, ImageGrid.hexDouble_1_19, pageSpecs);
     this.downloadPageSpecs(pageSpecs);
   }
 
   /** compose bleed, background and Tile (Tile may be transparent, so white background over bleed) */
-  composeTile(claz: Constructor<Tile>, args: any[], player: Player, edge: 'L'|'R'|'C', addBleed = 28) {
+  composeTile(claz: Constructor<Tile>, args: any[], player?: Player, edge: 'L' | 'R' | 'C' = 'C', addBleed = 28) {
     const cont = new Container();
     if (claz) {
       const tile = new claz(...args), base = tile.baseShape as PaintableShape;
@@ -89,10 +100,10 @@ export class TileExporter {
   }
 
   /** each PageSpec will identify the canvas that contains the Tile-Images */
-  tilesToTemplate(countClaz: CountClaz[], gridSpec = ImageGrid.hexDouble_1_19, pageSpecs: PageSpec[] = []) {
+  clazToTemplate(countClaz: CountClaz[], gridSpec = ImageGrid.hexDouble_1_19, pageSpecs: PageSpec[] = []) {
     const both = true, double = gridSpec.double ?? true;
     const frontAry = [] as DisplayObject[][];
-    const backAry = [] as DisplayObject[][];
+    const backAry = [] as (DisplayObject[] | undefined)[];
     const page = pageSpecs.length;
     const { nrow, ncol } = gridSpec, perPage = nrow * ncol;
     let nt = page * perPage;
@@ -108,11 +119,14 @@ export class TileExporter {
         const frontTile = this.composeTile(claz, args, frontPlayer, edge, addBleed);
         frontAry[pagen].push(frontTile);
         if (double) {
-          if (!backAry[pagen]) backAry[pagen] = [];
-          const backTile = (claz === BonusTile) ? undefined : this.composeTile(claz, args, backPlayer, edge, addBleed);
-          const tile = backTile?.getChildAt(2);
-          if (tile && !(tile instanceof MapTile)) tile.rotation = 180;
-          backAry[pagen].push(backTile);
+          const backAryPagen = backAry[pagen] ?? (backAry[pagen] = []) as (DisplayObject | undefined)[];
+          let backTile = undefined;
+          if (claz.rotateBack !== undefined) {
+            backTile = this.composeTile(claz, args, backPlayer, edge, addBleed);
+            const tile = backTile.getChildAt(2); // [bleed, back, tile]
+            tile.rotation = claz.rotateBack;
+          }
+          backAryPagen.push(backTile);
         }
       }
     });
@@ -136,7 +150,7 @@ export class TileExporter {
       }
       const n = nclick++;
       const pageSpec = pageSpecs[n];
-      const canvas = pageSpec.canvas;
+      const canvas = pageSpec.canvas as HTMLCanvasElement;
       const filename = `${baseName}_P${n}.png`;
       // console.log(stime(this, `.downloadClick: ${canvasId} -> ${filename}`))
       this.imageGrid.downloadImage(canvas, filename);
