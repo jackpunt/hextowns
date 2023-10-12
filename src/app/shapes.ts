@@ -68,9 +68,9 @@ export class PaintableShape extends Shape implements Paintable {
     }
   }
   /** previous/current graphics that were rendered. */
-  cgfGraphics: Graphics;
+  cgfGraphics: Graphics | undefined;
   /** render graphics from cgf. */
-  paint(colorn: string = this.colorn, force = false): Graphics {
+  paint(colorn: string  | undefined = this.colorn, force = false): Graphics {
     if (force || this.graphics !== this.cgfGraphics || this.colorn !== colorn) {
       // need to repaint, even if same color:
       this.graphics.clear();
@@ -91,7 +91,7 @@ export class HexShape extends PaintableShape {
     readonly radius = TP.hexRad,
     readonly tilt = TP.useEwTopo ? 30 : 0,  // ewTopo->30, nsTopo->0
   ) {
-    super((fillc) => this.hscgf(fillc));
+    super((fillc) => this.hscgf(fillc as string));
     this.setHexBounds(); // Assert radius & tilt are readonly, so bounds never changes!
   }
 
@@ -119,8 +119,8 @@ export class HexShape extends PaintableShape {
 export class CircleShape extends PaintableShape {
   g0: Graphics;
   constructor(public fillc = C.white, public rad = 30, public strokec = C.black, g0?: Graphics) {
-    super((fillc) => this.cscgf(fillc));
-    this.g0 = g0?.clone();
+    super((fillc) => this.cscgf(fillc as string));
+    this.g0 = g0?.clone() ?? new Graphics();
     this.paint(fillc);
   }
 
@@ -135,8 +135,8 @@ export class CircleShape extends PaintableShape {
 export class PolyShape extends PaintableShape {
   g0: Graphics;
   constructor(public nsides = 4, public tilt = 0, public fillc = C.white, public rad = 30, public strokec = C.black, g0?: Graphics) {
-    super((fillc) => this.pscgf(fillc));
-    this.g0 = g0?.clone();
+    super((fillc) => this.pscgf(fillc as string));
+    this.g0 = g0?.clone() ?? new Graphics();
     this.paint(fillc);
   }
 
@@ -152,6 +152,11 @@ export class RectShape extends PaintableShape {
   static rectWHXY(w: number, h: number, x = -w / 2, y = -h / 2, g0 = new Graphics()) {
     return g0.dr(x, y, w, h)
   }
+
+  static rectWHXYr(w: number, h: number, x = -w / 2, y = -h / 2, r = 0, g0 = new Graphics()) {
+    return g0.rr(x, y, w, h, r);
+  }
+
   /** draw rectangle suitable for given Text; with border, textAlign. */
   static rectText(t: Text | string, fs?: number, b?: number, align = (t instanceof Text) ? t.textAlign : 'center', g0 = new Graphics()) {
     const txt = (t instanceof Text) ? t : new CenterText(t, fs ?? 30);
@@ -164,14 +169,20 @@ export class RectShape extends PaintableShape {
     return RectShape.rectWHXY(w, h, -x, -h / 2, g0);
   }
 
-  g0: Graphics;
+  g0: Graphics | undefined;
   rect: XYWH;
-  constructor({ x = 0, y = 0, w = 30, h = 30 }: XYWH, public fillc = C.white, public strokec = C.black, g0?: Graphics) {
-    super((fillc) => this.rscgf(fillc));
+  rc: number = 0;
+  constructor(
+    { x = 0, y = 0, w = 30, h = 30, r = 0 }: XYWH & { r?: number },
+    public fillc = C.white,
+    public strokec = C.black,
+    g0?: Graphics
+  ) {
+    super((fillc) => this.rscgf(fillc as string));
     this.rect = { x, y, w, h }
-    this.g0 = g0?.clone();
+    this.rc = r;
+    this.g0 = g0?.clone() ?? new Graphics();
     this.paint(fillc);
-    // TODO: rounded rectangle!
   }
 
   rscgf(fillc: string) {
@@ -179,7 +190,11 @@ export class RectShape extends PaintableShape {
     const { x, y, w, h } = this.rect;
     (fillc ? g.f(fillc) : g.ef());
     (this.strokec ? g.s(this.strokec) : g.es());
-    g.dr(x ?? 0, y ?? 0, w ?? 30, h ?? 30);
+    if (this.rc === 0) {
+      g.dr(x ?? 0, y ?? 0, w ?? 30, h ?? 30);
+    } else {
+      g.rr(x ?? 0, y ?? 0, w ?? 30, h ?? 30, this.rc);
+    }
     return g;
   }
 }
