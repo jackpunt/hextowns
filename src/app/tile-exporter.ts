@@ -23,17 +23,8 @@ interface Claz extends Constructor<Tile> {
 
 export type CountClaz = [count: number, claz: Claz, ...args: any];
 export class TileExporter {
-  constructor(buttonId = 'makePage', label = 'MakePages') {
-    this.setAnchorClick(buttonId, label, () => this.makeImagePages());
-  }
-  imageGrid = new ImageGrid();
 
-  setAnchorClick(id: string, text: string, onclick?: ((ev: MouseEvent) => void) | 'stop') {
-    const anchor = document.getElementById(id) as HTMLAnchorElement;
-    anchor.innerHTML = `<button type="button">${text}</button>`;
-    if (onclick === 'stop') { anchor.href = 'javascript:void(0);'; anchor.onclick = null; }
-    else if (onclick) anchor.onclick = onclick;
-  }
+  imageGrid = new ImageGrid(() => { return this.makeImagePages() });
 
   makeImagePages() {
     const u = undefined, p0 = Player.allPlayers[0], p1 = Player.allPlayers[1];
@@ -73,7 +64,7 @@ export class TileExporter {
     this.clazToTemplate(circDouble, ImageGrid.circDouble_0_79, pageSpecs);
     this.clazToTemplate(ruleFront, ImageGrid.cardSingle_3_5, pageSpecs);
     this.clazToTemplate(hexDouble, ImageGrid.hexDouble_1_19, pageSpecs);
-    this.downloadPageSpecs(pageSpecs);
+    return pageSpecs;
   }
 
   /** compose bleed, background and Tile (Tile may be transparent, so white background over bleed) */
@@ -141,30 +132,4 @@ export class TileExporter {
     return pageSpecs;
   }
 
-  downloadPageSpecs(pageSpecs: PageSpec[], baseName = `image_${stime.fs("MM-DD_kk_mm_ssL")}`) {
-    let nclick = 0;
-    this.setAnchorClick('download', `Download-P${nclick}`, (ev) => {
-      if (nclick >= pageSpecs.length) {
-        this.setAnchorClick('download', 'Download-done', 'stop');
-        return;
-      }
-      const n = nclick++;
-      const pageSpec = pageSpecs[n];
-      const canvas = pageSpec.canvas as HTMLCanvasElement;
-      const filename = `${baseName}_P${n}.png`;
-      // console.log(stime(this, `.downloadClick: ${canvasId} -> ${filename}`))
-      this.imageGrid.downloadImage(canvas, filename);
-      const next = `${(nclick < pageSpecs.length) ? `P${nclick}`: 'done'}`
-      this.setAnchorClick('download', `Download-${next}`);
-    });
-
-    const bagTiles = {
-    };
-    BonusTile.allTiles;
-    EventTile.allTiles;   // EvalTile
-    PolicyTile.allTiles;  // EvalTile
-
-
-    return;
-  }
 }

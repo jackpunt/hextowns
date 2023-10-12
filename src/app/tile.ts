@@ -813,7 +813,7 @@ export class TownRule extends Tile {
     ['+1 TVP, +1 Coin  per Criminal hired', '+1 TVP per tile/meep  destroyed',  'Crime boss'], //
     ['', '', '', ''], ['', '', '', ''], ['', '', '', ''],
   ] as RuleSpec[];
-  static countClaz = TownRule.rulesText.map(rt => [1, TownRule, rt] as CountClaz);
+  static get countClaz() { return TownRule.rulesText.map(rt => [1, TownRule, rt] as CountClaz) };
 
   rules: RuleSpec;
   constructor(rules: RuleSpec) {

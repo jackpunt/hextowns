@@ -23,7 +23,7 @@ export type GridSpec = {
 export type PageSpec = {
   gridSpec: GridSpec,
   frontObjs: DisplayObject[],
-  backObjs?: DisplayObject[],
+  backObjs?: (DisplayObject  | undefined)[] | undefined,
   canvas?: HTMLCanvasElement,
 }
 
@@ -74,10 +74,13 @@ export class ImageGrid {
     x0: 150 + 1.75 * 150 + 30, y0: 100 + 1.75 * 150 + 30, delx: 833, dely: 578.25, bleed: 30,
   };
 
-  stage: Stage;
-  canvas: HTMLCanvasElement;
+  stage!: Stage;
+  canvas!: HTMLCanvasElement;
 
-  constructor() {
+  constructor(makePageSpecs: () => PageSpec[], buttonId = 'makePage', label = 'MakePages') {
+    this.setAnchorClick(buttonId, label, () => {
+      this.downloadPageSpecs(makePageSpecs());
+    });
   }
 
   setStage(wh: WH, canvasId: string | HTMLCanvasElement = 'gridCanvas') {
@@ -110,7 +113,7 @@ export class ImageGrid {
     return;
   }
 
-  addObjects(gridSpec: GridSpec, frontObjs: DisplayObject[], backObjs: DisplayObject[]) {
+  addObjects(gridSpec: GridSpec, frontObjs: DisplayObject[], backObjs: (DisplayObject | undefined)[] | undefined) {
     const cont = new Container();
     const def = { x0: 0, y0: 0, delx: 300, dely: 300, dpi: 1 }
     const { width, height, x0, y0, x1, delx, dely, dpi, nrow, ncol } = { ...def, ...gridSpec };
@@ -136,6 +139,32 @@ export class ImageGrid {
       }
     });
     return cont.numChildren;
+  }
+
+  setAnchorClick(id: string, text: string, onclick?: ((ev: MouseEvent) => void) | 'stop') {
+    const anchor = document.getElementById(id) as HTMLAnchorElement;
+    anchor.innerHTML = `<button type="button">${text}</button>`;
+    if (onclick === 'stop') { anchor.href = 'javascript:void(0);'; anchor.onclick = null; }
+    else if (onclick) anchor.onclick = onclick;
+  }
+
+  downloadPageSpecs(pageSpecs: PageSpec[], baseName = `image_${stime.fs("MM-DD_kk_mm_ssL")}`) {
+    let nclick = 0;
+    this.setAnchorClick('download', `Download-P${nclick}`, (ev) => {
+      if (nclick >= pageSpecs.length) {
+        this.setAnchorClick('download', 'Download-done', 'stop');
+        return;
+      }
+      const n = nclick++;
+      const pageSpec = pageSpecs[n];
+      const canvas = pageSpec.canvas as HTMLCanvasElement;
+      const filename = `${baseName}_P${n}.png`;
+      // console.log(stime(this, `.downloadClick: ${canvasId} -> ${filename}`))
+      this.downloadImage(canvas, filename);
+      const next = `${(nclick < pageSpecs.length) ? `P${nclick}`: 'done'}`
+      this.setAnchorClick('download', `Download-${next}`);
+    });
+    return;
   }
 
   downloadImage(canvas: HTMLCanvasElement, filename = 'image.png', downloadId = 'download') {
