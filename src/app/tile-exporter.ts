@@ -1,6 +1,6 @@
 import { C, Constructor, stime } from "@thegraid/common-lib";
 import { Container, DisplayObject } from "@thegraid/easeljs-module";
-import { Bank, Blank, Busi, Lake, PS, Resi } from "./auction-tile";
+import { AB, Bank, Blank, Busi, Lake, PS, Resi } from "./auction-tile";
 import { DebtCircle } from "./debt";
 import { EventTile, PolicyTile } from "./event-tile";
 import { H } from "./hex-intfs";
@@ -47,7 +47,8 @@ export class TileExporter {
       ...EventTile.allTileArgs.map(clasArgs => [1, EventTile, ...clasArgs]), // 19 + 5 + 3
       //
       ...PolicyTile.allTileArgs.map(clasArgs => [1, PolicyTile, ...clasArgs]), // 14 + 6 + 1
-      [5, Blank], //
+      [1, AB, 'AB', undefined, 1], [1, AB, undefined, 'AB', 0],
+      [3, Blank], //
       [20, Busi], // TP.busiPerPlayer * 2, 18,
       [24, Resi], // TP.resiPerPlayer * 2, 22,
     ] as CountClaz[];

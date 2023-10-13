@@ -2,7 +2,8 @@ import { stime } from "@thegraid/common-lib";
 import { GP } from "./game-play";
 import { Hex, Hex2 } from "./hex";
 import { H } from "./hex-intfs";
-import type { Player } from "./player";
+import { Player } from "./player";
+import { CenterText } from "./shapes";
 import { DragContext } from "./table";
 import { TP } from "./table-params";
 import { AdjBonusId, AuctionBonus, BagTile, BonusId, BonusMark, BonusTile, MapTile, Tile } from "./tile";
@@ -163,6 +164,26 @@ export class Blank extends AuctionTile {
   constructor(Aname?: string, player?: Player, inf = 0, vp = 0, cost = 0, econ = 0) {
     super(Aname, player, inf, vp, cost, econ);
     // no image
+  }
+}
+
+export class AB extends Blank {
+  constructor(Aname?: string, player?: Player, inf = 0, vp = 0, cost = 0, econ = 0) {
+    super(Aname, player, 0, vp, cost, econ);
+    this.pid = inf;
+    this.abText = new CenterText(Aname, TP.hexRad);
+    this.addChild(this.abText);
+  }
+  pid: number;
+  abText: CenterText;
+  override setPlayerAndPaint(player: Player): void {
+    if (player && this.abText) {
+      const ndx = player.index, ab = this.Aname.substring(ndx, ndx + 1);
+      this.abText.text = ab;
+      super.setPlayerAndPaint(Player.allPlayers[this.pid]);
+      return;
+    }
+    super.setPlayerAndPaint(player);
   }
 }
 

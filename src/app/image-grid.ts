@@ -25,6 +25,7 @@ export type PageSpec = {
   frontObjs: DisplayObject[],
   backObjs?: (DisplayObject  | undefined)[] | undefined,
   canvas?: HTMLCanvasElement,
+  basename?: string,
 }
 
 export class ImageGrid {
@@ -66,12 +67,15 @@ export class ImageGrid {
     // (ncol 3) (nrow 6) (bleed 25)))
   static cardSingle_3_5: GridSpec = {
     width: 3600, height: 5400, nrow: 6, ncol: 3, cardw: 1110, cardh: 810, // (w*300 + 2*bleed)
-    x0: 120 + 3.5 * 150 + 30, y0: 85 + 3.5 * 150 + 30, delx: 1125, dely: 825, bleed: 30, double: false,
+    x0: 120 + 3.5 * 150 + 30, y0: 83 + 3.5 * 150 + 30, delx: 1125, dely: 825, bleed: 30, double: false,
   };
 
+  // (define PPG-MINI-36-SPEC '((file "PPGMiniCard36-0.png") (cardw 800) (cardh 575)
+	// (xmin 150) (ymin 100) (xinc 833) (yinc 578.25)
+	// (over 1) (bleed 25) (xlim 3600) (ylim 5400))
   static cardSingle_1_75: GridSpec = {
     width: 3600, height: 5400, nrow: 9, ncol: 4, cardw: 800, cardh: 575,
-    x0: 150 + 1.75 * 150 + 30, y0: 100 + 1.75 * 150 + 30, delx: 833, dely: 578.25, bleed: 30,
+    x0: 258 + 1.75 * 150 + 30, y0: 96 + 1.75 * 150 + 30, delx: 833, dely: 578.25, bleed: 25,
   };
 
   stage!: Stage;
@@ -148,23 +152,55 @@ export class ImageGrid {
     else if (onclick) anchor.onclick = onclick;
   }
 
-  downloadPageSpecs(pageSpecs: PageSpec[], baseName = `image_${stime.fs("MM-DD_kk_mm_ssL")}`) {
-    let nclick = 0;
-    this.setAnchorClick('download', `Download-P${nclick}`, (ev) => {
-      if (nclick >= pageSpecs.length) {
+  downloadPageSpecs(pageSpecs: PageSpec[]) {
+    let downClick = 0;
+    this.setAnchorClick('download', `Download-P${downClick}`, (ev) => {
+      if (downClick >= pageSpecs.length) {
+        this.addCanvas(undefined);
         this.setAnchorClick('download', 'Download-done', 'stop');
         return;
       }
-      const n = nclick++;
+      const n = downClick++;
       const pageSpec = pageSpecs[n];
       const canvas = pageSpec.canvas as HTMLCanvasElement;
+      const baseName = `${pageSpec.basename ?? 'image'}_${stime.fs("MM-DD_kk_mm_ssL")}`
       const filename = `${baseName}_P${n}.png`;
       // console.log(stime(this, `.downloadClick: ${canvasId} -> ${filename}`))
       this.downloadImage(canvas, filename);
-      const next = `${(nclick < pageSpecs.length) ? `P${nclick}`: 'done'}`
+      const next = `${(downClick < pageSpecs.length) ? `P${downClick}`: 'done'}`
       this.setAnchorClick('download', `Download-${next}`);
     });
+
+    let viewClick = 0;
+    this.setAnchorClick('viewPage', `ViewPage-P${viewClick}`, () => {
+      if (viewClick >= pageSpecs.length) {
+        this.addCanvas(undefined);
+        this.setAnchorClick('viewPage', 'ViewPage-done', 'stop');
+        return;
+      }
+      const n = viewClick++;
+      const pageSpec = pageSpecs[n];
+      const canvas = pageSpec.canvas as HTMLCanvasElement;
+      canvas.style.border = "2px solid";
+      this.addCanvas(canvas);
+      const next = `${(viewClick < pageSpecs.length) ? `P${viewClick}`: 'done'}`
+      this.setAnchorClick('viewPage', `ViewPage-${next}`);
+    })
     return;
+  }
+
+  canvasId: string | undefined;
+  addCanvas(canvas: HTMLCanvasElement | undefined) {
+    const div = document.getElementById('canvasDiv') as HTMLDivElement;
+    if (this.canvasId) {
+      const elt = document.getElementById(this.canvasId);
+      elt?.parentNode?.removeChild(elt);
+      this.canvasId = undefined;
+    }
+    if (canvas) {
+      this.canvasId = canvas.id;
+      div.appendChild(canvas);
+    }
   }
 
   downloadImage(canvas: HTMLCanvasElement, filename = 'image.png', downloadId = 'download') {
