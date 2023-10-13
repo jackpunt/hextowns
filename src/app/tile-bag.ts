@@ -1,4 +1,4 @@
-import { Constructor, className } from "@thegraid/common-lib";
+import { Constructor, className, selectN } from "@thegraid/common-lib";
 import { ValueEvent } from "@thegraid/easeljs-lib";
 import { EventDispatcher } from "@thegraid/easeljs-module";
 import { BagTile } from "./tile";
@@ -48,10 +48,7 @@ export class TileBag<BT extends BagTile> extends Array<BT> {
   }
 
   selectOne(remove = true, bag: BT[] = this) {
-    const index = Math.floor(Math.random() * bag.length);
-    const tile = remove ? bag.splice(index, 1)[0] : bag[index];
-    remove && this.dispatch();
-    return tile;
+    return selectN(bag, 1, remove)[0];
   }
 
   // TODO: also override/disable push, pop, shift?
