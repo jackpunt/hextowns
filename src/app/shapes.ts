@@ -179,7 +179,8 @@ export class RectShape extends PaintableShape {
     g0?: Graphics
   ) {
     super((fillc) => this.rscgf(fillc as string));
-    this.rect = { x, y, w, h }
+    this.rect = { x, y, w, h };
+    this.setBounds(x, y, w, h);
     this.rc = r;
     this.g0 = g0?.clone() ?? new Graphics();
     this.paint(fillc);
@@ -251,7 +252,7 @@ export class TileShape extends HexShape {
 
   constructor(radius?: number, tilt?: number) {
     super(radius, tilt); // sets Bounnds & this.cgf
-    this.cgf = this.tscgf;
+    this.cgf = this.tscgf as CGF;
   }
 
   replaceDisk(colorn: string, r2 = this.radius) {
@@ -266,7 +267,7 @@ export class TileShape extends HexShape {
     return g;
   }
   /** colored HexShape filled with very-lightgrey disk: */
-  tscgf(colorn: string, super_cgf: CGF = this.hscgf) {
+  tscgf(colorn: string, super_cgf: CGF = this.hscgf as CGF) {
     super_cgf.call(this, colorn); // paint HexShape(colorn)
     const g = this.replaceDisk(TileShape.fillColor, this.radius * H.sqrt3_2 * (54 / 60));
     return g;
@@ -368,7 +369,7 @@ export class UtilButton extends Container implements Paintable {
   constructor(color: string, text: string, public fontSize = 30, public textColor = C.black, cgf?: CGF) {
     super();
     this.label = new CenterText(text, fontSize, textColor);
-    this.shape = new PaintableShape(cgf ?? ((c) => this.ubcsf(c)));
+    this.shape = new PaintableShape(cgf ?? ((c) => this.ubcsf(c as string)));
     this.shape.paint(color);
     this.addChild(this.shape, this.label);
   }

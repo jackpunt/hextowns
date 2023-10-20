@@ -175,7 +175,7 @@ export class ImageGrid {
     this.setAnchorClick('viewPage', `ViewPage-P${viewClick}`, () => {
       if (viewClick >= pageSpecs.length) {
         this.addCanvas(undefined);
-        this.setAnchorClick('viewPage', 'ViewPage-done', 'stop');
+        this.setAnchorClick('viewPage', 'ViewPage-X', 'stop');
         return;
       }
       const n = viewClick++;
@@ -183,7 +183,7 @@ export class ImageGrid {
       const canvas = pageSpec.canvas as HTMLCanvasElement;
       canvas.style.border = "2px solid";
       this.addCanvas(canvas);
-      const next = `${(viewClick < pageSpecs.length) ? `P${viewClick}`: 'done'}`
+      const next = `${(viewClick < pageSpecs.length) ? `P${viewClick}`: 'X'}`
       this.setAnchorClick('viewPage', `ViewPage-${next}`);
     })
     return;

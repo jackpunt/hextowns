@@ -742,7 +742,8 @@ export class GamePlay extends GamePlay0 {
     KeyBinder.keyBinder.setKey('S-P', { thisArg: this, func: () => { this.shiftAndProcess(undefined, true, false, PS) } })
     KeyBinder.keyBinder.setKey('C-q', { thisArg: this, func: () => { this.table.dragStartAndDrop(this.eventHex.tile, this.recycleHex) } })  // C-q recycle from eventHex
     KeyBinder.keyBinder.setKey('C-s', { thisArg: this.gameSetup, func: () => { this.gameSetup.restart() } })// C-s START
-    KeyBinder.keyBinder.setKey('C-c', { thisArg: this, func: this.stopPlayer })// C-c Stop Planner
+    //KeyBinder.keyBinder.setKey('C-c', { thisArg: this, func: this.stopPlayer })// C-c Stop Planner
+    KeyBinder.keyBinder.setKey('C-c', { thisArg: this, func: this.reCacheTiles })
     KeyBinder.keyBinder.setKey('m', { thisArg: this, func: this.makeMove, argVal: true })
     KeyBinder.keyBinder.setKey('M', { thisArg: this, func: this.makeMoveAgain, argVal: true })
     KeyBinder.keyBinder.setKey('n', { thisArg: this, func: this.autoMove, argVal: false })
@@ -764,6 +765,23 @@ export class GamePlay extends GamePlay0 {
     table.undoShape.on(S.click, () => this.undoMove(), this)
     table.redoShape.on(S.click, () => this.redoMove(), this)
     table.skipShape.on(S.click, () => this.skipMove(), this)
+  }
+
+  cacheScale = TP.cacheTiles;
+  reCacheTiles() {
+    this.cacheScale = Math.max(1, this.table.scaleCont.scaleX);
+    TP.cacheTiles = (TP.cacheTiles == 0) ? this.cacheScale : 0;
+    console.log(stime('GamePlay', `.reCacheTiles: TP.cacheTiles=`), TP.cacheTiles, this.table.scaleCont.scaleX);
+    Tile.allTiles.forEach(tile => {
+      if (tile.cacheID) {
+        tile.uncache();
+      } else {
+        const rad = tile.radius, b = tile.getBounds() ?? { x: -rad, y: -rad, width: 2 * rad, height: 2 * rad };
+        // tile.cache(b?.x ?? -rad, b?.y ?? -rad, b?.width ?? 2 * rad, b?.height ?? 2 * rad, TP.cacheTiles);
+        tile.cache(b.x, b.y , b.width, b.height, TP.cacheTiles);
+      }
+    });
+    this.hexMap.update();
   }
 
   /**

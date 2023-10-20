@@ -558,14 +558,14 @@ export class Table extends EventDispatcher  {
     const { w, h } = this.hexMap.centerHex.xywh();
     const rowy = (i: number) => { return (i - .5) * h / 2}
     const align = (['left', 'right'] as const)[index], dir = [1, -1][index];
-    const bLabels = [{l: 'resa', fs: .6, key: 'r'}, {l: 'Done', k: 'd'}]
+    const bLabels = [{l: 'reserve', fs: .6, key: 'r'}, {l: 'Done', k: 'd'}]
     let dw = 0;
     bLabels.forEach(({l: label, fs, key}, i) => {
       const b = new ButtonBox(label, label, 'lightgreen', TP.hexRad * (fs ?? .6));
-      b.attachToContainer(cont, { x: (3.6 * w + dw) * dir, y: rowy(0 - 1.1) }) // just a ['Done'] label/button
+      b.attachToContainer(cont, { x: (3.2 * w + dw) * dir, y: rowy(0 - 1.1) }) // just a ['Done'] label/button
       b.boxAlign(align);
       b.on(S.click, () => this.doButton(label), this)[S.Aname] = `b:${label}`;
-      dw += (b.wide + 2);
+      dw += (b.wide + 9 * TP.hexRad / 60);
       const k = key ?? label.substring(0, 1).toLowerCase();
       KeyBinder.keyBinder.setKey(k, { thisArg: this, func: this.doButton, argVal: label })
     })
@@ -633,7 +633,7 @@ export class Table extends EventDispatcher  {
       case 'Reserve': {
         break;
       }
-      case 'resa': {
+      case 'reserve': {
         this.gamePlay.resaAction();
         break;
       }
@@ -868,7 +868,7 @@ export class Table extends EventDispatcher  {
       //this.scaleUp(Dragger.dragCont, 1.7); // Items being dragged appear larger!
     }
     if (bindKeys) {
-      this.bindKeysToScale("a", scaleC, 820, TP.hexRad);
+      this.bindKeysToScale("a", scaleC, 980, TP.hexRad);
       KeyBinder.keyBinder.setKey('Space',   { thisArg: this, func: () => this.dragTarget() });
       KeyBinder.keyBinder.setKey('S-Space', { thisArg: this, func: () => this.dragTarget() });
       KeyBinder.keyBinder.setKey('S-s', { thisArg: this, func: () => StarToken.dragToken() });

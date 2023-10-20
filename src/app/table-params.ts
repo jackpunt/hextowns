@@ -19,6 +19,7 @@ export function buildURL(scheme = 'wss', host = TP.ghost, domain = TP.gdomain, p
   return `${scheme}://${host}.${domain}:${port}${path}`
 }
 export class TP {
+  static cacheTiles = 2;
   // negative Econ is charged as cost when recruited.
   static leaderEcon = -6;
   static policeEcon = -3;

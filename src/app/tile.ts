@@ -918,8 +918,7 @@ export class Monument extends MapTile {
     this.addImageBitmap(`Monument${inst}`);
   }
   override get cost(): number {
-    const inst = Monument.getId(this.player); // super constructor *has* set player;
-    return (this.source) ? Monument.costs[(this.source.counter.getValue()) - 1] : Monument.cost[inst];
+    return Monument.costs[(this.source?.counter.getValue() ?? 1) - 1];
   }
 
   // get source() { return GP.gamePlay.marketSource[this.player.index]['Monument']}
