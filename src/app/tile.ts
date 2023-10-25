@@ -1,8 +1,7 @@
-import { C, Constructor, F, ImageLoader, S, className, stime } from "@thegraid/common-lib";
+import { C, Constructor, F, ImageLoader, S, className, selectN, stime } from "@thegraid/common-lib";
 import { Bitmap, Container, DisplayObject, Graphics, MouseEvent, Shape, Text } from "@thegraid/easeljs-module";
 import { NumCounter } from "./counters";
 import type { Debt } from "./debt";
-import { removeChildType, selectN } from "./functions";
 import { GP, GamePlay } from "./game-play";
 import { Hex, Hex2, HexMap } from "./hex";
 import type { Player } from "./player";
@@ -10,8 +9,8 @@ import { BalMark, C1, CapMark, CenterText, HexShape, InfRays, InfShape, Paintabl
 import type { DragContext, Table } from "./table";
 import { PlayerColor, PlayerColorRecord, TP, criminalColor, playerColorRecord, playerColorsC } from "./table-params";
 import { TileBag } from "./tile-bag";
-import { TileSource } from "./tile-source";
 import { CountClaz } from "./tile-exporter";
+import { TileSource } from "./tile-source";
 
 export type AuctionBonus = 'star' | 'econ' | 'infl' | 'actn';
 export type AdjBonusId = 'Bank' | 'Lake';
@@ -24,13 +23,6 @@ type BonusInfo<T extends DisplayObject> = {
   x: number, y: number, size: number,
   paint?: (s: T, info: BonusInfo<T>) => void
 }
-
-declare module "@thegraid/easeljs-module" {
-  interface Container {
-    removeChildType<T extends DisplayObject>(type: Constructor<T>, pred?: (dobj: T) => boolean ): T[];
-  }
-}
-Container.prototype.removeChildType = removeChildType;
 
 export class BonusMark extends Container {
 
