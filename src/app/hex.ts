@@ -444,6 +444,7 @@ export class Hex2 extends Hex {
     return Math.sqrt(dx * dx + dy * dy); // tw == H.sqrt3
   }
   /** location of corner between dir0 and dir1; in parent coordinates. */
+  // hexmarket uses to find ewDir corner between two nsDir edges.
   cornerPoint(dir0: HexDir, dir1: HexDir) {
     let d0 = H.ewDirRot[dir0], d1 = H.ewDirRot[dir1]
     let a2 = (d0 + d1) / 2, h = this.radius
@@ -509,12 +510,13 @@ class HexMark extends Shape {
   hex: Hex2;
   constructor(public hexMap: HexMap, radius: number, radius0: number = 0) {
     super();
-    const mark = this, cm = "rgba(127,127,127,.3)";
-    mark.mouseEnabled = false
+    const mark = this;
+    const cm = "rgba(127,127,127,.3)";
     mark.graphics.f(cm).dp(0, 0, radius, 6, 0, 30)
-    mark.cache(-radius, -radius, 2*radius, 2*radius)
+    mark.cache(-radius, -radius, 2 * radius, 2 * radius)
     mark.graphics.c().f(C.BLACK).dc(0, 0, radius0)
     mark.updateCache("destination-out")
+    mark.mouseEnabled = false;
   }
 
   // Fail: markCont to be 'above' tileCont...
@@ -639,12 +641,12 @@ export class HexMap extends Array<Array<Hex>> implements HexM {
   /** create/attach Graphical components for HexMap */
   addToMapCont(): this {
     this.mark = new HexMark(this, this.radius, this.radius/2.5)
-    let mapCont = this.mapCont
+    const mapCont = this.mapCont;
     MapCont.cNames.forEach(cname => {
-      let cont = new Container()
-      mapCont[cname] = cont
+      const cont = new Container();
+      mapCont[cname] = cont;
       cont[S.Aname] = cont.name = cname;
-      mapCont.addChild(cont)
+      mapCont.addChild(cont);
     })
     return this
   }
@@ -724,10 +726,11 @@ export class HexMap extends Array<Array<Hex>> implements HexM {
 
   /** link hex to/from each extant neighor */
   link(hex: Hex, rc: RC = hex, map: Hex[][] = this, nt: Topo = H.ewTopo(rc), lf: (hex: Hex) => LINKS = (hex) => hex.links) {
-    let topoDirs = Object.keys(nt) as Array<HexDir>
+    const topoDirs = Object.keys(nt) as Array<HexDir>
     topoDirs.forEach(dir => {
-      let nr = rc.row + nt[dir].dr, nc = rc.col + nt[dir].dc //let {row, col} = this.nextRowCol(hex, dir, nt)
-      let nHex = map[nr] && map[nr][nc]
+      const nr = rc.row + nt[dir].dr;
+      const nc = rc.col + nt[dir].dc;
+      const nHex = map[nr] && map[nr][nc]
       if (!!nHex) {
         lf(hex)[dir] = nHex
         lf(nHex)[H.dirRev[dir]] = hex
@@ -816,6 +819,7 @@ export class HexMap extends Array<Array<Hex>> implements HexM {
     }
     return hexAry
   }
+
   /**
    *
    * @param n number of Hex to create
@@ -840,3 +844,4 @@ export class HexMap extends Array<Array<Hex>> implements HexM {
 export class HexMapD extends HexMap {
 
 }
+
