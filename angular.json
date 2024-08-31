@@ -63,14 +63,14 @@
         "serve": {
           "builder": "@angular-devkit/build-angular:dev-server",
           "options": {
-            "browserTarget": "latest-angular:build",
-                             "port": 4202
+            "browserTarget": "latest-angular:build"
           },
           "configurations": {
             "production": {
               "browserTarget": "hextowns:build:production"
             },
             "development": {
+            "port": 4201,
               "browserTarget": "hextowns:build:development"
             }
           },
