@@ -18,6 +18,7 @@ interface Tile extends DisplayObject {
 }
 
 interface Claz extends Constructor<Tile> {
+  /** 0 => flip-on-horiz-axiz, 180 => flip-on-vert-axis, undefined => blank */
   rotateBack: number | undefined;
 }
 
@@ -59,7 +60,7 @@ export class TileExporter {
       [8, InflToken2],
       [8, StarToken2],
     ] as CountClaz[];
-    const ruleFront = TownRule.countClaz as CountClaz;
+    const ruleFront = TownRule.countClaz as CountClaz[];
 
     const pageSpecs: PageSpec[] = [];
     this.clazToTemplate(circDouble, ImageGrid.circDouble_0_79, pageSpecs);
