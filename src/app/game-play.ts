@@ -11,7 +11,7 @@ import { H } from "./hex-intfs";
 import { Criminal, Meeple } from "./meeple";
 import type { Planner } from "./plan-proxy";
 import { Player } from "./player";
-import { CenterText } from "./shapes";
+import { C1, CenterText, TileShape } from "./shapes";
 import { GameStats, TableStats } from "./stats";
 import { LogWriter } from "./stream-writer";
 import { AuctionShifter, Table } from "./table";
@@ -130,6 +130,7 @@ export class GamePlay0 {
     this.reserveTiles = [[],[]];
     this.dice = new Dice();
     this.shifter = new AuctionShifter(this.auctionTiles);
+    TileShape.fillColor = C1.white_8;       // for good measure
     AuctionTile.fillBag(this.shifter.tileBag as TileBag<AuctionTile>); // put R/B/PS/L into draw bag.
     AutoCrime.makeAllTiles(TP.autoCrimePerBag * this.shifter.tileBag.length);
     EventTile.makeAllTiles();
@@ -621,17 +622,6 @@ export class GamePlay0 {
   //   this.placeTile(tile, hex);  // buildAction
   //   return true;
   // }
-}
-
-/** GamePlayD has compatible hexMap(mh, nh) but does not share components. used by Planner */
-export class GamePlayD extends GamePlay0 {
-  //override hexMap: HexMaps = new HexMap();
-  constructor(nh = TP.nHexes, mh = TP.mHexes) {
-    super();
-    this.hexMap[S.Aname] = `GamePlayD#${this.id}`;
-    // this.hexMap.makeAllDistricts(dbp, dop); // included in GamePlay0
-    return;
-  }
 }
 
 /** GamePlay with Table & GUI (KeyBinder, ParamGUI & Dragger) */

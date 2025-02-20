@@ -4,10 +4,11 @@ import { AB, Bank, Blank, Busi, Lake, PS, Resi } from "./auction-tile";
 import { DebtCircle } from "./debt";
 import { EventTile, PolicyTile } from "./event-tile";
 import { H } from "./hex-intfs";
-import { ImageGrid, PageSpec } from "./image-grid";
+import { ImageGrid, PageSpec, type GridSpec } from "./image-grid";
 import { ActnToken2, EconToken2, InflToken2, StarToken2 } from "./infl";
 import { Player } from "./player";
-import { CircleShape, HexShape, PaintableShape, TileShape } from "./shapes";
+import { HexShape, PaintableShape, TileShape, type Paintable } from "./shapes";
+import { Table } from "./table";
 import { BonusTile, Church, Courthouse, Monument2, TownRule, TownStart, University } from "./tile";
 // end imports
 
@@ -29,6 +30,7 @@ export class TileExporter {
 
   makeImagePages() {
     const u = undefined, p0 = Player.allPlayers[0], p1 = Player.allPlayers[1];
+    const fillColor = TileShape.fillColor; TileShape.fillColor = C.WHITE;
     const hexDouble = [
       [2, Monument2, u, u, u, u, u, u, 0],
       [2, Monument2, u, u, u, u, u, u, 1],
@@ -66,6 +68,7 @@ export class TileExporter {
     this.clazToTemplate(circDouble, ImageGrid.circDouble_0_79, pageSpecs);
     this.clazToTemplate(ruleFront, ImageGrid.cardSingle_3_5, pageSpecs);
     this.clazToTemplate(hexDouble, ImageGrid.hexDouble_1_19, pageSpecs);
+    TileShape.fillColor = fillColor; // restore
     return pageSpecs;
   }
 
@@ -76,7 +79,7 @@ export class TileExporter {
       const tile = new claz(...args), base = tile.baseShape as PaintableShape;
       tile.setPlayerAndPaint(player);
       const backRad = (base instanceof TileShape) ? tile.radius * H.sqrt3_2 * (55 / 60) : 0;
-      const back = new CircleShape(C.WHITE, backRad);
+      // const back = new CircleShape(C.WHITE, backRad);
       const bleed = new HexShape(tile.radius + addBleed); // .09 inch + 1px
       {
         bleed.paint(base.colorn ?? C.grey, true);
@@ -87,9 +90,19 @@ export class TileExporter {
         bleed.setBounds(x, y, width, height);
         bleed.cache(x - dx0, y - d, width + dx0 + dw, height + 2 * d);
       }
-      cont.addChild(bleed, back, tile);
+      cont.addChild(bleed, tile);
     }
     return cont;
+  }
+
+  // when update to TileExporter: override composeTile to repaint as allPlayers[0] or allPlayers[1]
+  ct2(claz: Constructor<Tile>, args: any[], gridSpec: GridSpec, back = false, edge: 'L' | 'R' | 'C' = 'C') {
+    const cont = this.composeTile(claz, args, /*gridSpec, back,*/ undefined, edge)
+    if (back) {
+      const allPlayers = Table.table.gamePlay.allPlayers;
+      const color = (back ? allPlayers[1] : allPlayers[0]).color;
+      cont.children.forEach(dobj => (dobj as Paintable).paint(color)) // [bleed, tile]
+    }
   }
 
   /** each PageSpec will identify the canvas that contains the Tile-Images */
@@ -116,7 +129,7 @@ export class TileExporter {
           let backTile = undefined;
           if (claz.rotateBack !== undefined) {
             backTile = this.composeTile(claz, args, backPlayer, edge, addBleed);
-            const tile = backTile.getChildAt(2); // [bleed, back, tile]
+            const tile = backTile.getChildAt(1); // [bleed, back, tile]
             tile.rotation = claz.rotateBack;
           }
           backAryPagen.push(backTile);
