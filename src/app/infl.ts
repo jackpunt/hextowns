@@ -38,9 +38,9 @@ class TokenCounter extends NumCounterBox {
   /** mixin static & methods from the prototype */
   static mixin2(source: TokenSource, target: NumCounter) {
     if (!target) return target;
-    target['source'] = source;
-    const meths = ['makeUnit', 'setValue'];
-    meths.forEach(meth => target[meth] = TokenCounter.prototype[meth]);
+    ;(target as any).source = source;
+    const meths = ['makeUnit', 'setValue'] as (keyof TokenCounter)[];
+    meths.forEach(meth => (target as any)[meth] = TokenCounter.prototype[meth]);
     return target;
 
   }
@@ -48,10 +48,8 @@ class TokenCounter extends NumCounterBox {
   /** mixin static & methods from an instance: */
   mixinTo(target: NumCounter) {
     if (!target) return target;
-    const meths = ['source', 'makeUnit', 'setValue'];
-    meths.forEach(meth => {
-      target[meth] = this[meth];
-    })
+    const meths = ['source', 'makeUnit', 'setValue'] as (keyof TokenCounter)[];
+    meths.forEach(meth => (target as any)[meth] = this[meth])
     return target;
   }
 
@@ -90,7 +88,7 @@ class TokenCounter extends NumCounterBox {
 
 /** Half-size Tokens that confer their bonusType: AuctionBonus to the Tile they are dropped on. */
 export class BonusToken extends Token {
-  static Bname(bonusType: AuctionBonus, player: Player) {
+  static Bname(bonusType: AuctionBonus, player?: Player) {
     // UID+1 will be this.id
     return `${bonusType}:${player?.index ?? ''}-${UID.get() + 1}`
   }

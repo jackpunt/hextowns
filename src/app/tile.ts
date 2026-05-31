@@ -277,7 +277,7 @@ export class Tile extends Tile0 {
     return source as TS;
   }
   /** source: when set from TileSource.availUnit */
-  source: TileSource<Tile>;
+  source!: TileSource<Tile>;
 
   nameText: Text;
   get nB() { return 0; }
@@ -286,7 +286,7 @@ export class Tile extends Tile0 {
   get fR() { return 0; }
 
   /** location at start-of-game & after-Recycle; Meeple & Civic; Policy: sendHome -> sendToBag */
-  homeHex: Hex = undefined;
+  homeHex?: Hex = undefined;
   /** location at start-of-drag */
   fromHex: Hex2;
   get isDragable() { return true; }
